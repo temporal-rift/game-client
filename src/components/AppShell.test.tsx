@@ -67,4 +67,44 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('button', { name: /The Signal Fractures/ })).toBeDisabled()
   })
+
+  it('rehydrates the selection from the new pending action when the game changes', () => {
+    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+
+    const nextGame = {
+      ...sampleFixturePlayerView,
+      gameId: 'fixture-game-2',
+      pendingAction: { cardId: 'card-2', targetId: 'evt-3', confirmLabel: 'Confirm action' },
+    }
+    rerender(<AppShell playerView={nextGame} isSampleData />)
+
+    expect(screen.getByText(/Split the Thread \(grade 2\) → The Last Delegation/)).toBeInTheDocument()
+  })
+
+  it('clears a selected target that becomes illegal after a same-game refresh instead of leaving it confirmable', () => {
+    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+
+    const refreshedView = {
+      ...sampleFixturePlayerView,
+      events: sampleFixturePlayerView.events.map((event) =>
+        event.id === 'evt-2' ? { ...event, isValidTarget: false } : event,
+      ),
+    }
+    rerender(<AppShell playerView={refreshedView} isSampleData />)
+
+    expect(screen.getByText('Select a card and a target to confirm an action.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Convergence at the Vault/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('clears a selected card that is no longer in hand after a same-game refresh', () => {
+    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+
+    const refreshedView = {
+      ...sampleFixturePlayerView,
+      hand: sampleFixturePlayerView.hand.filter((card) => card.id !== 'card-1'),
+    }
+    rerender(<AppShell playerView={refreshedView} isSampleData />)
+
+    expect(screen.getByText('Select a card and a target to confirm an action.')).toBeInTheDocument()
+  })
 })

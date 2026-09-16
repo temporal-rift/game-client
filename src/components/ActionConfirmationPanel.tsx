@@ -20,7 +20,7 @@ export function ActionConfirmationPanel({
       <h2 id="action-confirmation-heading">Action confirmation</h2>
       {selectedCard && selectedTarget ? (
         <div>
-          <p>
+          <p aria-live="polite" aria-atomic="true">
             {selectedCard.name} (grade {selectedCard.grade}) → {selectedTarget.title}
           </p>
           <button type="button" disabled={isSampleData || !onConfirm} onClick={onConfirm}>
