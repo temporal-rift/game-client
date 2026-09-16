@@ -257,11 +257,18 @@ export function FactionEmblem() {
 
 const ROMAN_GRADES = ['0', 'I', 'II', 'III', 'IV', 'V'] as const
 
+function normalizeGrade(grade: number): number {
+  if (!Number.isFinite(grade)) {
+    return 0
+  }
+  return Math.max(0, Math.min(Math.round(grade), 5))
+}
+
 export function GradeBadge({ grade }: { readonly grade: number }) {
-  const displayGrade = ROMAN_GRADES[Math.max(0, Math.min(grade, 5))]
+  const normalizedGrade = normalizeGrade(grade)
   return (
-    <span className="grade-badge" aria-label={`Grade ${grade}`}>
-      {displayGrade}
+    <span className="grade-badge" aria-label={`Grade ${normalizedGrade}`}>
+      {ROMAN_GRADES[normalizedGrade]}
     </span>
   )
 }
