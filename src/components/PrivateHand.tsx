@@ -1,5 +1,5 @@
 import type { HandCard } from '../types/playerView'
-import { GradeBadge } from './icons'
+import { CardGlyph, GradeBadge } from './icons'
 
 interface PrivateHandProps {
   readonly hand: readonly HandCard[]
@@ -17,7 +17,10 @@ export function PrivateHand({ hand, selectedCardId, onSelectCard }: PrivateHandP
           return (
             <li key={card.id}>
               <button type="button" className="board-tile" aria-pressed={isSelected} onClick={() => onSelectCard(card.id)}>
-                <GradeBadge grade={card.grade} />
+                <span className="hand-card-top">
+                  <CardGlyph seed={card.id} />
+                  <GradeBadge grade={card.grade} />
+                </span>
                 <span className="board-tile-title">{card.name}</span>
                 <p>{card.description}</p>
                 {isSelected && <span className="selection-flag">Selected card</span>}

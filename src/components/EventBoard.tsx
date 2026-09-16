@@ -1,6 +1,6 @@
 import type { EventBoardEntry } from '../types/playerView'
 import { BandMeter } from './BandMeter'
-import { EventStatusIcon } from './icons'
+import { EventSceneArt, EventStatusIcon } from './icons'
 
 interface EventBoardProps {
   readonly events: readonly EventBoardEntry[]
@@ -30,6 +30,7 @@ export function EventBoard({ events, selectedTargetId, onSelectTarget }: EventBo
                 disabled={!event.isValidTarget}
                 onClick={() => onSelectTarget(event.id)}
               >
+                <EventSceneArt seed={event.id} />
                 <span className="board-tile-status">
                   <EventStatusIcon status={event.status} />
                   <span>{STATUS_LABEL[event.status]}</span>

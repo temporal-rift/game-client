@@ -42,10 +42,12 @@ export function AppShell({ playerView, isSampleData }: AppShellProps) {
         <h1>
           <RiftMark /> Temporal Rift
         </h1>
-        <p>
-          Era {playerView.currentEra}, round {playerView.currentRound} — {playerView.phaseLabel}
+        <p className="status-row">
+          <span className="pill">Era {playerView.currentEra}</span>
+          <span className="pill">Round {playerView.currentRound}</span>
+          <span className="pill">{playerView.phaseLabel}</span>
         </p>
-        {playerView.phaseDeadlineLabel && <p>Deadline: {playerView.phaseDeadlineLabel}</p>}
+        {playerView.phaseDeadlineLabel && <p className="deadline">Deadline: {playerView.phaseDeadlineLabel}</p>}
         {isSampleData && <p role="status">Showing sample data — not a live game.</p>}
       </header>
       <main>
