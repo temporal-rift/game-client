@@ -4,6 +4,7 @@ export interface EventBoardEntry {
   readonly title: string
   readonly publicBand: string
   readonly status: 'resolved' | 'in-progress' | 'upcoming'
+  readonly isValidTarget: boolean
 }
 
 export interface HandCard {
@@ -27,10 +28,9 @@ export interface FactionIntel {
   readonly knowledge: readonly KnowledgeItem[]
 }
 
-export interface PendingActionSummary {
-  readonly id: string
-  readonly summary: string
-  readonly targetLabel: string
+export interface PendingActionSelection {
+  readonly cardId: string
+  readonly targetId: string
   readonly confirmLabel: string
 }
 
@@ -38,8 +38,10 @@ export interface PlayerView {
   readonly gameId: string
   readonly currentEra: number
   readonly currentRound: number
+  readonly phaseLabel: string
+  readonly phaseDeadlineLabel: string | null
   readonly events: readonly EventBoardEntry[]
   readonly hand: readonly HandCard[]
   readonly faction: FactionIntel
-  readonly pendingAction: PendingActionSummary | null
+  readonly pendingAction: PendingActionSelection | null
 }

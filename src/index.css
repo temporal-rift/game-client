@@ -41,3 +41,92 @@ h1,
 h2 {
   font-weight: 600;
 }
+
+h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+main {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.board-tile {
+  width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.board-tile:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.board-tile[aria-pressed='true'] {
+  border-width: 2px;
+  border-style: double;
+  font-weight: 600;
+}
+
+.board-tile:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+.board-tile-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.board-tile-title {
+  font-size: 1.05rem;
+}
+
+.selection-flag,
+.board-tile-note {
+  font-size: 0.8rem;
+}
+
+.knowledge-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.grade-badge,
+.band-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+@media (max-width: 30rem) {
+  main {
+    grid-template-columns: 1fr;
+  }
+}
