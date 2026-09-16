@@ -20,6 +20,8 @@ These are planned rules. Owning-service issues must implement and verify them be
 
 Deployed identity/routing is infrastructure-owned. Initial synchronization uses authenticated polling. Privileged diagnostics are kept outside the player entry point.
 
+The [implementation graph and model routing](https://github.com/temporal-rift/game-client/issues/11) assign the 24 component stories to 10 L, 12 M and two H design tasks; umbrella acceptance is L. Luna/Haiku handle bounded work and Terra/Sonnet handle integration, with smaller implementation pieces within the broad stories. Sol/Opus are limited to one focused design/review pass for each H story. Astra/Fable have zero planned assignments. These routing estimates retain all acceptance requirements and do not imply measured model equivalence.
+
 ## Rule clarification gates
 
 An advertised interaction with no legal target must be reconciled before implementation. In particular, Unravel currently describes another player's chain while the normal roster permits only one Weaver. The owner issue must establish a reachable interaction or explicitly approved replacement; the browser must not invent it.
@@ -28,33 +30,33 @@ The declaration-window and phase-opening reactive offers are starting proposals 
 
 ## Backlog
 
-- [feat(player): publish recoverable gameplay view contracts](https://github.com/temporal-rift/apis/issues/74)
-- [fix(scoring): authorize score queries and hide private reasons](https://github.com/temporal-rift/game-service/issues/204)
-- [fix(notification): prevent hidden faction disclosure in score updates](https://github.com/temporal-rift/read-service/issues/91)
-- [feat(player): expose recoverable lobby and own action state](https://github.com/temporal-rift/game-service/issues/205)
-- [feat(projection): recover all player-entitled gameplay state](https://github.com/temporal-rift/read-service/issues/92)
-- [feat(playtest): provide an isolated browser-playable deployment](https://github.com/temporal-rift/infrastructure/issues/46)
-- [feat(client): establish the React TypeScript browser foundation](https://github.com/temporal-rift/game-client/issues/1)
-- [feat(board): build the illustrated DOM and SVG gameplay board](https://github.com/temporal-rift/game-client/issues/2)
-- [fix(collide): equalize selected weights exactly](https://github.com/temporal-rift/timeline-service/issues/103)
-- [feat(specials): complete player-reachable timeline faction effects](https://github.com/temporal-rift/timeline-service/issues/104)
-- [feat(victory): evaluate faction objectives and shared era-end wins](https://github.com/temporal-rift/game-service/issues/207)
-- [feat(phases): make declarations and reactive paradox play reachable](https://github.com/temporal-rift/game-service/issues/206)
-- [feat(factions): complete private intentions and special action rules](https://github.com/temporal-rift/game-service/issues/208)
-- [feat(events): adopt the published timeline event major for gameplay](https://github.com/temporal-rift/game-service/issues/203)
-- [feat(events): adopt the published timeline event major for gameplay](https://github.com/temporal-rift/read-service/issues/90)
-- [feat(auth): support separate OIDC player sessions](https://github.com/temporal-rift/game-client/issues/3)
-- [feat(lobby): support invitations and recoverable game membership](https://github.com/temporal-rift/game-client/issues/4)
-- [feat(hand): implement private seven-to-five selection](https://github.com/temporal-rift/game-client/issues/7)
-- [feat(actions): support graded cards and faction-special targeting](https://github.com/temporal-rift/game-client/issues/6)
-- [feat(intel): distinguish public observations from private knowledge](https://github.com/temporal-rift/game-client/issues/8)
-- [feat(paradox): support timed reactive resolution decisions](https://github.com/temporal-rift/game-client/issues/5)
-- [feat(results): show shared winners and permitted final reveals](https://github.com/temporal-rift/game-client/issues/9)
-- [feat(sync): recover player state through authenticated polling](https://github.com/temporal-rift/game-client/issues/10)
-- [test(browser): verify complete games with isolated player contexts](https://github.com/temporal-rift/infrastructure/issues/47)
-- [feat(gameplay): deliver a complete human-playable browser game](https://github.com/temporal-rift/game-client/issues/11)
+- [Define complete participant-scoped gameplay contracts](https://github.com/temporal-rift/apis/issues/74)
+- [See scores without losing hidden-faction privacy](https://github.com/temporal-rift/game-service/issues/204)
+- [Receive score updates that preserve hidden factions](https://github.com/temporal-rift/read-service/issues/91)
+- [Resume my lobby and accepted gameplay decisions](https://github.com/temporal-rift/game-service/issues/205)
+- [Recover my complete private-perspective game view](https://github.com/temporal-rift/read-service/issues/92)
+- [Play through an isolated authenticated browser deployment](https://github.com/temporal-rift/infrastructure/issues/46)
+- [Open a reliable browser gameplay interface](https://github.com/temporal-rift/game-client/issues/1)
+- [Understand and interact with the illustrated gameplay board](https://github.com/temporal-rift/game-client/issues/2)
+- [Create exact selected-outcome ties with Collide](https://github.com/temporal-rift/timeline-service/issues/103)
+- [Use reachable causal and cross-era faction effects](https://github.com/temporal-rift/timeline-service/issues/104)
+- [Receive complete era-end victories and shared results](https://github.com/temporal-rift/game-service/issues/207)
+- [Declare and respond to paradoxes before their deadlines](https://github.com/temporal-rift/game-service/issues/206)
+- [Use faction specials with private intentions and clear limits](https://github.com/temporal-rift/game-service/issues/208)
+- [Keep gameplay consistent across published timeline event versions](https://github.com/temporal-rift/game-service/issues/203)
+- [Keep gameplay consistent across published timeline event versions](https://github.com/temporal-rift/read-service/issues/90)
+- [Sign in with my own private player session](https://github.com/temporal-rift/game-client/issues/3)
+- [Invite players and resume my game lobby](https://github.com/temporal-rift/game-client/issues/4)
+- [Choose and recover my private five-card hand](https://github.com/temporal-rift/game-client/issues/7)
+- [Confirm graded cards and legal faction-special targets](https://github.com/temporal-rift/game-client/issues/6)
+- [Distinguish public observations from my private knowledge](https://github.com/temporal-rift/game-client/issues/8)
+- [Make timed choices during paradox resolution](https://github.com/temporal-rift/game-client/issues/5)
+- [See authoritative shared winners and final reveals](https://github.com/temporal-rift/game-client/issues/9)
+- [Resume safely after reload or interrupted requests](https://github.com/temporal-rift/game-client/issues/10)
+- [Verify complete games with separate private player views](https://github.com/temporal-rift/infrastructure/issues/47)
+- [Play a complete private multiplayer Temporal Rift game](https://github.com/temporal-rift/game-client/issues/11)
 
-Every issue is tracked on the organization board with initial status Todo. The gameplay umbrella links the component issues; completing planning does not imply implementation is complete.
+All 25 backlog issues use the user-story format: explicit user outcomes, acceptance scenarios, rules, scope, compatibility and Definition of Done. Each is classified with the user-story label and tracked on the organization board. The gameplay umbrella links the component issues; completing planning does not imply implementation is complete.
 
 ## Visual direction
 
