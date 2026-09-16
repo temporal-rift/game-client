@@ -2,9 +2,28 @@
 
 Browser gameplay client for Temporal Rift, using React, TypeScript, Vite and a retained 2D DOM/SVG presentation.
 
-This repository currently contains the agreed visual direction and delivery backlog. The application has not been implemented yet.
-
 The first milestone is a complete human-playable game for three to five authenticated players and all five factions: invitations/lobbies, private seven-to-five hand selection, three action rounds, faction specials and knowledge, reactive paradox resolution, authoritative results and reload recovery.
+
+## Development
+
+Requires Node.js 22.12 or later.
+
+```bash
+npm install
+cp .env.example .env.local # then fill in a reachable API/OIDC configuration
+npm run dev
+```
+
+Other checks, also run in CI:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+The shell currently renders player-safe fixture state (event board, private hand, faction/intel and action confirmation) once the configured API is reachable. Missing/invalid configuration or a failed connectivity check surface a recoverable error instead of inventing player identity or game state. Authenticated gameplay integration follows in later issues.
 
 [Human-playable game milestone](https://github.com/temporal-rift/game-client/milestone/1) · [Gameplay umbrella issue](https://github.com/temporal-rift/game-client/issues/11) · [Project board](https://github.com/orgs/temporal-rift/projects/4)
 
