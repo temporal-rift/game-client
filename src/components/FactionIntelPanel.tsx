@@ -1,4 +1,5 @@
 import type { FactionIntel } from '../types/playerView'
+import { KnowledgeScopeIcon } from './icons'
 
 interface FactionIntelPanelProps {
   readonly faction: FactionIntel
@@ -14,7 +15,10 @@ export function FactionIntelPanel({ faction }: FactionIntelPanelProps) {
       <ul>
         {faction.knowledge.map((item) => (
           <li key={item.id}>
-            <span>{item.scope === 'private' ? 'Private: ' : 'Public: '}</span>
+            <span className="knowledge-scope">
+              <KnowledgeScopeIcon scope={item.scope} />
+              <span>{item.scope === 'private' ? 'Private: ' : 'Public: '}</span>
+            </span>
             <span>{item.label}</span>
             <p>{item.detail}</p>
           </li>

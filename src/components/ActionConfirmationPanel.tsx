@@ -1,26 +1,34 @@
-import type { PendingActionSummary } from '../types/playerView'
+import type { EventBoardEntry, HandCard } from '../types/playerView'
 
 interface ActionConfirmationPanelProps {
-  readonly pendingAction: PendingActionSummary | null
+  readonly selectedCard: HandCard | null
+  readonly selectedTarget: EventBoardEntry | null
+  readonly confirmLabel: string
   readonly isSampleData: boolean
   readonly onConfirm?: () => void
 }
 
-export function ActionConfirmationPanel({ pendingAction, isSampleData, onConfirm }: ActionConfirmationPanelProps) {
+export function ActionConfirmationPanel({
+  selectedCard,
+  selectedTarget,
+  confirmLabel,
+  isSampleData,
+  onConfirm,
+}: ActionConfirmationPanelProps) {
   return (
     <section aria-labelledby="action-confirmation-heading">
       <h2 id="action-confirmation-heading">Action confirmation</h2>
-      {pendingAction ? (
+      {selectedCard && selectedTarget ? (
         <div>
           <p>
-            {pendingAction.summary} → {pendingAction.targetLabel}
+            {selectedCard.name} (grade {selectedCard.grade}) → {selectedTarget.title}
           </p>
           <button type="button" disabled={isSampleData || !onConfirm} onClick={onConfirm}>
-            {pendingAction.confirmLabel}
+            {confirmLabel}
           </button>
         </div>
       ) : (
-        <p>No action pending confirmation.</p>
+        <p>Select a card and a target to confirm an action.</p>
       )}
     </section>
   )

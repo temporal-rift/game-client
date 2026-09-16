@@ -9,10 +9,33 @@ export const sampleFixturePlayerView: PlayerView = {
   gameId: 'fixture-game',
   currentEra: 1,
   currentRound: 2,
+  phaseLabel: 'Action round 2 of 3',
+  phaseDeadlineLabel: 'in 4 minutes',
   events: [
-    { id: 'evt-1', era: 1, title: 'The Signal Fractures', publicBand: '30 / 45 / 25', status: 'resolved' },
-    { id: 'evt-2', era: 1, title: 'Convergence at the Vault', publicBand: '40 / 40 / 20', status: 'in-progress' },
-    { id: 'evt-3', era: 1, title: 'The Last Delegation', publicBand: 'unknown', status: 'upcoming' },
+    {
+      id: 'evt-1',
+      era: 1,
+      title: 'The Signal Fractures',
+      publicBand: '30 / 45 / 25',
+      status: 'resolved',
+      isValidTarget: false,
+    },
+    {
+      id: 'evt-2',
+      era: 1,
+      title: 'Convergence at the Vault',
+      publicBand: '40 / 40 / 20',
+      status: 'in-progress',
+      isValidTarget: true,
+    },
+    {
+      id: 'evt-3',
+      era: 1,
+      title: 'The Last Delegation',
+      publicBand: 'unknown',
+      status: 'upcoming',
+      isValidTarget: true,
+    },
   ],
   hand: [
     { id: 'card-1', name: 'Anchor Point', grade: 3, description: 'Stabilize an outcome toward the current band.' },
@@ -27,10 +50,5 @@ export const sampleFixturePlayerView: PlayerView = {
       { id: 'know-2', label: 'Public band', detail: '40 / 40 / 20', scope: 'public' },
     ],
   },
-  pendingAction: {
-    id: 'action-1',
-    summary: 'Play Anchor Point',
-    targetLabel: 'Convergence at the Vault',
-    confirmLabel: 'Confirm action',
-  },
+  pendingAction: { cardId: 'card-1', targetId: 'evt-2', confirmLabel: 'Confirm action' },
 }
