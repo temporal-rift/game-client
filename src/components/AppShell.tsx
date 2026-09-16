@@ -41,27 +41,26 @@ function findSelectedTarget(playerView: PlayerView, targetId: string | null): Se
 export function AppShell({ playerView, isSampleData }: AppShellProps) {
   const [selection, setSelection] = useState<SelectionState>(() => selectionFrom(playerView))
 
-  const selectionForCurrentGame = selection.gameId === playerView.gameId ? selection : selectionFrom(playerView)
-  const selectedCard =
-    playerView.hand.find((card) => card.id === selectionForCurrentGame.cardId && card.isAvailable) ?? null
-  const selectedTarget = findSelectedTarget(playerView, selectionForCurrentGame.targetId)
+  const baseline = selection.gameId === playerView.gameId ? selection : selectionFrom(playerView)
+  const selectedCard = playerView.hand.find((card) => card.id === baseline.cardId && card.isAvailable) ?? null
+  const selectedTarget = findSelectedTarget(playerView, baseline.targetId)
   const effectiveCardId = selectedCard?.id ?? null
   const effectiveTargetId = selectedTarget?.outcome.id ?? null
 
+  // Persist the reconciled ids, not just the masked display values: an id that goes
+  // stale (removed card, invalidated target) must not silently reselect itself if it
+  // becomes valid again later without a new user action.
+  const reconciled: SelectionState = { gameId: playerView.gameId, cardId: effectiveCardId, targetId: effectiveTargetId }
+  if (selection.gameId !== reconciled.gameId || selection.cardId !== reconciled.cardId || selection.targetId !== reconciled.targetId) {
+    setSelection(reconciled)
+  }
+
   const toggleCard = (cardId: string) => {
-    setSelection((current) => ({
-      gameId: playerView.gameId,
-      cardId: effectiveCardId === cardId ? null : cardId,
-      targetId: current.gameId === playerView.gameId ? current.targetId : playerView.pendingAction?.targetId ?? null,
-    }))
+    setSelection({ gameId: playerView.gameId, cardId: effectiveCardId === cardId ? null : cardId, targetId: effectiveTargetId })
   }
 
   const toggleTarget = (targetId: string) => {
-    setSelection((current) => ({
-      gameId: playerView.gameId,
-      cardId: current.gameId === playerView.gameId ? current.cardId : playerView.pendingAction?.cardId ?? null,
-      targetId: effectiveTargetId === targetId ? null : targetId,
-    }))
+    setSelection({ gameId: playerView.gameId, cardId: effectiveCardId, targetId: effectiveTargetId === targetId ? null : targetId })
   }
 
   return (

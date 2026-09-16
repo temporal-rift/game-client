@@ -133,4 +133,25 @@ describe('AppShell', () => {
 
     expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
   })
+
+  it('does not silently reselect a target that becomes valid again after invalidation', () => {
+    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+    const invalidated = {
+      ...sampleFixturePlayerView,
+      events: sampleFixturePlayerView.events.map((event) => ({
+        ...event,
+        outcomes: event.outcomes.map((outcome) =>
+          outcome.id === 'evt-2-success' ? { ...outcome, isValidTarget: false } : outcome,
+        ),
+      })),
+    }
+    rerender(<AppShell playerView={invalidated} isSampleData />)
+    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
+
+    const restored = sampleFixturePlayerView
+    rerender(<AppShell playerView={restored} isSampleData />)
+
+    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ignition succeeds/ })).toHaveAttribute('aria-pressed', 'false')
+  })
 })
