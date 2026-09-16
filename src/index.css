@@ -1,265 +1,1104 @@
 :root {
-  --text: #241f30;
-  --bg: #f3f0fb;
-  --panel-from: #ffffff;
-  --panel-to: #eae5f7;
-  --border: #d4d0e0;
-  --accent: #2f8f86;
-  --accent-strong: #1f6b64;
-  --accent-ink: #f4fffb;
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --bg: #090f1e;
+  --bg-raised: #0e1527;
+  --panel: #151d31;
+  --panel-strong: #1c253a;
+  --panel-soft: #11192b;
+  --card: #17263e;
+  --border: #343d55;
+  --border-subtle: #293249;
+  --text: #e8e3dc;
+  --text-soft: #b4bdcc;
+  --muted: #7f8ba2;
+  --gold: #d8bd87;
+  --accent: #82dccc;
+  --accent-strong: #4daea8;
+  --accent-deep: #214044;
+  --danger: #d0a797;
   --serif: Georgia, 'Times New Roman', serif;
-
-  --scene-spire-from: #cfe7e4;
-  --scene-spire-to: #9cc9c2;
-  --scene-reactor-from: #dff3ee;
-  --scene-reactor-to: #b7e4d8;
-  --scene-reactor-core: #ffffff;
-  --scene-assembly-from: #f1e4cf;
-  --scene-assembly-to: #ddc79a;
-
-  font: 1rem/1.5 var(--sans);
-  color-scheme: light dark;
+  --sans: Inter, 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
   color: var(--text);
+  background: var(--bg);
+  font: 1rem/1.5 var(--sans);
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 20rem;
   background: var(--bg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #e7e4f2;
-    --bg: #0b0e1a;
-    --panel-from: #1b2036;
-    --panel-to: #11142a;
-    --border: #333a56;
-    --accent: #7be3d2;
-    --accent-strong: #47b5bc;
-    --accent-ink: #08201d;
-
-    --scene-spire-from: #223350;
-    --scene-spire-to: #101a30;
-    --scene-reactor-from: #16302c;
-    --scene-reactor-to: #0d1b22;
-    --scene-reactor-core: #baf4e1;
-    --scene-assembly-from: #2a2440;
-    --scene-assembly-to: #171a2c;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-}
-
 body {
+  min-width: 20rem;
+  min-height: 100vh;
   margin: 0;
+  background:
+    radial-gradient(circle at 52% 40%, rgb(64 54 109 / 22%), transparent 44rem),
+    radial-gradient(circle at 8% 18%, rgb(127 162 186 / 8%) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 72% 70%, rgb(127 162 186 / 7%) 0 1px, transparent 1.5px),
+    linear-gradient(120deg, #0d1324 0%, #121329 50%, #090f1e 100%);
+  background-size: auto, 3.5rem 3.5rem, 4.75rem 4.75rem, auto;
 }
 
-section {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.25rem;
-  margin-block-end: 1rem;
-  background: linear-gradient(160deg, var(--panel-from), var(--panel-to));
+button {
+  font: inherit;
 }
 
-h1,
-h2 {
-  font-family: var(--serif);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+button:focus-visible {
+  outline: 3px solid #f2e5bd;
+  outline-offset: 3px;
 }
 
-h1 {
+.app-shell {
+  width: min(100%, 105rem);
+  min-height: 100vh;
+  margin-inline: auto;
+  padding: 0 2.25rem 1rem;
+}
+
+.game-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(20rem, 1fr) auto minmax(20rem, 1fr);
+  align-items: center;
+  min-height: 5.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.brand-lockup {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .rift-mark {
-  color: var(--accent);
+  width: 3.1rem;
+  height: 3.1rem;
+  flex: 0 0 auto;
+  color: var(--gold);
 }
 
-.status-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.65rem;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  color: var(--accent-strong);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
+.brand-lockup h1 {
+  margin: 0;
+  color: #f0eadf;
+  font: 400 clamp(1.35rem, 2.1vw, 1.9rem)/1.1 var(--serif);
+  letter-spacing: 0.17em;
   text-transform: uppercase;
 }
 
-.deadline {
+.brand-lockup p {
+  margin: 0.38rem 0 0;
+  color: var(--muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.phase-pills {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.phase-pills span,
+.faction-special {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding-inline: 0.8rem;
+  border: 1px solid #30405a;
+  border-radius: 999px;
+  background: #182238;
+  color: var(--accent);
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.phase-pills span:first-child {
+  color: var(--gold);
+}
+
+.deadline-block {
+  display: grid;
+  grid-template-columns: auto auto 0.7rem;
+  align-items: center;
+  justify-content: end;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.deadline-block > span {
+  color: #919ab0;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.deadline-block strong {
+  color: #ead7b0;
+  font: 400 1.8rem/1 var(--serif);
   font-variant-numeric: tabular-nums;
 }
 
-main {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: 1rem;
-  align-items: start;
+.deadline-block i,
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #81c8ac;
 }
 
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: 0.75rem;
-  list-style: none;
-  padding: 0;
+.sample-state {
+  position: absolute;
+  right: 0;
+  bottom: -1.3rem;
+  z-index: 3;
   margin: 0;
+  color: #718096;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.board-tile {
-  width: 100%;
-  min-height: 2.75rem;
+.player-strip {
+  min-height: 3.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.player-strip ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  min-height: 3.75rem;
+  margin: 0;
+  padding: 0.55rem 0;
+  list-style: none;
+}
+
+.player-strip li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.player-avatar {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid #505572;
+  border-radius: 50%;
+  background: #262d42;
+  color: #b9c0d1;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.is-current-player .player-avatar {
+  border-color: #9bbdb0;
+  background: #314244;
+  color: #c5e7d4;
+}
+
+.player-identity,
+.player-score {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  padding: 0.75rem;
+}
+
+.player-identity strong {
+  overflow: hidden;
+  color: #d4d9e5;
+  font-size: 0.73rem;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.player-identity small,
+.player-score small {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.player-score {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.player-score strong {
+  color: #dfcfb5;
+  font: 400 1.35rem/1 var(--serif);
+}
+
+.player-score small {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-board-layout {
+  display: grid;
+  grid-template-columns: 13.15rem minmax(0, 1fr) 16.75rem;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'faction events action'
+    'faction hand action';
+  gap: 2.5rem 1.5rem;
+  align-items: start;
+  padding-block: 1.55rem;
+}
+
+.faction-rail {
+  grid-area: faction;
+  min-width: 0;
+}
+
+.faction-panel,
+.action-summary-panel,
+.round-status-panel {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
+  border-radius: 0.85rem;
+  background: linear-gradient(180deg, #1e253a, #101729);
+  box-shadow: 0 0.65rem 1.7rem rgb(0 7 19 / 45%);
 }
 
-.board-tile:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.faction-panel {
+  overflow: hidden;
+  padding: 1.25rem 1.35rem 1.4rem;
+  text-align: center;
 }
 
-.board-tile[aria-pressed='true'] {
-  border-width: 2px;
-  border-style: double;
-  border-color: var(--accent-strong);
-  font-weight: 600;
+.panel-eyebrow,
+.section-heading-row h2,
+.factions-in-game h3 {
+  margin: 0;
+  color: #919ab0;
+  font: 500 0.64rem/1.3 var(--sans);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.board-tile:focus-visible {
-  outline: 3px solid currentColor;
-  outline-offset: 2px;
-}
-
-.event-scene-art {
-  width: 100%;
-  height: 4.5rem;
-  border-radius: 6px;
-  color: var(--accent);
-}
-
-.board-tile-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.board-tile-title {
-  font-family: var(--serif);
-  font-size: 1.05rem;
-}
-
-.selection-flag,
-.board-tile-note {
-  font-size: 0.8rem;
-}
-
-.hand-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.card-glyph {
-  width: 2.75rem;
-  height: 2.75rem;
-  color: var(--accent);
-}
-
-.faction-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-block-end: 0.75rem;
+.faction-panel .panel-eyebrow {
+  text-align: left;
 }
 
 .faction-emblem {
-  width: 3.5rem;
-  height: 3.5rem;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.faction-summary {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  width: 5rem;
+  height: 5rem;
+  margin: 1rem auto 0.5rem;
+  color: var(--gold);
 }
 
 .faction-name {
-  font-family: var(--serif);
-  font-size: 1.2rem;
+  margin: 0;
+  color: #ebd8af;
+  font: 400 1.35rem/1.2 var(--serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.faction-description {
+  min-height: 2.5rem;
+  margin: 0.45rem 0 1rem;
+  color: #a5adbe;
+  font-size: 0.72rem;
+}
+
+.faction-score {
+  padding-top: 1rem;
+  border-top: 1px solid #393e53;
+  text-align: left;
+}
+
+.faction-score > span {
+  color: #9fa7b9;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.faction-score p {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.8rem;
+}
+
+.faction-score strong {
+  color: #e6d4b1;
+  font: 400 2.25rem/1 var(--serif);
+}
+
+.faction-score p span {
+  color: #8c96ac;
+  font-size: 0.7rem;
 }
 
 .faction-special {
-  font-size: 0.9rem;
-  opacity: 0.85;
+  width: 100%;
+  justify-content: center;
+  margin: 0;
+  color: #d6c9ad;
+}
+
+.knowledge-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #323a50;
 }
 
 .knowledge-scope {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.35rem;
+  color: #9aa5b7;
+  font-size: 0.6rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
-.grade-badge,
-.band-meter {
+.knowledge-card strong {
+  color: #ccd0dc;
+  font-size: 0.72rem;
+}
+
+.knowledge-card > span:not(.knowledge-scope) {
+  color: #929cb1;
+  font-size: 0.7rem;
+}
+
+.knowledge-card small {
+  color: #6f7d94;
+  font-size: 0.6rem;
+}
+
+.factions-in-game {
+  padding: 1.9rem 0.2rem 0;
+}
+
+.factions-in-game h3 {
+  color: #808da5;
+  font-size: 0.58rem;
+  text-align: left;
+}
+
+.factions-in-game p {
+  margin: 0.7rem 0 0;
+  color: #b7becf;
+  font-size: 0.68rem;
+}
+
+.event-board {
+  grid-area: events;
+  min-width: 0;
+}
+
+.private-hand {
+  grid-area: hand;
+  min-width: 0;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 1.4rem;
+  margin-bottom: 0.8rem;
+  padding-inline: 0.15rem;
+}
+
+.section-heading-row h2 {
+  color: #c8b991;
+  font-size: 0.68rem;
+  letter-spacing: 0.19em;
+}
+
+.section-heading-row > span {
+  color: #8998b2;
+  font-size: 0.65rem;
+}
+
+.event-grid,
+.hand-grid {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-grid > li,
+.hand-grid > li,
+.hand-card {
+  min-width: 0;
+}
+
+.hand-card > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.event-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.15rem;
+}
+
+.event-card {
+  min-height: 27.5rem;
+  overflow: hidden;
+  border: 1px solid #424559;
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, #1e253a, #101729);
+  box-shadow: 0 0.65rem 1.7rem rgb(0 7 19 / 48%);
+}
+
+.event-card.is-selected {
+  border-color: #5f9899;
+  box-shadow: 0 0 0 1px rgb(130 220 204 / 16%), 0 0.75rem 2rem rgb(0 7 19 / 58%);
+}
+
+.event-scene-art {
+  display: block;
+  width: 100%;
+  height: 9.7rem;
+  border-bottom: 1px solid #354057;
+  object-fit: cover;
+}
+
+.event-card-body {
+  padding: 0.85rem 1rem 0.5rem;
+}
+
+.event-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  color: #9daecf;
+  font-size: 0.57rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.event-card.is-selected .event-card-meta {
+  color: var(--accent);
+}
+
+.event-status {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
+  color: #8290a6;
+  letter-spacing: 0.08em;
+}
+
+.event-status svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.event-card h3 {
+  min-height: 3.25rem;
+  margin: 0.45rem 0 0.65rem;
+  color: #eee3d5;
+  font: 400 clamp(1rem, 1.45vw, 1.3rem)/1.18 var(--serif);
+}
+
+.outcome-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outcome-button {
+  display: grid;
+  grid-template-columns: 0.7rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.85rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #30384e;
+  border-radius: 0.45rem;
+  background: #171f32;
+  color: #c5ccda;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.outcome-button:hover:not(:disabled) {
+  border-color: #65748f;
+  transform: translateY(-1px);
+}
+
+.outcome-button[aria-pressed='true'] {
+  border-color: #81c8bc;
+  background: var(--accent-deep);
+  color: #e1f8ec;
+}
+
+.outcome-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.outcome-choice {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1px solid #7987a2;
+  border-radius: 50%;
+}
+
+.outcome-button[aria-pressed='true'] .outcome-choice {
+  border-color: #c2ffec;
+  background: #8be1ce;
+}
+
+.outcome-label {
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+}
+
+.band-label {
+  color: #9ebbc8;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.band-low {
+  color: #888eaf;
+}
+
+.band-high {
+  color: #dbc196;
+}
+
+.band-unknown {
+  color: #7f8ba2;
+}
+
+.event-card-instruction {
+  margin: 0.6rem 0 0;
+  color: #7e8ba4;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+}
+
+.event-card.is-selected .event-card-instruction {
+  color: #92dccc;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hand-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.hand-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  width: 100%;
+  min-height: 16.1rem;
+  padding: 0.65rem 0.55rem 0.8rem;
+  overflow: hidden;
+  border: 1px solid #3d4c64;
+  border-radius: 0.75rem;
+  background:
+    linear-gradient(135deg, rgb(54 91 116 / 16%) 0 22%, transparent 22% 45%, rgb(22 38 64 / 28%) 45% 66%, transparent 66%),
+    linear-gradient(145deg, #263650, #17263e 55%, #111a2c);
+  color: #e3e4dc;
+  box-shadow: 0 0.55rem 1.45rem rgb(0 7 19 / 42%);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.hand-card:hover:not(:disabled) {
+  border-color: #697b96;
+  transform: translateY(-0.2rem);
+}
+
+.hand-card[aria-pressed='true'] {
+  border-color: #8ad7c9;
+  box-shadow: inset 0 0 0 0.45rem rgb(82 140 135 / 13%), 0 0.65rem 1.6rem rgb(0 7 19 / 52%);
+}
+
+.hand-card:disabled {
+  color: #999dac;
+  cursor: not-allowed;
+  filter: saturate(0.55);
+  opacity: 0.7;
+}
+
+.hand-card-topline {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.4rem;
 }
 
-.connection-glyph {
-  width: 100%;
-  max-width: 12rem;
-  height: 2rem;
-  color: var(--accent);
-  margin-block-end: 0.5rem;
+.hand-card-state {
+  min-width: 0;
+  overflow: hidden;
+  color: #8393ad;
+  font-size: 0.54rem;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hand-card[aria-pressed='true'] .hand-card-state {
+  color: #92e0ce;
+}
+
+.grade-badge {
+  display: inline-grid;
+  flex: 0 0 auto;
+  min-width: 2.1rem;
+  min-height: 1.5rem;
+  place-items: center;
+  border: 1px solid #30405a;
+  border-radius: 999px;
+  background: #182238;
+  color: #9db8d5;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+.card-glyph-well,
+.action-glyph-well {
+  display: grid;
+  align-self: center;
+  justify-self: center;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(31 44 69 / 65%);
+}
+
+.card-glyph-well {
+  width: 7.3rem;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin-block: 0.3rem 0;
+}
+
+.card-glyph {
+  width: 78%;
+  height: 78%;
+  color: #9db8d5;
+}
+
+.card-glyph-push {
+  color: #8ed9cf;
+}
+
+.card-glyph-scan {
+  color: #c7b38a;
+}
+
+.card-glyph-nullify {
+  color: #b5a2cf;
+}
+
+.card-glyph-collide {
+  color: #d0a797;
+}
+
+.hand-card-name {
+  color: #e3e4dc;
+  font: 400 clamp(0.82rem, 1.35vw, 1.25rem)/1.15 var(--serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hand-card-description {
+  min-height: 2.2rem;
+  margin-top: 0.45rem;
+  color: #a5b4c7;
+  font-size: 0.63rem;
+}
+
+.action-rail {
+  display: flex;
+  grid-area: action;
+  min-width: 0;
+  min-height: 48rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.action-summary-panel {
+  min-height: 27.5rem;
+  padding: 1.35rem;
+}
+
+.action-summary {
+  text-align: center;
+}
+
+.action-glyph-well {
+  width: 6.8rem;
+  height: 6.8rem;
+  margin: 1.05rem auto 0.55rem;
+  background: #17263a;
+}
+
+.action-glyph-well .card-glyph {
+  width: 76%;
+  height: 76%;
+}
+
+.action-name {
+  margin: 0;
+  color: #e3e9e5;
+  font: 400 1.6rem/1.2 var(--serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.action-grade {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.65rem 0 1.25rem;
+  color: #8ed8cc;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.action-grade .grade-badge {
+  min-width: 1.8rem;
+}
+
+.action-target {
+  padding-top: 1.15rem;
+  border-top: 1px solid #3c4459;
+  text-align: left;
+}
+
+.action-target > span {
+  color: #8e9aaf;
+  font-size: 0.57rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.action-target strong {
+  display: block;
+  margin-top: 0.55rem;
+  color: #dddccf;
+  font: 400 0.95rem/1.3 var(--serif);
+}
+
+.action-target p {
+  margin: 0.6rem 0 0;
+  color: #b0d5cc;
+  font-size: 0.72rem;
+}
+
+.action-privacy,
+.action-empty {
+  margin: 1.8rem 0 0;
+  color: #7f8ba2;
+  font-size: 0.65rem;
+  text-align: left;
+}
+
+.round-status-panel {
+  min-height: 15.6rem;
+  padding: 1.35rem;
+}
+
+.submission-count {
+  margin: 1rem 0 0.8rem;
+  color: #d6dce5;
+  font-size: 0.8rem;
+}
+
+.submission-state {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1.45rem;
+  color: #9eafc0;
+  font-size: 0.7rem;
 }
 
 .confirm-button {
-  padding: 0.6rem 1.4rem;
-  border-radius: 999px;
-  border: 1px solid var(--accent-strong);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  width: 100%;
+  min-height: 3.25rem;
+  border: 1px solid #82ddd3;
+  border-radius: 0.55rem;
+  background: linear-gradient(90deg, #7be3d2, #47b5bc);
+  color: #112d35;
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
 .confirm-button:disabled {
+  border-color: #405168;
+  background: #28354b;
+  color: #78869a;
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
-@media (max-width: 30rem) {
-  main {
+.round-note {
+  margin: 0.85rem 0 0;
+  color: #76849b;
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+.round-note + .round-note {
+  margin-top: 0.35rem;
+}
+
+.game-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border-subtle);
+  color: #6d7b92;
+  font-size: 0.57rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 75rem) {
+  .app-shell {
+    padding-inline: 1.35rem;
+  }
+
+  .game-header {
+    grid-template-columns: minmax(17rem, 1fr) auto minmax(15rem, 1fr);
+  }
+
+  .game-board-layout {
+    grid-template-columns: 11.5rem minmax(0, 1fr) 14.5rem;
+    column-gap: 1rem;
+  }
+
+  .event-grid {
+    gap: 0.7rem;
+  }
+
+  .event-card-body {
+    padding-inline: 0.7rem;
+  }
+
+  .outcome-button {
+    padding-inline: 0.45rem;
+  }
+
+  .outcome-label {
+    font-size: 0.62rem;
+  }
+
+  .hand-grid {
+    gap: 0.4rem;
+  }
+}
+
+@media (max-width: 64rem) {
+  .game-header {
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    padding-block: 0.8rem;
+  }
+
+  .phase-pills {
+    justify-self: end;
+  }
+
+  .deadline-block {
+    grid-column: 1 / -1;
+    justify-content: end;
+  }
+
+  .game-board-layout {
+    grid-template-columns: 11.5rem minmax(0, 1fr);
+    grid-template-areas:
+      'faction events'
+      'faction hand'
+      'action action';
+  }
+
+  .action-rail {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.6fr);
+  }
+
+  .hand-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .action-summary-panel,
+  .round-status-panel {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 48rem) {
+  .app-shell {
+    padding-inline: 1rem;
+  }
+
+  .game-header {
     grid-template-columns: 1fr;
+  }
+
+  .brand-lockup h1 {
+    font-size: 1.45rem;
+  }
+
+  .phase-pills,
+  .deadline-block {
+    justify-self: stretch;
+    justify-content: start;
+  }
+
+  .deadline-block {
+    grid-column: auto;
+    grid-template-columns: auto auto 0.7rem;
+  }
+
+  .sample-state {
+    position: static;
+    grid-column: 1;
+  }
+
+  .player-strip {
+    overflow-x: auto;
+  }
+
+  .player-strip ul {
+    grid-template-columns: repeat(3, minmax(13rem, 1fr));
+  }
+
+  .game-board-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'events'
+      'hand'
+      'faction'
+      'action';
+  }
+
+  .event-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  }
+
+  .event-card h3 {
+    font-size: 1.2rem;
+  }
+
+  .hand-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .faction-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(11rem, 0.55fr);
+    gap: 1rem;
+  }
+
+  .factions-in-game {
+    padding: 1.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.85rem;
+    background: var(--panel-soft);
+  }
+}
+
+@media (max-width: 32rem) {
+  .phase-pills,
+  .deadline-block,
+  .section-heading-row,
+  .game-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .phase-pills {
+    flex-wrap: wrap;
+  }
+
+  .deadline-block {
+    display: flex;
+    gap: 0.55rem;
+  }
+
+  .section-heading-row {
+    display: flex;
+  }
+
+  .hand-grid,
+  .faction-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .hand-card {
+    min-height: 15rem;
+  }
+
+  .card-glyph-well {
+    width: 7.3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

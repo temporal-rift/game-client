@@ -1,17 +1,5 @@
 import { useId } from 'react'
-import type { EventBoardEntry, KnowledgeItem } from '../types/playerView'
-
-function hashSeed(seed: string): number {
-  let hash = 0
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
-  }
-  return hash
-}
-
-function pickVariant<T extends readonly string[]>(seed: string, variants: T): T[number] {
-  return variants[hashSeed(seed) % variants.length]
-}
+import type { CardKind, EventArtwork, EventBoardEntry, KnowledgeItem } from '../types/playerView'
 
 const ICON_PROPS = {
   width: 18,
@@ -23,9 +11,12 @@ const ICON_PROPS = {
 
 export function RiftMark() {
   return (
-    <svg {...ICON_PROPS} width={22} height={22} className="rift-mark">
-      <path d="M12 2 20 6.5v11L12 22 4 17.5v-11Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M12 6 16.5 8.5v7L12 18 7.5 15.5v-7Z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    <svg viewBox="0 0 100 100" className="rift-mark" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M50 5 85 25v50L50 95 15 75V25Z" />
+        <path d="M50 18 73 32v36L50 82 27 68V32Z" />
+        <path d="m60 24-20 21 17 3-18 28M50 5v13M85 25 73 32M15 75l12-7" />
+      </g>
     </svg>
   )
 }
@@ -34,7 +25,7 @@ function ResolvedIcon() {
   return (
     <svg {...ICON_PROPS}>
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -42,14 +33,8 @@ function ResolvedIcon() {
 function InProgressIcon() {
   return (
     <svg {...ICON_PROPS}>
-      <path
-        d="M6 4h12M6 20h12M7 4c0 4 4 6 5 8-1 2-5 4-5 8M17 4c0 4-4 6-5 8 1 2 5 4 5 8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
     </svg>
   )
 }
@@ -59,7 +44,6 @@ function UpcomingIcon() {
     <svg {...ICON_PROPS}>
       <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
       <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="12" cy="15.5" r="1.4" fill="currentColor" />
     </svg>
   )
 }
@@ -87,13 +71,7 @@ function PrivateIcon() {
 function PublicIcon() {
   return (
     <svg {...ICON_PROPS} width={16} height={16}>
-      <path
-        d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
+      <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
       <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   )
@@ -109,113 +87,157 @@ export function KnowledgeScopeIcon({ scope }: { readonly scope: KnowledgeItem['s
   return <Icon />
 }
 
-const SCENE_VARIANTS = ['spire', 'reactor', 'assembly'] as const
-
-function SpireScene({ gradientId }: { readonly gradientId: string }) {
+function DelegateScene() {
   return (
     <>
-      <linearGradient id={gradientId} x1="0" y1="0" x2="0.8" y2="1">
-        <stop offset="0" stopColor="var(--scene-spire-from)" />
-        <stop offset="1" stopColor="var(--scene-spire-to)" />
-      </linearGradient>
-      <rect width="200" height="84" fill={`url(#${gradientId})`} />
-      <circle cx="166" cy="22" r="12" fill="currentColor" opacity="0.22" />
-      <path d="M0 84 22 46 44 84Z" fill="currentColor" opacity="0.28" />
-      <path d="M40 84 66 14 92 84Z" fill="currentColor" opacity="0.4" />
-      <path d="M86 84 108 40 130 84Z" fill="currentColor" opacity="0.3" />
+      <rect width="340" height="155" fill="#25223a" />
+      <circle cx="247" cy="51" r="33" fill="#bb9472" opacity=".2" />
+      <circle cx="247" cy="51" r="21" fill="#bb9472" opacity=".14" />
+      <path d="M0 123 46 105l30 6 18-24 50 22 43-15 49 18 53-17 51 20v40H0Z" fill="#181d30" />
+      <g fill="#293046" stroke="#6b7083" strokeWidth="1">
+        <path d="M77 137V55l58-19 58 19v82Z" />
+        <path d="M85 58h100M89 65v70M110 65v70M134 65v70M157 65v70M180 65v70M64 137h142l14 8H49Z" />
+      </g>
+      <g fill="#111a2c">
+        <circle cx="270" cy="101" r="9" />
+        <path d="m250 150 3-28q17-17 29 1l15 32Z" />
+      </g>
+      <g fill="none" stroke="#cba57d" strokeWidth="1" opacity=".55">
+        <path d="M21 18h72M25 25h44M230 125l23-22M8 148h329" />
+      </g>
     </>
   )
 }
 
-function ReactorScene({ gradientId }: { readonly gradientId: string }) {
+function ReactorScene() {
+  const glowId = useId()
   return (
     <>
-      <rect width="200" height="84" fill="var(--scene-reactor-from)" />
-      <radialGradient id={gradientId}>
-        <stop offset="0" stopColor="var(--scene-reactor-core)" />
-        <stop offset="1" stopColor="var(--scene-reactor-to)" />
-      </radialGradient>
-      <circle cx="100" cy="42" r="34" fill={`url(#${gradientId})`} />
-      <circle cx="100" cy="42" r="22" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.5" />
-      <circle cx="100" cy="42" r="8" fill="currentColor" opacity="0.7" />
+      <defs>
+        <radialGradient id={glowId}>
+          <stop stopColor="#baf4e1" />
+          <stop offset=".12" stopColor="#65baa9" stopOpacity=".8" />
+          <stop offset="1" stopColor="#36688b" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="340" height="155" fill="#152937" />
+      <ellipse cx="177" cy="73" rx="117" ry="83" fill={`url(#${glowId})`} />
+      <g fill="#182c3a" stroke="#548394" strokeWidth="1">
+        <path d="M0 130 32 105l20 5 12-27h24l12 26 26 10v36H0ZM235 155v-51l18-9 18 10 12-32h12l12 39 33-12v55Z" />
+      </g>
+      <g fill="none" stroke="#7cb2b3" strokeWidth="1.4">
+        <ellipse cx="176" cy="74" rx="49" ry="19" transform="rotate(-30 176 74)" />
+        <ellipse cx="176" cy="74" rx="49" ry="19" transform="rotate(30 176 74)" />
+        <ellipse cx="176" cy="74" rx="18" ry="48" />
+        <circle cx="176" cy="74" r="37" />
+        <path d="m118 139 27-30M206 109l29 30M160 113l-6 42M192 113l6 42" />
+      </g>
+      <circle cx="176" cy="74" r="9" fill="#b2f4d9" />
+      <circle cx="176" cy="74" r="4" fill="#efffec" />
+      <g stroke="#537586" strokeWidth="1" opacity=".5">
+        <path d="M15 27h59M31 34h55M266 24h63M277 32h39M5 146h331" />
+      </g>
     </>
   )
 }
 
-function AssemblyScene({ gradientId }: { readonly gradientId: string }) {
+function PactScene() {
   return (
     <>
-      <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="var(--scene-assembly-from)" />
-        <stop offset="1" stopColor="var(--scene-assembly-to)" />
-      </linearGradient>
-      <rect width="200" height="84" fill={`url(#${gradientId})`} />
-      <path d="M10 78 60 62 100 74 140 60 190 78" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.5" />
-      <circle cx="150" cy="26" r="10" fill="currentColor" opacity="0.2" />
+      <rect width="340" height="155" fill="#222b3b" />
+      <path d="m0 99 39-23 23 10 50-55 55 67 43-45 67 48 36-25 27 10v69H0Z" fill="#344455" />
+      <path d="m79 69 33-38 31 38-24-11-9-6-8 10Z" fill="#80909b" opacity=".5" />
+      <path d="m0 132 60-32 50 25 58-27 57 34 67-23 48 25v21H0Z" fill="#152332" />
+      <g fill="none" stroke="#8494aa" strokeWidth="1.3">
+        <path d="M15 138q149-94 306-9M17 141h309M52 118v22M95 98v42M140 89v51M186 91v49M231 103v37M278 118v22" />
+      </g>
+      <path d="m173 91 7 14-12 11 12 11-6 14" stroke="#d2ae7f" strokeWidth="2" fill="none" />
+      <circle cx="257" cy="37" r="13" fill="#b4bbc5" opacity=".18" />
     </>
   )
 }
 
-const SCENES: Record<(typeof SCENE_VARIANTS)[number], (props: { readonly gradientId: string }) => React.JSX.Element> = {
-  spire: SpireScene,
+const EVENT_SCENES: Record<EventArtwork, () => React.JSX.Element> = {
+  delegate: DelegateScene,
   reactor: ReactorScene,
-  assembly: AssemblyScene,
+  pact: PactScene,
 }
 
-/** Decorative illustrated banner; the tile's status/title/band text already carries the meaning. */
-export function EventSceneArt({ seed }: { readonly seed: string }) {
-  const gradientId = useId()
-  const Scene = SCENES[pickVariant(seed, SCENE_VARIANTS)]
-
+/** Decorative event illustration; the adjacent title and outcome controls carry the meaning. */
+export function EventSceneArt({ artwork }: { readonly artwork: EventArtwork }) {
+  const Scene = EVENT_SCENES[artwork]
   return (
-    <svg viewBox="0 0 200 84" className="event-scene-art" aria-hidden="true" focusable="false">
-      <Scene gradientId={gradientId} />
+    <svg viewBox="0 0 340 155" className="event-scene-art" aria-hidden="true" focusable="false">
+      <Scene />
     </svg>
   )
 }
 
-const CARD_GLYPH_VARIANTS = ['diamond', 'hex', 'cross'] as const
-
-function DiamondGlyph() {
+function PushGlyph() {
   return (
     <>
-      <path d="M50 6 88 50 50 94 12 50Z" fill="none" stroke="currentColor" strokeWidth="4" />
-      <path d="M50 26 70 50 50 74 30 50Z" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.7" />
+      <circle cx="50" cy="50" r="34" />
+      <path d="M50 76V24M30 44l20-20 20 20M27 66V55M73 66V55" />
+      <circle cx="50" cy="50" r="43" strokeDasharray="2 8" />
     </>
   )
 }
 
-function HexGlyph() {
+function SuppressGlyph() {
   return (
     <>
-      <path d="M50 6 85 27 85 73 50 94 15 73 15 27Z" fill="none" stroke="currentColor" strokeWidth="4" />
-      <circle cx="50" cy="50" r="16" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.7" />
+      <circle cx="50" cy="50" r="34" />
+      <path d="M50 24v52M30 56l20 20 20-20M27 34v11M73 34v11M15 15l10 10M75 75l10 10M85 15 75 25M25 75 15 85" />
     </>
   )
 }
 
-function CrossGlyph() {
+function ScanGlyph() {
   return (
     <>
-      <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="4" />
-      <path d="M50 18V82M18 50H82" stroke="currentColor" strokeWidth="3" opacity="0.7" />
+      <circle cx="50" cy="50" r="34" />
+      <circle cx="50" cy="50" r="19" />
+      <path d="M50 16v34l25-25M50 7v9M50 84v9M7 50h9M84 50h9" />
     </>
   )
 }
 
-const CARD_GLYPHS: Record<(typeof CARD_GLYPH_VARIANTS)[number], () => React.JSX.Element> = {
-  diamond: DiamondGlyph,
-  hex: HexGlyph,
-  cross: CrossGlyph,
+function NullifyGlyph() {
+  return (
+    <>
+      <path d="m50 9 35 20v42L50 91 15 71V29Z" />
+      <circle cx="50" cy="50" r="24" />
+      <path d="m32 32 36 36M68 32 32 68" />
+    </>
+  )
 }
 
-/** Decorative card-face glyph; the card's name/grade/description text already carries the meaning. */
-export function CardGlyph({ seed }: { readonly seed: string }) {
-  const Glyph = CARD_GLYPHS[pickVariant(seed, CARD_GLYPH_VARIANTS)]
-
+function CollideGlyph() {
   return (
-    <svg viewBox="0 0 100 100" className="card-glyph" aria-hidden="true" focusable="false">
-      <Glyph />
+    <>
+      <circle cx="35" cy="50" r="25" />
+      <circle cx="65" cy="50" r="25" />
+      <path d="M50 9v17M50 74v17M6 50h9M85 50h9M46 34l9 11-10 9 9 12" />
+    </>
+  )
+}
+
+const CARD_GLYPHS: Record<CardKind, () => React.JSX.Element> = {
+  push: PushGlyph,
+  suppress: SuppressGlyph,
+  scan: ScanGlyph,
+  nullify: NullifyGlyph,
+  collide: CollideGlyph,
+}
+
+/** Decorative card-face glyph; the card name, grade and description carry the meaning. */
+export function CardGlyph({ kind }: { readonly kind: CardKind }) {
+  const Glyph = CARD_GLYPHS[kind]
+  return (
+    <svg viewBox="0 0 100 100" className={`card-glyph card-glyph-${kind}`} aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="2">
+        <Glyph />
+      </g>
     </svg>
   )
 }
@@ -223,38 +245,23 @@ export function CardGlyph({ seed }: { readonly seed: string }) {
 export function FactionEmblem() {
   return (
     <svg viewBox="0 0 100 100" className="faction-emblem" aria-hidden="true" focusable="false">
-      <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M6 50Q50 14 94 50Q50 86 6 50Z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
-      <circle cx="50" cy="50" r="14" fill="none" stroke="currentColor" strokeWidth="2.4" />
-      <circle cx="50" cy="50" r="5" fill="currentColor" />
+      <g fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="50" cy="50" r="30" />
+        <path d="M10 50q40-33 80 0-40 33-80 0Z" />
+        <circle cx="50" cy="50" r="12" />
+        <path d="M50 5v9M50 86v9M5 50h9M86 50h9M18 18l7 7M75 75l7 7M82 18l-7 7M25 75l-7 7" />
+      </g>
     </svg>
   )
 }
 
-/** Decorative connection between the selected card and target; the live summary text below carries the meaning. */
-export function ConnectionGlyph() {
-  return (
-    <svg viewBox="0 0 140 40" className="connection-glyph" aria-hidden="true" focusable="false">
-      <circle cx="14" cy="20" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M26 20H108" stroke="currentColor" strokeWidth="1.6" strokeDasharray="4 5" />
-      <path d="M118 6 132 20 118 34 104 20Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-    </svg>
-  )
-}
+const ROMAN_GRADES = ['0', 'I', 'II', 'III', 'IV', 'V'] as const
 
 export function GradeBadge({ grade }: { readonly grade: number }) {
-  const pipCount = Math.max(0, Math.min(grade, 5))
-
+  const displayGrade = ROMAN_GRADES[Math.max(0, Math.min(grade, 5))]
   return (
-    <span className="grade-badge">
-      <svg viewBox="0 0 100 26" width="64" height="18" aria-hidden="true" focusable="false" className="grade-badge-art">
-        <rect x="1" y="1" width="98" height="24" rx="12" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        {Array.from({ length: pipCount }, (_, index) => {
-          const cx = 18 + index * 16
-          return <path key={index} d={`M${cx} 6 L${cx + 6} 13 L${cx} 20 L${cx - 6} 13 Z`} fill="currentColor" />
-        })}
-      </svg>
-      <span className="grade-badge-text">Grade {grade}</span>
+    <span className="grade-badge" aria-label={`Grade ${grade}`}>
+      {displayGrade}
     </span>
   )
 }

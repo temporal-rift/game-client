@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { PlayerView } from '../types/playerView'
-import { ActionConfirmationPanel } from './ActionConfirmationPanel'
-import { BandPatternDefs } from './BandMeter'
+import { ActionConfirmationPanel, type SelectedTarget } from './ActionConfirmationPanel'
 import { EventBoard } from './EventBoard'
 import { FactionIntelPanel } from './FactionIntelPanel'
 import { PrivateHand } from './PrivateHand'
@@ -12,55 +11,122 @@ interface AppShellProps {
   readonly isSampleData: boolean
 }
 
-export function AppShell({ playerView, isSampleData }: AppShellProps) {
-  const [seededGameId, setSeededGameId] = useState(playerView.gameId)
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(playerView.pendingAction?.cardId ?? null)
-  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(playerView.pendingAction?.targetId ?? null)
+interface SelectionState {
+  readonly gameId: string
+  readonly cardId: string | null
+  readonly targetId: string | null
+}
 
-  if (playerView.gameId !== seededGameId) {
-    setSeededGameId(playerView.gameId)
-    setSelectedCardId(playerView.pendingAction?.cardId ?? null)
-    setSelectedTargetId(playerView.pendingAction?.targetId ?? null)
+function selectionFrom(playerView: PlayerView): SelectionState {
+  return {
+    gameId: playerView.gameId,
+    cardId: playerView.pendingAction?.cardId ?? null,
+    targetId: playerView.pendingAction?.targetId ?? null,
+  }
+}
+
+function findSelectedTarget(playerView: PlayerView, targetId: string | null): SelectedTarget | null {
+  if (!targetId) {
+    return null
+  }
+  for (const event of playerView.events) {
+    const outcome = event.outcomes.find((candidate) => candidate.id === targetId)
+    if (outcome?.isValidTarget) {
+      return { event, outcome }
+    }
+  }
+  return null
+}
+
+export function AppShell({ playerView, isSampleData }: AppShellProps) {
+  const [selection, setSelection] = useState<SelectionState>(() => selectionFrom(playerView))
+
+  const selectionForCurrentGame = selection.gameId === playerView.gameId ? selection : selectionFrom(playerView)
+  const selectedCard =
+    playerView.hand.find((card) => card.id === selectionForCurrentGame.cardId && card.isAvailable) ?? null
+  const selectedTarget = findSelectedTarget(playerView, selectionForCurrentGame.targetId)
+  const effectiveCardId = selectedCard?.id ?? null
+  const effectiveTargetId = selectedTarget?.outcome.id ?? null
+
+  const toggleCard = (cardId: string) => {
+    setSelection((current) => ({
+      gameId: playerView.gameId,
+      cardId: effectiveCardId === cardId ? null : cardId,
+      targetId: current.gameId === playerView.gameId ? current.targetId : playerView.pendingAction?.targetId ?? null,
+    }))
   }
 
-  // A selection surviving a same-game state refresh must still resolve against the
-  // latest hand/events: a card can be spent and a once-valid target can stop being legal.
-  const effectiveCardId = playerView.hand.some((card) => card.id === selectedCardId) ? selectedCardId : null
-  const targetCandidate = playerView.events.find((event) => event.id === selectedTargetId) ?? null
-  const effectiveTargetId = targetCandidate?.isValidTarget ? selectedTargetId : null
-
-  const selectedCard = playerView.hand.find((card) => card.id === effectiveCardId) ?? null
-  const selectedTarget = targetCandidate?.isValidTarget ? targetCandidate : null
-
-  const toggleCard = (id: string) => setSelectedCardId(effectiveCardId === id ? null : id)
-  const toggleTarget = (id: string) => setSelectedTargetId(effectiveTargetId === id ? null : id)
+  const toggleTarget = (targetId: string) => {
+    setSelection((current) => ({
+      gameId: playerView.gameId,
+      cardId: current.gameId === playerView.gameId ? current.cardId : playerView.pendingAction?.cardId ?? null,
+      targetId: effectiveTargetId === targetId ? null : targetId,
+    }))
+  }
 
   return (
-    <div>
-      <BandPatternDefs />
-      <header>
-        <h1>
-          <RiftMark /> Temporal Rift
-        </h1>
-        <p className="status-row">
-          <span className="pill">Era {playerView.currentEra}</span>
-          <span className="pill">Round {playerView.currentRound}</span>
-          <span className="pill">{playerView.phaseLabel}</span>
-        </p>
-        {playerView.phaseDeadlineLabel && <p className="deadline">Deadline: {playerView.phaseDeadlineLabel}</p>}
-        {isSampleData && <p role="status">Showing sample data — not a live game.</p>}
+    <div className="app-shell">
+      <header className="game-header">
+        <div className="brand-lockup">
+          <RiftMark />
+          <div>
+            <h1>Temporal Rift</h1>
+            <p>Multiplayer strategy / {playerView.gameLabel}</p>
+          </div>
+        </div>
+        <div className="phase-pills" aria-label="Current game phase">
+          <span>Era {playerView.currentEra}</span>
+          <span>
+            Round {playerView.currentRound} of {playerView.roundsPerEra}
+          </span>
+        </div>
+        <div className="deadline-block">
+          <span>{playerView.phaseLabel}</span>
+          {playerView.phaseDeadlineLabel && <strong>{playerView.phaseDeadlineLabel}</strong>}
+          <i aria-hidden="true" />
+        </div>
+        {isSampleData && <p className="sample-state" role="status">Sample board · actions are disabled</p>}
       </header>
-      <main>
-        <EventBoard events={playerView.events} selectedTargetId={effectiveTargetId} onSelectTarget={toggleTarget} />
-        <PrivateHand hand={playerView.hand} selectedCardId={effectiveCardId} onSelectCard={toggleCard} />
+
+      <section className="player-strip" aria-label="Player scores">
+        <ul>
+          {playerView.players.map((player) => (
+            <li key={player.id} className={player.isCurrentPlayer ? 'is-current-player' : undefined}>
+              <span className="player-avatar" aria-hidden="true">{player.displayName.slice(0, 1)}</span>
+              <span className="player-identity">
+                <strong>{player.displayName}</strong>
+                <small>{player.isCurrentPlayer ? 'Your private seat' : 'Faction hidden'}</small>
+              </span>
+              <span className="player-score">
+                <strong>{player.score}</strong>
+                <small>Points</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <main className="game-board-layout">
         <FactionIntelPanel faction={playerView.faction} />
+        <EventBoard
+          events={playerView.events}
+          publicBandAgeLabel={playerView.publicBandAgeLabel}
+          selectedTargetId={effectiveTargetId}
+          onSelectTarget={toggleTarget}
+        />
+        <PrivateHand hand={playerView.hand} selectedCardId={effectiveCardId} onSelectCard={toggleCard} />
         <ActionConfirmationPanel
           selectedCard={selectedCard}
           selectedTarget={selectedTarget}
           confirmLabel={playerView.pendingAction?.confirmLabel ?? 'Confirm action'}
+          roundStatus={playerView.roundStatus}
           isSampleData={isSampleData}
         />
       </main>
+      <footer className="game-footer">
+        <span>Player-safe fixture preview</span>
+        <span>DOM controls · SVG artwork · no canvas renderer</span>
+      </footer>
     </div>
   )
 }

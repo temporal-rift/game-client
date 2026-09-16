@@ -40,7 +40,7 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Event board' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The active futures' })).toBeInTheDocument())
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -50,6 +50,6 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Temporal Rift' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Event board' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'The active futures' })).toBeInTheDocument()
   })
 })
