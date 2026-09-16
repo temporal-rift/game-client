@@ -1,110 +1,136 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { sampleFixturePlayerView } from '../fixtures/playerView'
 import { AppShell } from './AppShell'
 
 describe('AppShell', () => {
-  it('renders the event board, private hand, faction/intel and action confirmation regions', () => {
+  it('renders the tabletop regions and player strip', () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    expect(screen.getByRole('heading', { name: 'Event board' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Private hand' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Faction & intel' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Action confirmation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'The active futures' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Your hand' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Your faction' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Action confirmation' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Player scores' })).toBeInTheDocument()
   })
 
   it('labels fixture state as sample data', () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('sample data')
+    expect(screen.getByRole('status')).toHaveTextContent('Sample board')
   })
 
-  it('shows the current phase and deadline', () => {
+  it('shows the current phase and deadline in the compact header', () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    expect(screen.getByText(/Action round 2 of 3/)).toBeInTheDocument()
-    expect(screen.getByText(/Deadline: in 4 minutes/)).toBeInTheDocument()
+    expect(screen.getByText('Round 3 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Decision window')).toBeInTheDocument()
+    expect(screen.getByText('00:43')).toBeInTheDocument()
   })
 
-  it('seeds the confirmation summary from the recovered selection and disables it for sample data', () => {
+  it('seeds the exact action summary from the recovered selection and disables fixture submission', () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    expect(screen.getByText(/Anchor Point \(grade 3\) → Convergence at the Vault/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: sampleFixturePlayerView.pendingAction!.confirmLabel })).toBeDisabled()
+    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
+    expect(within(actionPanel).getByText('Push')).toBeInTheDocument()
+    expect(within(actionPanel).getByText("The Quantum Reactor's First Ignition")).toBeInTheDocument()
+    expect(within(actionPanel).getByText('Ignition succeeds')).toBeInTheDocument()
+    expect(within(actionPanel).getByRole('button', { name: 'Confirm action' })).toBeDisabled()
   })
 
-  it('updates the confirmation summary to identify the exact card, grade and target when selection changes by pointer', async () => {
+  it('updates the exact card and outcome summary when selection changes by pointer', async () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    await userEvent.click(screen.getByRole('button', { name: /Split the Thread/ }))
-    await userEvent.click(screen.getByRole('button', { name: /The Last Delegation/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Suppress/ }))
+    await userEvent.click(screen.getByRole('button', { name: /A splinter agreement forms/ }))
 
-    expect(screen.getByText(/Split the Thread \(grade 2\) → The Last Delegation/)).toBeInTheDocument()
+    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
+    expect(within(actionPanel).getByText('Suppress')).toBeInTheDocument()
+    expect(within(actionPanel).getByText('A splinter agreement forms')).toBeInTheDocument()
   })
 
-  it('updates the confirmation summary when selection changes by keyboard', async () => {
+  it('updates the action summary when selection changes by keyboard', async () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    const cardButton = screen.getByRole('button', { name: /Split the Thread/ })
+    const cardButton = screen.getByRole('button', { name: /Suppress/ })
     cardButton.focus()
     await userEvent.keyboard('{Enter}')
 
     expect(cardButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText(/Split the Thread \(grade 2\) → Convergence at the Vault/)).toBeInTheDocument()
+    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
+    expect(within(actionPanel).getByText('Suppress')).toBeInTheDocument()
   })
 
-  it('prompts for a selection once the seeded card and target are both deselected', async () => {
+  it('prompts for selection once the seeded card and outcome are both deselected', async () => {
     render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
 
-    await userEvent.click(screen.getByRole('button', { name: /Anchor Point/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Selected.*Push/s }))
+    await userEvent.click(screen.getByRole('button', { name: /Ignition succeeds/ }))
 
-    expect(screen.getByText('Select a card and a target to confirm an action.')).toBeInTheDocument()
+    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
   })
 
-  it('cannot select a resolved event as a target', () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('cannot select a resolved outcome', () => {
+    const resolvedView = {
+      ...sampleFixturePlayerView,
+      events: sampleFixturePlayerView.events.map((event, index) =>
+        index === 0
+          ? {
+              ...event,
+              status: 'resolved' as const,
+              outcomes: event.outcomes.map((outcome) => ({ ...outcome, isValidTarget: false })),
+            }
+          : event,
+      ),
+    }
+    render(<AppShell playerView={resolvedView} isSampleData />)
 
-    expect(screen.getByRole('button', { name: /The Signal Fractures/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Delegate survives/ })).toBeDisabled()
   })
 
-  it('rehydrates the selection from the new pending action when the game changes', () => {
+  it('rehydrates selection from the new pending action when the game changes', () => {
     const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-
     const nextGame = {
       ...sampleFixturePlayerView,
       gameId: 'fixture-game-2',
-      pendingAction: { cardId: 'card-2', targetId: 'evt-3', confirmLabel: 'Confirm action' },
+      pendingAction: { cardId: 'card-suppress', targetId: 'evt-3-splinter', confirmLabel: 'Confirm action' },
     }
+
     rerender(<AppShell playerView={nextGame} isSampleData />)
 
-    expect(screen.getByText(/Split the Thread \(grade 2\) → The Last Delegation/)).toBeInTheDocument()
+    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
+    expect(within(actionPanel).getByText('Suppress')).toBeInTheDocument()
+    expect(within(actionPanel).getByText('A splinter agreement forms')).toBeInTheDocument()
   })
 
-  it('clears a selected target that becomes illegal after a same-game refresh instead of leaving it confirmable', () => {
+  it('clears a selected outcome that becomes illegal after a same-game refresh', () => {
     const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-
     const refreshedView = {
       ...sampleFixturePlayerView,
-      events: sampleFixturePlayerView.events.map((event) =>
-        event.id === 'evt-2' ? { ...event, isValidTarget: false } : event,
-      ),
+      events: sampleFixturePlayerView.events.map((event) => ({
+        ...event,
+        outcomes: event.outcomes.map((outcome) =>
+          outcome.id === 'evt-2-success' ? { ...outcome, isValidTarget: false } : outcome,
+        ),
+      })),
     }
+
     rerender(<AppShell playerView={refreshedView} isSampleData />)
 
-    expect(screen.getByText('Select a card and a target to confirm an action.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Convergence at the Vault/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ignition succeeds/ })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('clears a selected card that is no longer in hand after a same-game refresh', () => {
     const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-
     const refreshedView = {
       ...sampleFixturePlayerView,
-      hand: sampleFixturePlayerView.hand.filter((card) => card.id !== 'card-1'),
+      hand: sampleFixturePlayerView.hand.filter((card) => card.id !== 'card-push'),
     }
+
     rerender(<AppShell playerView={refreshedView} isSampleData />)
 
-    expect(screen.getByText('Select a card and a target to confirm an action.')).toBeInTheDocument()
+    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
   })
 })
