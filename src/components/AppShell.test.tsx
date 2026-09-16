@@ -18,4 +18,10 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('sample data')
   })
+
+  it('disables the confirmation button for sample data so it cannot appear to act', () => {
+    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+
+    expect(screen.getByRole('button', { name: sampleFixturePlayerView.pendingAction!.confirmLabel })).toBeDisabled()
+  })
 })
