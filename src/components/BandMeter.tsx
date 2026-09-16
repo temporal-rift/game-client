@@ -1,16 +1,17 @@
 const SEGMENT_PATTERNS = ['url(#band-pattern-outcome-a)', 'url(#band-pattern-outcome-b)', 'url(#band-pattern-outcome-c)']
+const NUMERIC_COMPONENT = /^-?\d+(\.\d+)?$/
 
 function parseBand(band: string): readonly number[] | null {
   if (band.trim().toLowerCase() === 'unknown') {
     return null
   }
 
-  const parts = band.split('/').map((part) => Number.parseFloat(part.trim()))
-  if (parts.length === 0 || parts.some((part) => Number.isNaN(part))) {
+  const rawParts = band.split('/').map((part) => part.trim())
+  if (rawParts.length === 0 || rawParts.some((part) => !NUMERIC_COMPONENT.test(part))) {
     return null
   }
 
-  return parts
+  return rawParts.map(Number)
 }
 
 export function BandPatternDefs() {
@@ -40,7 +41,7 @@ export function BandMeter({ band }: { readonly band: string }) {
   if (!parts) {
     return (
       <span className="band-meter">
-        <svg viewBox="0 0 200 16" width="160" height="14" role="img" aria-label="Public band unknown">
+        <svg viewBox="0 0 200 16" width="160" height="14" aria-hidden="true" focusable="false">
           <rect width="200" height="16" fill="url(#band-pattern-unknown)" stroke="currentColor" strokeWidth="1" />
         </svg>
         <span className="band-meter-text">Unknown</span>
@@ -59,7 +60,7 @@ export function BandMeter({ band }: { readonly band: string }) {
 
   return (
     <span className="band-meter">
-      <svg viewBox="0 0 200 16" width="160" height="14" role="img" aria-label={`Public band ${parts.join(' / ')}`}>
+      <svg viewBox="0 0 200 16" width="160" height="14" aria-hidden="true" focusable="false">
         {segments.map((segment, index) => (
           <rect key={index} x={segment.x} y="0" width={segment.width} height="16" fill={segment.pattern} stroke="currentColor" strokeWidth="0.5" />
         ))}
