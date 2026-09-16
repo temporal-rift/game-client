@@ -23,7 +23,7 @@ export function AppShell({ playerView, isSampleData }: AppShellProps) {
         <EventBoard events={playerView.events} />
         <PrivateHand hand={playerView.hand} />
         <FactionIntelPanel faction={playerView.faction} />
-        <ActionConfirmationPanel pendingAction={playerView.pendingAction} />
+        <ActionConfirmationPanel pendingAction={playerView.pendingAction} isSampleData={isSampleData} />
       </main>
     </div>
   )
