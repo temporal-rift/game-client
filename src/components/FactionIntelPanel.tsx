@@ -1,5 +1,5 @@
 import type { FactionIntel } from '../types/playerView'
-import { KnowledgeScopeIcon } from './icons'
+import { FactionEmblem, KnowledgeScopeIcon } from './icons'
 
 interface FactionIntelPanelProps {
   readonly faction: FactionIntel
@@ -9,9 +9,15 @@ export function FactionIntelPanel({ faction }: FactionIntelPanelProps) {
   return (
     <section aria-labelledby="faction-intel-heading">
       <h2 id="faction-intel-heading">Faction &amp; intel</h2>
-      <p>
-        {faction.factionName} — {faction.specialName} ({faction.specialRemainingUses} remaining)
-      </p>
+      <div className="faction-heading-row">
+        <FactionEmblem />
+        <p className="faction-summary">
+          <span className="faction-name">{faction.factionName}</span>
+          <span className="faction-special">
+            {faction.specialName} ({faction.specialRemainingUses} remaining)
+          </span>
+        </p>
+      </div>
       <ul>
         {faction.knowledge.map((item) => (
           <li key={item.id}>

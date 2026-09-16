@@ -1,8 +1,22 @@
 :root {
-  --text: #1f1a26;
-  --bg: #ffffff;
-  --border: #d9d7de;
+  --text: #241f30;
+  --bg: #f3f0fb;
+  --panel-from: #ffffff;
+  --panel-to: #eae5f7;
+  --border: #d4d0e0;
+  --accent: #2f8f86;
+  --accent-strong: #1f6b64;
+  --accent-ink: #f4fffb;
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --serif: Georgia, 'Times New Roman', serif;
+
+  --scene-spire-from: #cfe7e4;
+  --scene-spire-to: #9cc9c2;
+  --scene-reactor-from: #dff3ee;
+  --scene-reactor-to: #b7e4d8;
+  --scene-reactor-core: #ffffff;
+  --scene-assembly-from: #f1e4cf;
+  --scene-assembly-to: #ddc79a;
 
   font: 1rem/1.5 var(--sans);
   color-scheme: light dark;
@@ -12,9 +26,22 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #e5e3ea;
-    --bg: #16171d;
-    --border: #33313c;
+    --text: #e7e4f2;
+    --bg: #0b0e1a;
+    --panel-from: #1b2036;
+    --panel-to: #11142a;
+    --border: #333a56;
+    --accent: #7be3d2;
+    --accent-strong: #47b5bc;
+    --accent-ink: #08201d;
+
+    --scene-spire-from: #223350;
+    --scene-spire-to: #101a30;
+    --scene-reactor-from: #16302c;
+    --scene-reactor-to: #0d1b22;
+    --scene-reactor-core: #baf4e1;
+    --scene-assembly-from: #2a2440;
+    --scene-assembly-to: #171a2c;
   }
 }
 
@@ -32,20 +59,49 @@ body {
 
 section {
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1rem;
+  border-radius: 10px;
+  padding: 1.25rem;
   margin-block-end: 1rem;
+  background: linear-gradient(160deg, var(--panel-from), var(--panel-to));
 }
 
 h1,
 h2 {
+  font-family: var(--serif);
   font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 h1 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.rift-mark {
+  color: var(--accent);
+}
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.65rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.deadline {
+  font-variant-numeric: tabular-nums;
 }
 
 main {
@@ -73,7 +129,7 @@ main {
   gap: 0.35rem;
   padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -89,12 +145,20 @@ main {
 .board-tile[aria-pressed='true'] {
   border-width: 2px;
   border-style: double;
+  border-color: var(--accent-strong);
   font-weight: 600;
 }
 
 .board-tile:focus-visible {
   outline: 3px solid currentColor;
   outline-offset: 2px;
+}
+
+.event-scene-art {
+  width: 100%;
+  height: 4.5rem;
+  border-radius: 6px;
+  color: var(--accent);
 }
 
 .board-tile-status {
@@ -104,12 +168,57 @@ main {
 }
 
 .board-tile-title {
+  font-family: var(--serif);
   font-size: 1.05rem;
 }
 
 .selection-flag,
 .board-tile-note {
   font-size: 0.8rem;
+}
+
+.hand-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.card-glyph {
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--accent);
+}
+
+.faction-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block-end: 0.75rem;
+}
+
+.faction-emblem {
+  width: 3.5rem;
+  height: 3.5rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.faction-summary {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.faction-name {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+}
+
+.faction-special {
+  font-size: 0.9rem;
+  opacity: 0.85;
 }
 
 .knowledge-scope {
@@ -123,6 +232,30 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.connection-glyph {
+  width: 100%;
+  max-width: 12rem;
+  height: 2rem;
+  color: var(--accent);
+  margin-block-end: 0.5rem;
+}
+
+.confirm-button {
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-strong);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 @media (max-width: 30rem) {

@@ -1,4 +1,5 @@
 import type { EventBoardEntry, HandCard } from '../types/playerView'
+import { ConnectionGlyph } from './icons'
 
 interface ActionConfirmationPanelProps {
   readonly selectedCard: HandCard | null
@@ -20,10 +21,11 @@ export function ActionConfirmationPanel({
       <h2 id="action-confirmation-heading">Action confirmation</h2>
       {selectedCard && selectedTarget ? (
         <div>
+          <ConnectionGlyph />
           <p aria-live="polite" aria-atomic="true">
             {selectedCard.name} (grade {selectedCard.grade}) → {selectedTarget.title}
           </p>
-          <button type="button" disabled={isSampleData || !onConfirm} onClick={onConfirm}>
+          <button type="button" className="confirm-button" disabled={isSampleData || !onConfirm} onClick={onConfirm}>
             {confirmLabel}
           </button>
         </div>
