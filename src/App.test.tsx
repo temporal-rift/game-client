@@ -14,7 +14,7 @@ const validEnv = {
 const signedInSession = {
   accessToken: 'access',
   idToken: 'id',
-  expiresAtEpochMs: 9_999_999_999_999,
+  expiresAtEpochMs: Date.now() + 3_600_000,
   identity: { subject: 'auth0|one', issuer: 'https://issuer.example.test', displayName: 'player-one' },
 }
 

@@ -5,7 +5,7 @@ import type { AuthSession } from './session'
 const session: AuthSession = {
   accessToken: 'session-access-token',
   idToken: 'id',
-  expiresAtEpochMs: 9_999_999_999_999,
+  expiresAtEpochMs: Date.now() + 3_600_000,
   identity: { subject: 'auth0|one', issuer: 'https://issuer.example.test', displayName: 'one' },
 }
 
@@ -24,6 +24,19 @@ describe('authenticatedFetch', () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer session-access-token')
     expect(authorizationHeader(session)).toBe('Bearer session-access-token')
+  })
+
+  it('replaces a caller-provided credential with the session token', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const authenticatedFetch = createAuthenticatedFetch(session)
+    await authenticatedFetch('https://api.example.test/api/v1/games', {
+      headers: { Authorization: 'Bearer stale-token' },
+    })
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer session-access-token')
   })
 
   it('notifies on 401 so private state can be cleared and reauthenticated', async () => {

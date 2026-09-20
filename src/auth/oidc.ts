@@ -2,8 +2,10 @@
  * Minimal OIDC discovery, authorization-URL construction and code exchange
  * for a public browser client (authorization code + PKCE, no secret).
  *
- * ID-token claims decoded here are display-only. Participant authorization
- * stays authoritative on the backend, which validates signatures itself.
+ * Endpoints travel over HTTPS except for loopback development hosts.
+ * ID-token claims decoded here are display-only and checked against the
+ * configured issuer/client; participant authorization stays authoritative
+ * on the backend, which validates signatures itself.
  */
 
 export class OidcError extends Error {
@@ -38,13 +40,34 @@ export interface IdTokenClaims {
   readonly issuer: string
   readonly displayName: string | null
   readonly expiresAtEpochMs: number | null
+  readonly audience: readonly string[]
+  readonly authorizedParty: string | null
 }
 
 function trimTrailingSlashes(value: string): string {
-  return value.replace(/\/+$/g, '')
+  let end = value.length
+  while (end > 0 && value[end - 1] === '/') {
+    end -= 1
+  }
+  return value.slice(0, end)
 }
 
-function requireHttpUrl(value: unknown): string {
+/** Normalizes an issuer URL for equality checks (trailing slashes). */
+export function normalizeIssuer(value: string): string {
+  return trimTrailingSlashes(value.trim())
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host.startsWith('127.')
+}
+
+/**
+ * Requires HTTPS for OIDC URLs. Plain HTTP stays allowed only for loopback
+ * hosts so local development against a local issuer keeps working while any
+ * non-local endpoint that would carry codes, verifiers or tokens in
+ * cleartext is rejected.
+ */
+function requireOidcUrl(value: unknown): string {
   if (typeof value !== 'string') {
     throw new OidcError('The configured issuer returned an invalid discovery document.')
   }
@@ -54,15 +77,23 @@ function requireHttpUrl(value: unknown): string {
   } catch {
     throw new OidcError('The configured issuer returned an invalid discovery document.')
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new OidcError('The configured issuer returned an invalid discovery document.')
+  if (url.protocol === 'https:') {
+    return value
   }
-  return value
+  if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) {
+    return value
+  }
+  throw new OidcError('The configured issuer returned an invalid discovery document.')
 }
 
-/** Fetches and validates the issuer discovery document over HTTPS. */
+/** Fetches and validates the issuer discovery document. */
 export async function discoverOidc(issuerUrl: string, fetcher: typeof fetch = fetch): Promise<OidcDiscovery> {
   const issuer = trimTrailingSlashes(issuerUrl.trim())
+  try {
+    requireOidcUrl(issuer)
+  } catch {
+    throw new OidcError('The configured sign-in service URL is invalid. Fix its configuration and try again.')
+  }
   let response: Response
   try {
     response = await fetcher(`${issuer}/.well-known/openid-configuration`, {
@@ -81,18 +112,23 @@ export async function discoverOidc(issuerUrl: string, fetcher: typeof fetch = fe
     throw new OidcError('The configured sign-in service returned an invalid response.', error)
   }
   try {
+    const discoveredIssuer =
+      typeof document['issuer'] === 'string' ? trimTrailingSlashes(document['issuer']) : null
+    if (discoveredIssuer !== null && discoveredIssuer !== issuer) {
+      throw new OidcError('The configured sign-in service returned an invalid discovery document.')
+    }
     return {
       issuer,
-      authorizationEndpoint: requireHttpUrl(document['authorization_endpoint']),
-      tokenEndpoint: requireHttpUrl(document['token_endpoint']),
+      authorizationEndpoint: requireOidcUrl(document['authorization_endpoint']),
+      tokenEndpoint: requireOidcUrl(document['token_endpoint']),
       userinfoEndpoint:
         document['userinfo_endpoint'] === undefined || document['userinfo_endpoint'] === null
           ? null
-          : requireHttpUrl(document['userinfo_endpoint']),
+          : requireOidcUrl(document['userinfo_endpoint']),
       endSessionEndpoint:
         document['end_session_endpoint'] === undefined || document['end_session_endpoint'] === null
           ? null
-          : requireHttpUrl(document['end_session_endpoint']),
+          : requireOidcUrl(document['end_session_endpoint']),
     }
   } catch (error) {
     if (error instanceof OidcError) {
@@ -184,14 +220,35 @@ export async function exchangeCodeForTokens(
 }
 
 function base64UrlDecodeToString(segment: string): string {
-  const padded = segment.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = segment.replaceAll('-', '+').replaceAll('_', '/')
   const padding = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
   const binary = atob(padded + padding)
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
+    bytes[index] = binary.codePointAt(index) ?? 0
   }
   return new TextDecoder().decode(bytes)
+}
+
+function displayNameFrom(payload: Record<string, unknown>): string | null {
+  const candidates = [payload['preferred_username'], payload['email'], payload['name']]
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.length > 0) {
+      return candidate
+    }
+  }
+  return null
+}
+
+function audienceFrom(payload: Record<string, unknown>): readonly string[] {
+  const audience = payload['aud']
+  if (typeof audience === 'string') {
+    return audience.length > 0 ? [audience] : []
+  }
+  if (Array.isArray(audience)) {
+    return audience.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+  }
+  return []
 }
 
 /**
@@ -216,15 +273,35 @@ export function decodeIdTokenClaims(idToken: string): IdTokenClaims {
   if (typeof subject !== 'string' || subject.length === 0 || typeof issuer !== 'string' || issuer.length === 0) {
     throw new OidcError('Sign-in returned an unusable identity. Try signing in again.')
   }
-  const displayName =
-    typeof payload['preferred_username'] === 'string' && payload['preferred_username'].length > 0
-      ? (payload['preferred_username'] as string)
-      : typeof payload['email'] === 'string' && payload['email'].length > 0
-        ? (payload['email'] as string)
-        : typeof payload['name'] === 'string' && payload['name'].length > 0
-          ? (payload['name'] as string)
-          : null
+  const displayName = displayNameFrom(payload)
   const expiresAtEpochMs =
     typeof payload['exp'] === 'number' && Number.isFinite(payload['exp']) ? payload['exp'] * 1000 : null
-  return { subject, issuer, displayName, expiresAtEpochMs }
+  const authorizedParty =
+    typeof payload['azp'] === 'string' && payload['azp'].length > 0 ? payload['azp'] : null
+  return { subject, issuer, displayName, expiresAtEpochMs, audience: audienceFrom(payload), authorizedParty }
+}
+
+export interface ExpectedTokenAudience {
+  readonly issuer: string
+  readonly clientId: string
+}
+
+/**
+ * Validates decoded ID-token claims against the configured issuer and
+ * client before the browser binds them to a player identity: the token
+ * must come from the configured issuer and, when it carries an audience
+ * or authorized party, must be addressed to this client. Signature
+ * verification stays with the backend resource servers, which remain
+ * authoritative for participant authorization.
+ */
+export function validateIdTokenClaims(claims: IdTokenClaims, expected: ExpectedTokenAudience): void {
+  if (trimTrailingSlashes(claims.issuer) !== trimTrailingSlashes(expected.issuer)) {
+    throw new OidcError('Sign-in returned an identity from an unexpected issuer. Try signing in again.')
+  }
+  if (claims.audience.length > 0 && !claims.audience.includes(expected.clientId)) {
+    throw new OidcError('Sign-in returned an identity for a different application. Try signing in again.')
+  }
+  if (claims.authorizedParty !== null && claims.authorizedParty !== expected.clientId) {
+    throw new OidcError('Sign-in returned an identity for a different application. Try signing in again.')
+  }
 }
