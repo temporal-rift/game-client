@@ -10,8 +10,15 @@ export interface GameInvitation {
 
 const INVITATION_PARAM = 'game'
 
+// Server-issued game references are URL-safe slugs (uuids); anything else
+// in the query string is ignored rather than stored or acted on.
+const GAME_REFERENCE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
 /** Builds a shareable invitation carrying only the game reference. */
 export function buildGameInvitationUrl(origin: string, gameId: string): string {
+  if (!GAME_REFERENCE_PATTERN.test(gameId)) {
+    throw new Error('Cannot share an invitation with an invalid game reference.')
+  }
   let normalized = origin
   while (normalized.endsWith('/')) {
     normalized = normalized.slice(0, -1)
@@ -23,11 +30,12 @@ export function buildGameInvitationUrl(origin: string, gameId: string): string {
  * Reads only the game reference from a URL query string. Identity-like
  * parameters (player, token, code, state, …) are deliberately ignored so a
  * crafted invitation can never fabricate or steal a player session.
+ * Malformed game references are rejected rather than stored.
  */
 export function parseGameInvitation(search: string): GameInvitation | null {
   const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`)
   const gameId = params.get(INVITATION_PARAM)?.trim()
-  if (!gameId) {
+  if (!gameId || !GAME_REFERENCE_PATTERN.test(gameId)) {
     return null
   }
   return { gameId }

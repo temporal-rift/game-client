@@ -26,6 +26,12 @@ describe('invitation and callback URLs', () => {
     expect(parseGameInvitation('?player=someone')).toBeNull()
   })
 
+  it('rejects malformed game references instead of storing them', () => {
+    expect(parseGameInvitation('?game=<script>alert(1)</script>')).toBeNull()
+    expect(parseGameInvitation(`?game=${'a'.repeat(200)}`)).toBeNull()
+    expect(() => buildGameInvitationUrl('https://app.example.test', 'not a reference!')).toThrow()
+  })
+
   it('parses callback denials for user-friendly handling', () => {
     expect(parseAuthCallback('?error=access_denied&error_description=denied')).toEqual({
       code: null,
