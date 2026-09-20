@@ -24,9 +24,7 @@ export function createAuthenticatedFetch(session: AuthSession) {
   return async function authenticatedFetch(input: RequestInfo | URL, init: AuthenticatedFetchOptions = {}): Promise<Response> {
     const { onUnauthorized, ...requestInit } = init
     const headers = new Headers(requestInit.headers)
-    if (!headers.has('Authorization')) {
-      headers.set('Authorization', authorizationHeader(session))
-    }
+    headers.set('Authorization', authorizationHeader(session))
     if (!headers.has('Accept')) {
       headers.set('Accept', 'application/json')
     }

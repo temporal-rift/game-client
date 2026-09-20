@@ -7,7 +7,7 @@
  * change clears prior private state before anything new is stored.
  */
 
-import { decodeIdTokenClaims } from './oidc'
+import { decodeIdTokenClaims, OidcError, validateIdTokenClaims } from './oidc'
 
 export interface PlayerIdentity {
   readonly subject: string
@@ -26,6 +26,7 @@ export interface PendingLogin {
   readonly codeVerifier: string
   readonly state: string
   readonly redirectUri: string
+  readonly invitationGameId: string | null
 }
 
 const SESSION_KEY = 'temporal-rift.auth.session.v1'
@@ -58,14 +59,32 @@ export function isSessionExpired(session: AuthSession, nowEpochMs: number = Date
   return session.expiresAtEpochMs <= nowEpochMs
 }
 
-/** Builds a session from fresh tokens; decodes identity from the ID token. */
-export function sessionFromTokens(accessToken: string, idToken: string, expiresAtEpochMs: number): AuthSession {
-  const claims = decodeIdTokenClaims(idToken)
+export interface ValidatedTokenInput {
+  readonly accessToken: string
+  readonly idToken: string
+  readonly expiresAtEpochMs: number
+  readonly expectedIssuer: string
+  readonly expectedClientId: string
+}
+
+/**
+ * Builds a session from fresh tokens after checking the ID-token claims
+ * against the configured issuer and client. Rejects tokens issued for a
+ * different issuer or application before they can bind an identity.
+ */
+export function sessionFromValidatedTokens(input: ValidatedTokenInput): AuthSession {
+  if (input.accessToken.length === 0) {
+    throw new OidcError('Sign-in returned an unusable credential. Try signing in again.')
+  }
+  const claims = decodeIdTokenClaims(input.idToken)
+  validateIdTokenClaims(claims, { issuer: input.expectedIssuer, clientId: input.expectedClientId })
   const effectiveExpiry =
-    claims.expiresAtEpochMs !== null ? Math.min(expiresAtEpochMs, claims.expiresAtEpochMs) : expiresAtEpochMs
+    claims.expiresAtEpochMs !== null
+      ? Math.min(input.expiresAtEpochMs, claims.expiresAtEpochMs)
+      : input.expiresAtEpochMs
   return {
-    accessToken,
-    idToken,
+    accessToken: input.accessToken,
+    idToken: input.idToken,
     expiresAtEpochMs: effectiveExpiry,
     identity: { subject: claims.subject, issuer: claims.issuer, displayName: claims.displayName },
   }
@@ -122,7 +141,12 @@ export function loadPendingLogin(
     ) {
       return null
     }
-    return parsed as PendingLogin
+    return {
+      codeVerifier: parsed.codeVerifier,
+      state: parsed.state,
+      redirectUri: parsed.redirectUri,
+      invitationGameId: typeof parsed.invitationGameId === 'string' ? parsed.invitationGameId : null,
+    }
   } catch {
     return null
   }
@@ -133,6 +157,11 @@ export function savePendingLogin(
   storage: SessionStorageLike | null = sessionStorageOrNull(),
 ): void {
   storage?.setItem(PENDING_LOGIN_KEY, JSON.stringify(pending))
+}
+
+/** Discards only the pending PKCE login, preserving any signed-in session. */
+export function clearPendingLogin(storage: SessionStorageLike | null = sessionStorageOrNull()): void {
+  storage?.removeItem(PENDING_LOGIN_KEY)
 }
 
 /**

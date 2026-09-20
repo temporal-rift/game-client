@@ -12,7 +12,10 @@ const INVITATION_PARAM = 'game'
 
 /** Builds a shareable invitation carrying only the game reference. */
 export function buildGameInvitationUrl(origin: string, gameId: string): string {
-  const normalized = origin.replace(/\/+$/g, '')
+  let normalized = origin
+  while (normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
   return `${normalized}/?${INVITATION_PARAM}=${encodeURIComponent(gameId)}`
 }
 

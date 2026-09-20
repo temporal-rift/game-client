@@ -4,7 +4,9 @@ import {
   decodeIdTokenClaims,
   discoverOidc,
   exchangeCodeForTokens,
+  normalizeIssuer,
   OidcError,
+  validateIdTokenClaims,
   type OidcDiscovery,
 } from './oidc'
 
@@ -55,6 +57,53 @@ describe('discoverOidc', () => {
     await expect(discoverOidc('https://issuer.example.test', fetcher as unknown as typeof fetch)).rejects.toBeInstanceOf(
       OidcError,
     )
+  })
+
+  it('rejects non-HTTPS endpoints outside loopback development hosts', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        authorization_endpoint: 'http://issuer.example.test/authorize',
+        token_endpoint: 'http://issuer.example.test/token',
+      }),
+    })
+
+    await expect(discoverOidc('https://issuer.example.test', fetcher as unknown as typeof fetch)).rejects.toBeInstanceOf(
+      OidcError,
+    )
+  })
+
+  it('rejects a discovery document from a different issuer', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        issuer: 'https://attacker.example.test',
+        authorization_endpoint: 'https://attacker.example.test/authorize',
+        token_endpoint: 'https://attacker.example.test/token',
+      }),
+    })
+
+    await expect(discoverOidc('https://issuer.example.test', fetcher as unknown as typeof fetch)).rejects.toBeInstanceOf(
+      OidcError,
+    )
+  })
+
+  it('allows HTTP discovery for loopback development issuers', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        issuer: 'http://localhost:8081/realms/temporal-rift',
+        authorization_endpoint: 'http://localhost:8081/realms/temporal-rift/protocol/openid-connect/auth',
+        token_endpoint: 'http://localhost:8081/realms/temporal-rift/protocol/openid-connect/token',
+      }),
+    })
+
+    const result = await discoverOidc(
+      'http://localhost:8081/realms/temporal-rift',
+      fetcher as unknown as typeof fetch,
+    )
+    expect(result.tokenEndpoint).toContain('http://localhost:8081')
+    expect(normalizeIssuer('https://issuer.example.test/')).toBe('https://issuer.example.test')
   })
 })
 
@@ -141,11 +190,44 @@ describe('decodeIdTokenClaims', () => {
       issuer: 'https://issuer.example.test',
       displayName: 'player-one',
       expiresAtEpochMs: null,
+      audience: [],
+      authorizedParty: null,
     })
   })
 
   it('rejects tokens without identity', () => {
     expect(() => decodeIdTokenClaims('not-a-token')).toThrow(OidcError)
     expect(() => decodeIdTokenClaims(idToken({ iss: 'https://issuer.example.test' }))).toThrow(OidcError)
+  })
+})
+
+describe('validateIdTokenClaims', () => {
+  const expected = { issuer: 'https://issuer.example.test', clientId: 'game-client' }
+
+  it('accepts matching issuer and audience', () => {
+    const claims = decodeIdTokenClaims(
+      idToken({ sub: 'auth0|abc', iss: expected.issuer, aud: 'game-client' }),
+    )
+
+    expect(() => validateIdTokenClaims(claims, expected)).not.toThrow()
+  })
+
+  it('rejects tokens from a different issuer', () => {
+    const claims = decodeIdTokenClaims(
+      idToken({ sub: 'auth0|abc', iss: 'https://other.example.test', aud: 'game-client' }),
+    )
+
+    expect(() => validateIdTokenClaims(claims, expected)).toThrow(OidcError)
+  })
+
+  it('rejects tokens addressed to a different application', () => {
+    const claims = decodeIdTokenClaims(idToken({ sub: 'auth0|abc', iss: expected.issuer, aud: 'other-app' }))
+
+    expect(() => validateIdTokenClaims(claims, expected)).toThrow(OidcError)
+
+    const azpClaims = decodeIdTokenClaims(
+      idToken({ sub: 'auth0|abc', iss: expected.issuer, aud: 'game-client', azp: 'other-app' }),
+    )
+    expect(() => validateIdTokenClaims(azpClaims, expected)).toThrow(OidcError)
   })
 })

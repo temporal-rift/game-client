@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  clearPendingLogin,
   clearPrivateState,
   identityKey,
   isSessionExpired,
@@ -8,9 +9,10 @@ import {
   sameIdentity,
   savePendingLogin,
   saveSession,
-  sessionFromTokens,
+  sessionFromValidatedTokens,
   type AuthSession,
 } from './session'
+import { OidcError } from './oidc'
 
 function idToken(payload: Record<string, unknown>): string {
   const encode = (value: unknown): string =>
@@ -52,13 +54,34 @@ describe('player session storage', () => {
 
   it('round-trips sessions and pending logins per browser context', () => {
     saveSession(session, storage)
-    savePendingLogin({ codeVerifier: 'verifier', state: 'state', redirectUri: 'https://app/' }, storage)
+    savePendingLogin(
+      { codeVerifier: 'verifier', state: 'state', redirectUri: 'https://app/', invitationGameId: 'game-1' },
+      storage,
+    )
 
     expect(loadSession(storage)).toEqual(session)
-    expect(loadPendingLogin(storage)?.state).toBe('state')
+    expect(loadPendingLogin(storage)).toEqual({
+      codeVerifier: 'verifier',
+      state: 'state',
+      redirectUri: 'https://app/',
+      invitationGameId: 'game-1',
+    })
 
     const otherContext = memoryStorage()
     expect(loadSession(otherContext)).toBeNull()
+  })
+
+  it('discards only the pending login while preserving the session', () => {
+    saveSession(session, storage)
+    savePendingLogin(
+      { codeVerifier: 'v', state: 's', redirectUri: 'https://app/', invitationGameId: null },
+      storage,
+    )
+
+    clearPendingLogin(storage)
+
+    expect(loadSession(storage)).toEqual(session)
+    expect(loadPendingLogin(storage)).toBeNull()
   })
 
   it('detects expiry and identity changes', () => {
@@ -76,7 +99,7 @@ describe('player session storage', () => {
 
   it('clears sessions, pending logins and private caches together', () => {
     saveSession(session, storage)
-    savePendingLogin({ codeVerifier: 'v', state: 's', redirectUri: 'https://app/' }, storage)
+    savePendingLogin({ codeVerifier: 'v', state: 's', redirectUri: 'https://app/', invitationGameId: null }, storage)
     storage.setItem('temporal-rift.private.hand', 'private')
     storage.setItem('unrelated', 'keep')
 
@@ -88,14 +111,38 @@ describe('player session storage', () => {
     expect(storage.getItem('unrelated')).toBe('keep')
   })
 
-  it('builds sessions from tokens with the earlier token expiry', () => {
-    const built = sessionFromTokens(
-      'access',
-      idToken({ sub: 'auth0|one', iss: 'https://issuer.example.test', exp: 1 }),
-      500_000,
-    )
+  it('builds sessions from validated tokens with the earlier token expiry', () => {
+    const built = sessionFromValidatedTokens({
+      accessToken: 'access',
+      idToken: idToken({ sub: 'auth0|one', iss: 'https://issuer.example.test', exp: 1 }),
+      expiresAtEpochMs: 500_000,
+      expectedIssuer: 'https://issuer.example.test',
+      expectedClientId: 'game-client',
+    })
 
     expect(built.identity.subject).toBe('auth0|one')
     expect(built.expiresAtEpochMs).toBe(1_000)
+  })
+
+  it('rejects tokens from an unexpected issuer or application', () => {
+    const input = {
+      accessToken: 'access',
+      expiresAtEpochMs: 500_000,
+      expectedIssuer: 'https://issuer.example.test',
+      expectedClientId: 'game-client',
+    }
+
+    expect(() =>
+      sessionFromValidatedTokens({
+        ...input,
+        idToken: idToken({ sub: 'auth0|one', iss: 'https://other.example.test' }),
+      }),
+    ).toThrow(OidcError)
+    expect(() =>
+      sessionFromValidatedTokens({
+        ...input,
+        idToken: idToken({ sub: 'auth0|one', iss: 'https://issuer.example.test', aud: 'other-app' }),
+      }),
+    ).toThrow(OidcError)
   })
 })
