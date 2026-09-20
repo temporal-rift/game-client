@@ -68,6 +68,10 @@ function restoreStoredSession(active: AppConfig): PlayerSessionStatus {
     clearPrivateState()
     return { state: 'signed-out', reason: 'The sign-in configuration changed. Sign in again to continue.' }
   }
+  if (restored.clientId !== active.oidcClientId) {
+    clearPrivateState()
+    return { state: 'signed-out', reason: 'The sign-in configuration changed. Sign in again to continue.' }
+  }
   return { state: 'signed-in', session: restored }
 }
 

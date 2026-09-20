@@ -16,6 +16,7 @@ const signedInSession = {
   idToken: 'id',
   expiresAtEpochMs: Date.now() + 3_600_000,
   identity: { subject: 'auth0|one', issuer: 'https://issuer.example.test', displayName: 'player-one' },
+  clientId: 'game-client',
 }
 
 describe('App', () => {

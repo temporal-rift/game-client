@@ -73,6 +73,21 @@ describe('discoverOidc', () => {
     )
   })
 
+  it('rejects DNS names that merely start with 127dot for plaintext HTTP', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        issuer: 'http://127.0.0.1/realms/game',
+        authorization_endpoint: 'http://127.attacker.example/authorize',
+        token_endpoint: 'http://127.attacker.example/token',
+      }),
+    })
+
+    await expect(
+      discoverOidc('http://127.0.0.1/realms/game', fetcher as unknown as typeof fetch),
+    ).rejects.toBeInstanceOf(OidcError)
+  })
+
   it('rejects a discovery document from a different issuer', async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,
@@ -229,5 +244,11 @@ describe('validateIdTokenClaims', () => {
       idToken({ sub: 'auth0|abc', iss: expected.issuer, aud: 'game-client', azp: 'other-app' }),
     )
     expect(() => validateIdTokenClaims(azpClaims, expected)).toThrow(OidcError)
+  })
+
+  it('rejects tokens with no audience', () => {
+    const claims = decodeIdTokenClaims(idToken({ sub: 'auth0|abc', iss: expected.issuer }))
+
+    expect(() => validateIdTokenClaims(claims, expected)).toThrow(OidcError)
   })
 })
