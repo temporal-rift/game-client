@@ -23,7 +23,7 @@ npm test
 npm run build
 ```
 
-The shell currently renders player-safe fixture state (event board, private hand, faction/intel and action confirmation) once the configured API is reachable. Missing/invalid configuration or a failed connectivity check surface a recoverable error instead of inventing player identity or game state. Authenticated gameplay integration follows in later issues.
+The shell currently renders player-safe fixture state (event board, private hand, faction/intel and action confirmation) once the configured API is reachable and the player has signed in through the configured OIDC issuer (authorization code with PKCE, no browser client secret). Sessions are identity-bound per browser context, survive reload, and clear private state on logout, expiry or identity change. Missing/invalid configuration, denied sign-in or a failed connectivity check surface a recoverable error instead of inventing player identity or game state. Lobby and live gameplay integration follow in later issues.
 
 [Human-playable game milestone](https://github.com/temporal-rift/game-client/milestone/1) · [Gameplay umbrella issue](https://github.com/temporal-rift/game-client/issues/11) · [Project board](https://github.com/orgs/temporal-rift/projects/4)
 
