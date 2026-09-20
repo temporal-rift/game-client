@@ -43,6 +43,7 @@ const session: AuthSession = {
   idToken: 'id',
   expiresAtEpochMs: 2_000,
   identity: { subject: 'auth0|one', issuer: 'https://issuer.example.test', displayName: 'one' },
+  clientId: 'game-client',
 }
 
 describe('player session storage', () => {
@@ -114,7 +115,7 @@ describe('player session storage', () => {
   it('builds sessions from validated tokens with the earlier token expiry', () => {
     const built = sessionFromValidatedTokens({
       accessToken: 'access',
-      idToken: idToken({ sub: 'auth0|one', iss: 'https://issuer.example.test', exp: 1 }),
+      idToken: idToken({ sub: 'auth0|one', iss: 'https://issuer.example.test', aud: 'game-client', exp: 1 }),
       expiresAtEpochMs: 500_000,
       expectedIssuer: 'https://issuer.example.test',
       expectedClientId: 'game-client',

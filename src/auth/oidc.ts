@@ -58,7 +58,17 @@ export function normalizeIssuer(value: string): string {
 }
 
 function isLoopbackHost(host: string): boolean {
-  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host.startsWith('127.')
+  if (host === 'localhost' || host === '[::1]') {
+    return true
+  }
+  // Only actual IPv4 literals in 127.0.0.0/8 count: a DNS name such as
+  // 127.attacker.example must never pass as loopback.
+  const octets = host.split('.')
+  if (octets.length !== 4 || !octets.every((octet) => /^\d{1,3}$/.test(octet))) {
+    return false
+  }
+  const [first, ...rest] = octets.map(Number)
+  return first === 127 && rest.every((octet) => octet >= 0 && octet <= 255)
 }
 
 /**
@@ -298,7 +308,9 @@ export function validateIdTokenClaims(claims: IdTokenClaims, expected: ExpectedT
   if (trimTrailingSlashes(claims.issuer) !== trimTrailingSlashes(expected.issuer)) {
     throw new OidcError('Sign-in returned an identity from an unexpected issuer. Try signing in again.')
   }
-  if (claims.audience.length > 0 && !claims.audience.includes(expected.clientId)) {
+  // An ID token always names its relying-party audience; without one the
+  // token cannot be bound to this client.
+  if (claims.audience.length === 0 || !claims.audience.includes(expected.clientId)) {
     throw new OidcError('Sign-in returned an identity for a different application. Try signing in again.')
   }
   if (claims.authorizedParty !== null && claims.authorizedParty !== expected.clientId) {

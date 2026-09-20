@@ -20,6 +20,8 @@ export interface AuthSession {
   readonly idToken: string
   readonly expiresAtEpochMs: number
   readonly identity: PlayerIdentity
+  /** Client the ID token was validated for; re-checked on restore. */
+  readonly clientId: string
 }
 
 export interface PendingLogin {
@@ -87,6 +89,7 @@ export function sessionFromValidatedTokens(input: ValidatedTokenInput): AuthSess
     idToken: input.idToken,
     expiresAtEpochMs: effectiveExpiry,
     identity: { subject: claims.subject, issuer: claims.issuer, displayName: claims.displayName },
+    clientId: input.expectedClientId,
   }
 }
 
@@ -100,6 +103,8 @@ function parseSession(raw: string | null): AuthSession | null {
       typeof parsed.accessToken !== 'string' ||
       typeof parsed.idToken !== 'string' ||
       typeof parsed.expiresAtEpochMs !== 'number' ||
+      typeof parsed.clientId !== 'string' ||
+      parsed.clientId.length === 0 ||
       typeof parsed.identity?.subject !== 'string' ||
       typeof parsed.identity?.issuer !== 'string'
     ) {

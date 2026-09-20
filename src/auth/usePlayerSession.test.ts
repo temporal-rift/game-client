@@ -27,6 +27,7 @@ const storedSession: AuthSession = {
   idToken: 'stored-id',
   expiresAtEpochMs: Date.now() + 3_600_000,
   identity: { subject: 'auth0|stored', issuer: config.oidcIssuerUrl, displayName: 'stored' },
+  clientId: config.oidcClientId,
 }
 
 function mockOidcServer(): void {
@@ -49,7 +50,7 @@ function mockOidcServer(): void {
         status: 200,
         json: async () => ({
           access_token: 'fresh-access',
-          id_token: idToken({ sub: 'auth0|fresh', iss: config.oidcIssuerUrl }),
+          id_token: idToken({ sub: 'auth0|fresh', iss: config.oidcIssuerUrl, aud: config.oidcClientId }),
           expires_in: 300,
         }),
       }
@@ -133,8 +134,7 @@ describe('usePlayerSession callback handling', () => {
     expect(window.location.search).not.toContain('error=')
   })
 
-  it('clears private state when the active session reaches its deadline', async () => {
-    sessionStorage.setItem(
+  it('clears private state when the active session reaches its deadline', async () => {    sessionStorage.setItem(
       'temporal-rift.auth.session.v1',
       JSON.stringify({ ...storedSession, expiresAtEpochMs: Date.now() + 30 }),
     )
@@ -147,6 +147,18 @@ describe('usePlayerSession callback handling', () => {
     if (status.state === 'signed-out') {
       expect(status.reason).toMatch(/expired/i)
     }
+    expect(sessionStorage.getItem('temporal-rift.auth.session.v1')).toBeNull()
+  })
+
+  it('clears stored sessions issued for a different client', async () => {
+    sessionStorage.setItem(
+      'temporal-rift.auth.session.v1',
+      JSON.stringify({ ...storedSession, clientId: 'previous-client' }),
+    )
+
+    const { result } = renderHook(() => usePlayerSession(config))
+
+    await waitFor(() => expect(result.current.status.state).toBe('signed-out'))
     expect(sessionStorage.getItem('temporal-rift.auth.session.v1')).toBeNull()
   })
 })
