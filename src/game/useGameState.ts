@@ -40,6 +40,26 @@ function perspectiveId(gameId: string | null, perspectiveKey: string | null): st
   return gameId && perspectiveKey ? `${perspectiveKey}::${gameId}` : null
 }
 
+/** True while the tab is backgrounded or the browser reports no connectivity. */
+function isPollingPaused(): boolean {
+  if (typeof document !== 'undefined' && document.hidden) {
+    return true
+  }
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+type PollErrorOutcome =
+  | { readonly ignore: true }
+  | { readonly ignore: false; readonly message: string; readonly code: string | null }
+
+/** An aborted request is intentional cancellation, never a reported failure. */
+function classifyPollError(error: unknown): PollErrorOutcome {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return { ignore: true }
+  }
+  return { ignore: false, message: gameStateErrorMessage(error), code: error instanceof GameStateApiError ? error.code : null }
+}
+
 /**
  * Owns authenticated polling of one participant's game state: freshness
  * reconciliation by revision, controlled backoff across network/tab
@@ -83,12 +103,19 @@ export function useGameState(options: UseGameStateOptions): GameStateSession {
     }
   }, [])
 
+  const advanceDelay = useCallback(
+    (outcome: 'success' | 'failure') => {
+      delayRef.current = nextPollDelayMs(delayRef.current, outcome, {
+        baseDelayMs: pollIntervalMs,
+        maxDelayMs: maxPollIntervalMs,
+      })
+    },
+    [maxPollIntervalMs, pollIntervalMs],
+  )
+
   const runPoll = useCallback(
     async (activePerspective: string, activeGameId: string): Promise<GameStateView | null> => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        return null
-      }
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (isPollingPaused()) {
         return null
       }
       abortRef.current?.abort()
@@ -99,40 +126,26 @@ export function useGameState(options: UseGameStateOptions): GameStateSession {
         if (perspectiveRef.current !== activePerspective) {
           return null
         }
+        advanceDelay('success')
         if (!shouldApplyGameState(stateRef.current, next)) {
-          delayRef.current = nextPollDelayMs(delayRef.current, 'success', {
-            baseDelayMs: pollIntervalMs,
-            maxDelayMs: maxPollIntervalMs,
-          })
           setStatus({ kind: 'ready' })
           return stateRef.current
         }
         stateRef.current = next
         setState(next)
         setStatus({ kind: 'ready' })
-        delayRef.current = nextPollDelayMs(delayRef.current, 'success', {
-          baseDelayMs: pollIntervalMs,
-          maxDelayMs: maxPollIntervalMs,
-        })
         return next
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
+        const outcome = classifyPollError(error)
+        if (outcome.ignore || perspectiveRef.current !== activePerspective) {
           return null
         }
-        if (perspectiveRef.current !== activePerspective) {
-          return null
-        }
-        delayRef.current = nextPollDelayMs(delayRef.current, 'failure', {
-          baseDelayMs: pollIntervalMs,
-          maxDelayMs: maxPollIntervalMs,
-        })
-        const message = gameStateErrorMessage(error)
-        const code = error instanceof GameStateApiError ? error.code : null
-        setStatus(stateRef.current ? { kind: 'stalled', message, code } : { kind: 'failed', message, code })
+        advanceDelay('failure')
+        setStatus(stateRef.current ? { kind: 'stalled', ...outcome } : { kind: 'failed', ...outcome })
         return null
       }
     },
-    [apiBaseUrl, maxPollIntervalMs, pollIntervalMs],
+    [apiBaseUrl, advanceDelay],
   )
 
   const scheduleNextRef = useRef<(activePerspective: string, activeGameId: string) => void>(() => {})
@@ -180,6 +193,12 @@ export function useGameState(options: UseGameStateOptions): GameStateSession {
     return () => {
       abortRef.current?.abort()
       clearTimer()
+      // Invalidates any in-flight poll's perspective check. On a deps change
+      // (not unmount) the effect body above runs again synchronously right
+      // after this and immediately reassigns perspectiveRef.current, so this
+      // only actually matters — and only takes effect — on real unmount,
+      // where it stops a pending `.finally` from rescheduling a zombie loop.
+      perspectiveRef.current = null
     }
   }, [gameId, perspectiveKey, runPoll, scheduleNext, clearTimer, pollIntervalMs])
 

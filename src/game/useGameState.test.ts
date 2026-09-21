@@ -214,6 +214,25 @@ describe('useGameState', () => {
     expect(fetchFn).toHaveBeenCalledTimes(3)
   })
 
+  it('stops polling after unmount even when a request was in flight at the time', async () => {
+    const inFlight = deferred<Response>()
+    const fetchFn = vi.fn().mockReturnValueOnce(inFlight.promise).mockResolvedValue(gameStateResponse({ revision: 1 }))
+
+    const { unmount } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    await flush()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+
+    unmount()
+
+    // The in-flight request settles after unmount, as if cancellation raced a response already on the wire.
+    inFlight.resolve(gameStateResponse({ revision: 1 }))
+    await flush()
+
+    // A zombie loop would reschedule and fetch again once the base interval elapses; it must not.
+    await flush(8000)
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
   it('recovers own accepted submissions for lost-response retry safety', async () => {
     const fetchFn = vi.fn().mockResolvedValue(
       gameStateResponse({

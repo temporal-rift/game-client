@@ -19,7 +19,7 @@ export function shouldApplyGameState(current: GameStateView | null, next: GameSt
   if (next.revision === null) {
     return current === null
   }
-  if (current === null || current.revision === null) {
+  if (current?.revision == null) {
     return true
   }
   return next.revision > current.revision
