@@ -133,7 +133,7 @@ function isBase64UrlSegment(segment: string): boolean {
     return false
   }
   for (let index = 0; index < segment.length; index += 1) {
-    const code = segment.charCodeAt(index)
+    const code = segment.codePointAt(index) ?? 0
     const isWord = code === 45 || code === 95 || (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
     if (!isWord) {
       return false
