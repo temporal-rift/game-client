@@ -44,6 +44,7 @@ describe('lobbyClient', () => {
         lobbyId: 'lobby-1',
         gameId: 'game-1',
         hostPlayerId: 'player-1',
+        currentPlayerId: 'player-1',
         status: 'WAITING',
         members: [{ playerId: 'player-1', playerName: 'host-one', isHost: true }],
       }),
@@ -54,6 +55,7 @@ describe('lobbyClient', () => {
     expect(view.status).toBe('WAITING')
     expect(view.gameId).toBe('game-1')
     expect(view.members).toHaveLength(1)
+    expect(view.currentPlayerId).toBe('player-1')
   })
 
   it('surfaces stable problem codes for invalid invitations', async () => {
@@ -88,6 +90,9 @@ describe('lobbyClient', () => {
     const startFetch = vi.fn().mockResolvedValue(jsonResponse(202, { gameId: 'game-1' }))
     const started = await startGame(startFetch, apiBaseUrl, 'lobby-1')
     expect(started).toEqual({ gameId: 'game-1' })
+    expect(startFetch.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' })
+    expect(startFetch.mock.calls[0]?.[1]?.body).toBeUndefined()
+    expect(new Headers(startFetch.mock.calls[0]?.[1]?.headers).get('Content-Type')).toBeNull()
   })
 
   it('reads the public game summary after start', async () => {

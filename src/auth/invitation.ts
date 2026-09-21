@@ -106,6 +106,31 @@ export function parseLobbyInvitation(search: string): LobbyInvitation | null {
   return invitation ? { lobbyId: invitation.gameId } : null;
 }
 
+/**
+ * Accepts either an exact lobby reference or one complete, unambiguous
+ * invitation URL. Bare query-like text is never treated as another lobby.
+ */
+export function parseLobbyReference(value: string): LobbyInvitation | null {
+  const reference = value.trim();
+  if (GAME_REFERENCE_PATTERN.test(reference)) {
+    return { lobbyId: reference };
+  }
+  try {
+    const invitationUrl = new URL(reference);
+    if (
+      (invitationUrl.protocol !== 'https:' && invitationUrl.protocol !== 'http:') ||
+      invitationUrl.hash ||
+      invitationUrl.searchParams.size !== 1
+    ) {
+      return null;
+    }
+    const lobbyId = invitationUrl.searchParams.get(INVITATION_PARAM);
+    return lobbyId && GAME_REFERENCE_PATTERN.test(lobbyId) ? { lobbyId } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Persists the active lobby reference in the address bar for reload recovery. */
 export function writeLobbyInvitationToUrl(lobbyId: string | null): void {
   const url = new URL(window.location.href);

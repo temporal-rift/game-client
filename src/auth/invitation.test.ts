@@ -4,6 +4,7 @@ import {
   cleanAuthCallbackUrl,
   parseAuthCallback,
   parseGameInvitation,
+  parseLobbyReference,
   urlCarriesCredentials,
 } from './invitation'
 
@@ -30,6 +31,14 @@ describe('invitation and callback URLs', () => {
     expect(parseGameInvitation('?game=<script>alert(1)</script>')).toBeNull()
     expect(parseGameInvitation(`?game=${'a'.repeat(200)}`)).toBeNull()
     expect(() => buildGameInvitationUrl('https://app.example.test', 'not a reference!')).toThrow()
+  })
+
+  it('accepts only an exact lobby reference or an unambiguous invitation URL', () => {
+    expect(parseLobbyReference('lobby-123')).toEqual({ lobbyId: 'lobby-123' })
+    expect(parseLobbyReference('https://app.example.test/?game=lobby-123')).toEqual({ lobbyId: 'lobby-123' })
+    expect(parseLobbyReference('lobby-123?game=another-lobby')).toBeNull()
+    expect(parseLobbyReference('https://app.example.test/?game=lobby-123&other=value')).toBeNull()
+    expect(parseLobbyReference('https://app.example.test/?game=not a reference')).toBeNull()
   })
 
   it('parses callback denials for user-friendly handling', () => {
