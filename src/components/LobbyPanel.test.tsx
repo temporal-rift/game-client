@@ -83,6 +83,21 @@ describe('LobbyPanel', () => {
     expect(start).toHaveBeenCalledTimes(1)
   })
 
+  it('disables start for the host when the roster is below three players', () => {
+    const start = vi.fn()
+    const hostTooFew = session(
+      {
+        lobby: lobbyView({ members: [{ playerId: 'player-1', playerName: 'host-one', isHost: true }] }),
+        isHost: true,
+        canStart: false,
+      },
+      { start },
+    )
+    render(<LobbyPanel lobby={hostTooFew} defaultPlayerName="host-one" />)
+
+    expect(screen.getByRole('button', { name: /start game/i })).toBeDisabled()
+  })
+
   it('shows authoritative errors without fabricating membership', () => {
     const failed = session({
       phase: { kind: 'failed', message: 'This lobby is full (5 players maximum).', code: '422-01' },

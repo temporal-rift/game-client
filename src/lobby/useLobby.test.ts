@@ -90,7 +90,7 @@ function createFakeServer() {
           )
         }
         if (method === 'POST' && match[3] === 'start') {
-          const caller = url.searchParams.get('caller')
+          const caller = new Headers(init.headers).get('x-test-caller')
           if (caller && caller !== lobby.hostPlayerId) {
             return problem(403, '403-02', 'not host')
           }
@@ -148,7 +148,16 @@ describe('useLobby', () => {
   it('lets separate browser contexts share one lobby and start a valid roster', async () => {
     const server = createFakeServer()
     const hostFetch = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
-    const guestFetch = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
+    // Identifies the caller the way a real Bearer token would, so the fake
+    // can enforce host-only start the same way the authoritative server does.
+    let guestPlayerId: string | null = null
+    const guestFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers)
+      if (guestPlayerId) {
+        headers.set('x-test-caller', guestPlayerId)
+      }
+      return server.fetch(input, { ...init, headers })
+    }
 
     const host = renderHook(() =>
       useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: hostFetch, initialLobbyId: null, pollWhileWaitingMs: 0 }),
@@ -164,18 +173,21 @@ describe('useLobby', () => {
     const guest = renderHook(() =>
       useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: guestFetch, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
     )
-    await waitFor(() => expect(guest.result.current.state.lobby).not.toBeNull())
+    // Not a member yet: recovery must not fabricate membership from the
+    // invited reference alone, so the guest sees the join view first.
+    await waitFor(() => expect(guest.result.current.state.phase).toMatchObject({ kind: 'idle' }))
+    expect(guest.result.current.state.lobby).toBeNull()
     await act(async () => {
       await guest.result.current.join(lobbyId, 'guest-two')
     })
     await waitFor(() => expect(guest.result.current.state.lobby?.members).toHaveLength(2))
+    guestPlayerId = guest.result.current.state.ownPlayerId
 
-    // Invalid start with two players surfaces the authoritative roster error.
+    // A non-host start is rejected authoritatively, even with a valid caller.
     await act(async () => {
       await guest.result.current.start()
     })
-    // Guest is not host in this fake (caller-agnostic start allows it through
-    // to roster check); assert the lobby still waits rather than starting.
+    expect(guest.result.current.state.phase).toMatchObject({ kind: 'failed', code: '403-02' })
     expect(guest.result.current.state.lobby?.status).toBe('WAITING')
   })
 
@@ -184,13 +196,17 @@ describe('useLobby', () => {
     let startCalls = 0
     const fetchFn = async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
       const url = new URL(typeof input === 'string' ? input : input.toString())
-      if (url.pathname.endsWith('/start') && (init.method ?? 'GET').toUpperCase() === 'POST') {
+      const isStart = url.pathname.endsWith('/start') && (init.method ?? 'GET').toUpperCase() === 'POST'
+      // The command reaches and mutates the fake server; only the response
+      // back to the client is lost, so reconciliation has something real to find.
+      const response = await server.fetch(input, init)
+      if (isStart) {
         startCalls += 1
         if (startCalls === 1) {
           throw new Error('response lost')
         }
       }
-      return server.fetch(input, init)
+      return response
     }
 
     const hook = renderHook(() =>
@@ -213,8 +229,97 @@ describe('useLobby', () => {
     await act(async () => {
       await hook.result.current.start()
     })
-    // Lost start may reconcile or report; either way no duplicate lobby is created.
+    // The start landed server-side despite the lost response: reconciliation
+    // picks up the authoritative STARTED state rather than reporting failure.
+    expect(hook.result.current.state.phase).toMatchObject({ kind: 'ready' })
+    expect(hook.result.current.state.lobby?.status).toBe('STARTED')
     expect(server.lobbies.size).toBe(1)
+  })
+
+  it('shows the join view for an invited non-member instead of fabricating membership', async () => {
+    const server = createFakeServer()
+    const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
+    const host = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    )
+    await act(async () => {
+      await host.result.current.create('host-one')
+    })
+    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
+    const lobbyId = host.result.current.state.lobby?.lobbyId as string
+    host.unmount()
+    sessionStorage.clear()
+
+    // A fresh browser context opening the invitation link has never joined.
+    const invited = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
+    )
+    await waitFor(() => expect(invited.result.current.state.phase).toMatchObject({ kind: 'idle' }))
+    expect(invited.result.current.state.lobby).toBeNull()
+    expect(invited.result.current.state.ownPlayerId).toBeNull()
+  })
+
+  it('reconciles a lost join response against the lobby being joined, not a stale reference', async () => {
+    const server = createFakeServer()
+    const hostFetch = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
+
+    const host = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: hostFetch, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    )
+    await act(async () => {
+      await host.result.current.create('host-one')
+    })
+    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
+    const targetLobbyId = host.result.current.state.lobby?.lobbyId as string
+    host.unmount()
+
+    // The guest already has their own unrelated lobby open in this browser
+    // context; its reference is what's left stored before the real join.
+    const other = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: hostFetch, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    )
+    await act(async () => {
+      await other.result.current.create('guest-two')
+    })
+    await waitFor(() => expect(other.result.current.state.lobby).not.toBeNull())
+    const staleLobbyId = other.result.current.state.lobby?.lobbyId as string
+    other.unmount()
+    expect(staleLobbyId).not.toBe(targetLobbyId)
+
+    let joinCalls = 0
+    const guestFetch = async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
+      const url = new URL(typeof input === 'string' ? input : input.toString())
+      const isJoin = url.pathname.endsWith('/join') && (init.method ?? 'GET').toUpperCase() === 'POST'
+      // The join reaches and mutates the fake server; only the response
+      // back to the client is lost.
+      const response = await server.fetch(input, init)
+      if (isJoin) {
+        joinCalls += 1
+        if (joinCalls === 1) {
+          throw new Error('response lost')
+        }
+      }
+      return response
+    }
+
+    const guest = renderHook(() =>
+      useLobby({
+        apiBaseUrl: 'https://api.example.test',
+        fetchFn: guestFetch,
+        initialLobbyId: staleLobbyId,
+        pollWhileWaitingMs: 0,
+      }),
+    )
+    await waitFor(() => expect(guest.result.current.state.lobby?.lobbyId).toBe(staleLobbyId))
+
+    await act(async () => {
+      await guest.result.current.join(targetLobbyId, 'guest-two')
+    })
+
+    // The lost response must reconcile against the lobby actually joined,
+    // not silently re-adopt the stale prior reference as "success".
+    expect(guest.result.current.state.lobby?.lobbyId).toBe(targetLobbyId)
+    expect(guest.result.current.state.phase).toMatchObject({ kind: 'ready' })
   })
 
   it('surfaces invalid invitation and permission errors', async () => {
