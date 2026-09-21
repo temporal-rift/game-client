@@ -19,6 +19,8 @@ export interface LobbyView {
   readonly lobbyId: string;
   readonly gameId: string;
   readonly hostPlayerId: string;
+  /** Present when the server can identify the authenticated lobby member. */
+  readonly currentPlayerId?: string;
   readonly status: LobbyStatus;
   readonly members: readonly LobbyMember[];
 }
@@ -179,16 +181,22 @@ export function lobbyErrorMessage(error: unknown): string {
 async function postJson<T>(
   fetchFn: AuthenticatedFetchFn,
   url: string,
-  body: Record<string, string>,
+  body: Record<string, string> | undefined,
   parse: (json: Record<string, unknown>) => T,
   action: string,
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetchFn(url, {
+    const init: RequestInit = {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body),
+      headers: { Accept: 'application/json' },
+    };
+    if (body) {
+      init.headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+      init.body = JSON.stringify(body);
+    }
+    response = await fetchFn(url, {
+      ...init,
     });
   } catch {
     throw new Error(`Could not reach the game server to ${action}. Check your connection and try again.`);
@@ -256,12 +264,21 @@ function parseLobbyView(json: Record<string, unknown>): LobbyView {
   if (status !== 'WAITING' && status !== 'STARTED' && status !== 'CLOSED') {
     throw new Error('Lobby response carries an unknown readiness state.');
   }
+  const currentPlayerId = json['currentPlayerId'];
+  if (currentPlayerId !== undefined && typeof currentPlayerId !== 'string') {
+    throw new TypeError('Lobby response carries an invalid caller identity.');
+  }
+  const members = parseMembers(json['members']);
+  if (currentPlayerId && !members.some((member) => member.playerId === currentPlayerId)) {
+    throw new Error('Lobby response caller identity is not a lobby member.');
+  }
   return {
     lobbyId: requireString(json['lobbyId'], 'lobbyId'),
     gameId: requireString(json['gameId'], 'game identity'),
     hostPlayerId: requireString(json['hostPlayerId'], 'host'),
+    currentPlayerId,
     status,
-    members: parseMembers(json['members']),
+    members,
   };
 }
 
@@ -361,7 +378,7 @@ export function startGame(
   return postJson(
     fetchFn,
     lobbyUrl(apiBaseUrl, `/api/v1/lobbies/${encodeURIComponent(lobbyId)}/start`),
-    {},
+    undefined,
     (json) => ({ gameId: requireString(json['gameId'], 'game identity') }),
     'start the game',
   );
