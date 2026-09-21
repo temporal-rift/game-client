@@ -269,11 +269,11 @@ function parseGameStateView(json: Record<string, unknown>): GameStateView {
   }
   const myScore = json['myScore']
   if (typeof myScore !== 'number') {
-    throw new Error('Game state response is missing myScore.')
+    throw new TypeError('Game state response is missing myScore.')
   }
   const eraNumber = json['eraNumber']
   if (typeof eraNumber !== 'number') {
-    throw new Error('Game state response is missing eraNumber.')
+    throw new TypeError('Game state response is missing eraNumber.')
   }
   return {
     gameId: requireString(json['gameId'], 'gameId'),
@@ -304,7 +304,7 @@ export async function getGameState(
   init: { readonly signal?: AbortSignal } = {},
 ): Promise<GameStateView> {
   if (!gameId.trim()) {
-    return Promise.reject(new Error('A game reference is needed to read its state.'))
+    throw new Error('A game reference is needed to read its state.')
   }
   let response: Response
   try {
