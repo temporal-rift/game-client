@@ -8,14 +8,16 @@ import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
 import { useActionSubmission } from './action/useActionSubmission'
-import { useParadoxResolution } from './paradox/useParadoxResolution'
+import { useKnowledge } from './knowledge/useKnowledge'
 import { useLobby } from './lobby/useLobby'
+import { useParadoxResolution } from './paradox/useParadoxResolution'
 import { useResults } from './results/useResults'
 import { ActionPanel } from './components/ActionPanel'
 import { AppShell } from './components/AppShell'
 import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
+import { KnowledgePanel } from './components/KnowledgePanel'
 import { LobbyPanel } from './components/LobbyPanel'
 import { ParadoxResolutionPanel } from './components/ParadoxResolutionPanel'
 import { ResultsPanel } from './components/ResultsPanel'
@@ -85,6 +87,12 @@ function SignedInView({
     gameId: activeGameId,
     perspectiveKey: authSession.identity.subject,
   })
+  const knowledge = useKnowledge({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    gameId: activeGameId,
+    perspectiveKey: authSession.identity.subject,
+  })
 
   return (
     <div>
@@ -114,6 +122,7 @@ function SignedInView({
           onDismissRejection={paradox.dismissRejection}
         />
       )}
+      {activeGameId && <KnowledgePanel view={knowledge.view} />}
       {(activeGameId || results.view.kind !== 'active') && (
         <ResultsPanel
           view={results.view}
