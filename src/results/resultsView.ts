@@ -1,4 +1,4 @@
-import type { GameStateView } from '../api/gameStateClient'
+import type { GameResultView, GameStateView } from '../api/gameStateClient'
 import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
 
 export type EndReason =
@@ -113,6 +113,71 @@ function playerNameFor(playerId: string, rawPlayers: readonly RawPlayer[], score
   return scores?.scores.find((score) => score.playerId === playerId)?.playerName ?? null
 }
 
+function factionForPlayer(
+  playerId: string,
+  isRevealed: boolean,
+  result: GameResultView,
+  scores: ScoresView | null,
+  rawPlayers: readonly RawPlayer[],
+): string | null {
+  if (!isRevealed) {
+    return null
+  }
+  const fromResult = result.winners.find((winner) => winner.playerId === playerId)?.faction ?? null
+  if (fromResult) {
+    return fromResult
+  }
+  const fromScores = scores?.scores.find((score) => score.playerId === playerId)?.faction ?? null
+  if (fromScores) {
+    return fromScores
+  }
+  return rawPlayers.find((player) => player.playerId === playerId)?.faction ?? null
+}
+
+function orderedPlayersFrom(
+  result: GameResultView,
+  rawPlayers: readonly RawPlayer[],
+  scores: ScoresView | null,
+  isRevealed: boolean,
+): readonly ResultsPlayerEntry[] {
+  const winnerIds = new Set(result.winners.map((winner) => winner.playerId))
+  const scoreByPlayer = new Map(result.finalScores.map((entry) => [entry.playerId, entry.score] as const))
+  const playerIds = Array.from(
+    new Set([
+      ...result.finalScores.map((entry) => entry.playerId),
+      ...result.winners.map((winner) => winner.playerId),
+      ...rawPlayers.map((player) => player.playerId),
+    ]),
+  )
+  return playerIds.map((playerId) => ({
+    playerId,
+    playerName: playerNameFor(playerId, rawPlayers, scores),
+    score: scoreByPlayer.get(playerId) ?? rawPlayers.find((player) => player.playerId === playerId)?.score ?? 0,
+    isWinner: winnerIds.has(playerId),
+    faction: factionForPlayer(playerId, isRevealed, result, scores, rawPlayers),
+  }))
+}
+
+function explanationsFrom(
+  history: ScoresHistoryView | null,
+  rawPlayers: readonly RawPlayer[],
+  scores: ScoresView | null,
+  ownPlayerId: string | null,
+): readonly ResultsExplanationEntry[] {
+  return (
+    history?.history.flatMap((era) =>
+      era.deltas.map((delta) => ({
+        playerId: delta.playerId,
+        playerName: playerNameFor(delta.playerId, rawPlayers, scores),
+        eraNumber: era.eraNumber,
+        pointsDelta: delta.pointsDelta,
+        reason: delta.reason,
+        isOwn: ownPlayerId !== null && delta.playerId === ownPlayerId,
+      })),
+    ) ?? []
+  )
+}
+
 /**
  * Builds the terminal results view from authoritative facts only. Winners,
  * ending cause and final scores come straight from the published result;
@@ -128,7 +193,7 @@ export function selectResultsView(
   history: ScoresHistoryView | null,
   ownPlayerId: string | null,
 ): ResultsView {
-  if (!state || state.phase !== 'GAME_ENDED') {
+  if (state?.phase !== 'GAME_ENDED') {
     return { kind: 'active' }
   }
   const result = state.result
@@ -140,61 +205,16 @@ export function selectResultsView(
   }
   const isRevealed = result.revealBoundary === 'FACTIONS_AND_SCORES_PUBLIC'
   const rawPlayers = rawPlayersFrom(state)
-  const winnerIds = new Set(result.winners.map((winner) => winner.playerId))
-
-  const factionFor = (playerId: string): string | null => {
-    if (!isRevealed) {
-      return null
-    }
-    const fromResult = result.winners.find((winner) => winner.playerId === playerId)?.faction ?? null
-    if (fromResult) {
-      return fromResult
-    }
-    const fromScores = scores?.scores.find((score) => score.playerId === playerId)?.faction ?? null
-    if (fromScores) {
-      return fromScores
-    }
-    return rawPlayers.find((player) => player.playerId === playerId)?.faction ?? null
-  }
-
-  const scoreByPlayer = new Map(result.finalScores.map((entry) => [entry.playerId, entry.score] as const))
-  const playerIds = Array.from(
-    new Set([
-      ...result.finalScores.map((entry) => entry.playerId),
-      ...result.winners.map((winner) => winner.playerId),
-      ...rawPlayers.map((player) => player.playerId),
-    ]),
-  )
-
-  const ordered: ResultsPlayerEntry[] = playerIds.map((playerId) => ({
-    playerId,
-    playerName: playerNameFor(playerId, rawPlayers, scores),
-    score: scoreByPlayer.get(playerId) ?? rawPlayers.find((player) => player.playerId === playerId)?.score ?? 0,
-    isWinner: winnerIds.has(playerId),
-    faction: factionFor(playerId),
-  }))
-
-  const winners = ordered.filter((entry) => entry.isWinner)
-  const explanations: ResultsExplanationEntry[] =
-    history?.history.flatMap((era) =>
-      era.deltas.map((delta) => ({
-        playerId: delta.playerId,
-        playerName: playerNameFor(delta.playerId, rawPlayers, scores),
-        eraNumber: era.eraNumber,
-        pointsDelta: delta.pointsDelta,
-        reason: delta.reason,
-        isOwn: ownPlayerId !== null && delta.playerId === ownPlayerId,
-      })),
-    ) ?? []
+  const ordered = orderedPlayersFrom(result, rawPlayers, scores, isRevealed)
 
   return {
     kind: 'complete',
     gameId: state.gameId,
     endReason: result.endReason,
     endReasonRaw: result.endReason,
-    winners,
+    winners: ordered.filter((entry) => entry.isWinner),
     scores: ordered,
     isRevealed,
-    explanations,
+    explanations: explanationsFrom(history, rawPlayers, scores, ownPlayerId),
   }
 }
