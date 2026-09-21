@@ -1,26 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { GameStateView } from '../api/gameStateClient'
+import { baseGameState as baseState } from '../game/gameStateFixtures'
 import { selectActionRoundView } from './actionView'
-
-function baseState(overrides: Partial<GameStateView> = {}, raw: Record<string, unknown> = {}): GameStateView {
-  return {
-    gameId: 'game-1',
-    eraNumber: 2,
-    revision: 5,
-    lastUpdatedAt: null,
-    phase: 'ACTION_ROUND_2',
-    roundNumber: 2,
-    myFaction: 'ERASERS',
-    myScore: 4,
-    deadlines: { handSelectionExpiresAt: null, actionRoundExpiresAt: null, paradoxResolutionExpiresAt: null },
-    phaseContext: { declarationOpen: false, paradoxOpen: false, paradoxIds: [] },
-    mySubmissions: [],
-    mySpecialBudgets: [],
-    result: null,
-    raw,
-    ...overrides,
-  }
-}
 
 describe('selectActionRoundView', () => {
   it('reports unavailable when state has not loaded', () => {
