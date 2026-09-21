@@ -8,11 +8,13 @@ import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
 import { useLobby } from './lobby/useLobby'
+import { useResults } from './results/useResults'
 import { AppShell } from './components/AppShell'
 import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
 import { LobbyPanel } from './components/LobbyPanel'
+import { ResultsPanel } from './components/ResultsPanel'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
 import { sampleFixturePlayerView } from './fixtures/playerView'
@@ -58,11 +60,28 @@ function SignedInView({
     initialLobbyId,
     onLobbyIdChange: writeLobbyInvitationToUrl,
   })
+  const activeGameId = lobby.state.lastGameId ?? lobby.state.lobby?.gameId ?? null
+  const results = useResults({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    gameId: activeGameId,
+    ownPlayerId: lobby.state.ownPlayerId,
+    perspectiveKey: authSession.identity.subject,
+  })
 
   return (
     <div>
       <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
+      {activeGameId && (
+        <ResultsPanel
+          view={results.view}
+          ownPlayerId={lobby.state.ownPlayerId}
+          error={results.message}
+          isRefreshing={results.isRefreshing}
+          onRefresh={() => void results.refresh()}
+        />
+      )}
       <AppShell key={authSession.identity.subject} playerView={sampleFixturePlayerView} isSampleData />
     </div>
   )
