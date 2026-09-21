@@ -596,6 +596,10 @@ button:focus-visible {
   color: #888eaf;
 }
 
+.band-medium {
+  color: #c9b284;
+}
+
 .band-high {
   color: #dbc196;
 }
