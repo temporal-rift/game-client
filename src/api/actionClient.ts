@@ -316,7 +316,7 @@ function parseParadoxResolutionStatusView(json: Record<string, unknown>): Parado
   const phaseOpen = json['phaseOpen']
   const mySubmitted = json['mySubmitted']
   if (typeof phaseOpen !== 'boolean' || typeof mySubmitted !== 'boolean') {
-    throw new Error('Paradox-resolution status response is incomplete.')
+    throw new TypeError('Paradox-resolution status response is incomplete.')
   }
   return {
     eraNumber: requireNumber(json['eraNumber'], 'eraNumber'),

@@ -46,7 +46,7 @@ export function selectParadoxResolutionView(
   if (!state || !isParadoxPhase(state)) {
     return { kind: 'unavailable', reason: 'No paradox-resolution phase is currently open.' }
   }
-  if (!status || status.eraNumber !== state.eraNumber) {
+  if (status?.eraNumber !== state.eraNumber) {
     return { kind: 'loading' }
   }
   if (!status.phaseOpen) {
