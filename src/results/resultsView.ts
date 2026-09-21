@@ -82,6 +82,28 @@ interface RawPlayer {
   readonly faction: string | null
 }
 
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function parseRawPlayer(entry: unknown): RawPlayer | null {
+  if (typeof entry !== 'object' || entry === null) {
+    return null
+  }
+  const source = entry as Record<string, unknown>
+  const playerId = nonEmptyString(source['playerId'])
+  const score = typeof source['score'] === 'number' ? source['score'] : null
+  if (!playerId || score === null) {
+    return null
+  }
+  return {
+    playerId,
+    playerName: nonEmptyString(source['playerName']),
+    score,
+    faction: nonEmptyString(source['faction']),
+  }
+}
+
 function rawPlayersFrom(state: GameStateView): readonly RawPlayer[] {
   const raw = state.raw['players']
   if (!Array.isArray(raw)) {
@@ -89,18 +111,10 @@ function rawPlayersFrom(state: GameStateView): readonly RawPlayer[] {
   }
   const players: RawPlayer[] = []
   for (const entry of raw) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
+    const player = parseRawPlayer(entry)
+    if (player) {
+      players.push(player)
     }
-    const source = entry as Record<string, unknown>
-    const playerId = typeof source['playerId'] === 'string' && source['playerId'].length > 0 ? source['playerId'] : null
-    const score = typeof source['score'] === 'number' ? source['score'] : null
-    if (!playerId || score === null) {
-      continue
-    }
-    const playerName = typeof source['playerName'] === 'string' && source['playerName'].length > 0 ? source['playerName'] : null
-    const faction = typeof source['faction'] === 'string' && source['faction'].length > 0 ? source['faction'] : null
-    players.push({ playerId, playerName, score, faction })
   }
   return players
 }
