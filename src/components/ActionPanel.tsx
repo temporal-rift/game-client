@@ -1,7 +1,7 @@
 import type { ActionCoordinates, SpecialAction } from '../api/actionClient'
 import type { ActionDraft, SubmitPhase } from '../action/useActionSubmission'
-import type { ActionRoundView, HandCardOption, SpecialActionOption } from '../action/actionView'
-import { scanEventCountForGrade } from '../action/actionRules'
+import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption, SpecialActionOption } from '../action/actionView'
+import { scanEventCountForGrade, type TargetMode } from '../action/actionRules'
 
 interface ActionPanelProps {
   readonly view: ActionRoundView
@@ -16,7 +16,26 @@ interface ActionPanelProps {
 
 type Selected = { readonly kind: 'card'; readonly card: HandCardOption } | { readonly kind: 'special'; readonly special: SpecialActionOption } | null
 
-function coordinatesComplete(mode: string, coordinates: ActionCoordinates, requiredEventCount: number): boolean {
+function selectedOptionFor(view: Extract<ActionRoundView, { kind: 'open' }>, draft: ActionDraft): Selected {
+  if (draft.kind === 'card') {
+    const card = view.hand.find((entry) => entry.cardInstanceId === draft.cardInstanceId)
+    return card ? { kind: 'card', card } : null
+  }
+  if (draft.kind === 'special') {
+    const special = view.specials.find((entry) => entry.specialAction === draft.specialAction)
+    return special ? { kind: 'special', special } : null
+  }
+  return null
+}
+
+function targetModeFor(selected: Selected): TargetMode | null {
+  if (!selected) {
+    return null
+  }
+  return selected.kind === 'card' ? selected.card.targetMode : selected.special.targetMode
+}
+
+function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, requiredEventCount: number): boolean {
   switch (mode) {
     case 'EVENT_OUTCOME':
       return Boolean(coordinates.targetEventId && coordinates.targetOutcomeId)
@@ -35,9 +54,159 @@ function coordinatesComplete(mode: string, coordinates: ActionCoordinates, requi
       return Boolean(coordinates.targetEventId)
     case 'NONE':
       return true
-    default:
-      return false
   }
+}
+
+interface EventOutcomeTargetProps {
+  readonly targetMode: 'EVENT_OUTCOME' | 'EVENT_OUTCOME_PAIR' | 'EVENT_ONLY'
+  readonly activeEvents: readonly ActiveEventOption[]
+  readonly coordinates: ActionCoordinates
+  readonly onApply: (next: ActionCoordinates) => void
+}
+
+function EventOutcomeTarget({ targetMode, activeEvents, coordinates, onApply }: EventOutcomeTargetProps) {
+  return (
+    <ul aria-label="Events">
+      {activeEvents.map((event) => {
+        const isSelectedEvent = coordinates.targetEventId === event.eventId
+        return (
+          <li key={event.eventId}>
+            <button type="button" aria-pressed={isSelectedEvent} onClick={() => onApply({ targetEventId: event.eventId })}>
+              {event.title}
+            </button>
+            {isSelectedEvent && targetMode === 'EVENT_OUTCOME' && (
+              <ul aria-label={`${event.title} outcomes`}>
+                {event.outcomes.map((outcome) => (
+                  <li key={outcome.outcomeId}>
+                    <button
+                      type="button"
+                      aria-pressed={coordinates.targetOutcomeId === outcome.outcomeId}
+                      onClick={() => onApply({ targetEventId: event.eventId, targetOutcomeId: outcome.outcomeId })}
+                    >
+                      {outcome.description}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {isSelectedEvent && targetMode === 'EVENT_OUTCOME_PAIR' && (
+              <>
+                <p>From</p>
+                <ul aria-label={`${event.title} source outcomes`}>
+                  {event.outcomes.map((outcome) => (
+                    <li key={outcome.outcomeId}>
+                      <button
+                        type="button"
+                        aria-pressed={coordinates.sourceOutcomeId === outcome.outcomeId}
+                        onClick={() => onApply({ ...coordinates, targetEventId: event.eventId, sourceOutcomeId: outcome.outcomeId })}
+                      >
+                        {outcome.description}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p>To</p>
+                <ul aria-label={`${event.title} target outcomes`}>
+                  {event.outcomes.map((outcome) => (
+                    <li key={outcome.outcomeId}>
+                      <button
+                        type="button"
+                        aria-pressed={coordinates.targetOutcomeId === outcome.outcomeId}
+                        disabled={outcome.outcomeId === coordinates.sourceOutcomeId}
+                        onClick={() => onApply({ ...coordinates, targetEventId: event.eventId, targetOutcomeId: outcome.outcomeId })}
+                      >
+                        {outcome.description}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+interface EventListTargetProps {
+  readonly activeEvents: readonly ActiveEventOption[]
+  readonly requiredEventCount: number
+  readonly coordinates: ActionCoordinates
+  readonly onToggle: (eventId: string) => void
+}
+
+function EventListTarget({ activeEvents, requiredEventCount, coordinates, onToggle }: EventListTargetProps) {
+  const selectedCount = coordinates.targetEventIds?.length ?? 0
+  return (
+    <>
+      <p>
+        Choose {requiredEventCount} event{requiredEventCount === 1 ? '' : 's'} ({selectedCount}/{requiredEventCount} selected)
+      </p>
+      <ul aria-label="Events">
+        {activeEvents.map((event) => (
+          <li key={event.eventId}>
+            <button type="button" aria-pressed={(coordinates.targetEventIds ?? []).includes(event.eventId)} onClick={() => onToggle(event.eventId)}>
+              {event.title}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+interface PlayerTargetProps {
+  readonly opponents: readonly OpponentOption[]
+  readonly coordinates: ActionCoordinates
+  readonly onApply: (next: ActionCoordinates) => void
+}
+
+function PlayerTarget({ opponents, coordinates, onApply }: PlayerTargetProps) {
+  return (
+    <ul aria-label="Players">
+      {opponents.map((opponent) => (
+        <li key={opponent.playerId}>
+          <button
+            type="button"
+            aria-pressed={coordinates.targetPlayerId === opponent.playerId}
+            disabled={!opponent.isConnected}
+            onClick={() => onApply({ targetPlayerId: opponent.playerId })}
+          >
+            {opponent.playerName}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+interface TargetPickerProps {
+  readonly targetMode: TargetMode
+  readonly activeEvents: readonly ActiveEventOption[]
+  readonly opponents: readonly OpponentOption[]
+  readonly requiredEventCount: number
+  readonly coordinates: ActionCoordinates
+  readonly onApply: (next: ActionCoordinates) => void
+  readonly onToggleListEvent: (eventId: string) => void
+}
+
+function TargetPicker({ targetMode, activeEvents, opponents, requiredEventCount, coordinates, onApply, onToggleListEvent }: TargetPickerProps) {
+  if (targetMode === 'NONE') {
+    return null
+  }
+  return (
+    <div aria-label="Choose a target">
+      <h3>Choose a target</h3>
+      {(targetMode === 'EVENT_OUTCOME' || targetMode === 'EVENT_OUTCOME_PAIR' || targetMode === 'EVENT_ONLY') && (
+        <EventOutcomeTarget targetMode={targetMode} activeEvents={activeEvents} coordinates={coordinates} onApply={onApply} />
+      )}
+      {targetMode === 'EVENT_LIST' && (
+        <EventListTarget activeEvents={activeEvents} requiredEventCount={requiredEventCount} coordinates={coordinates} onToggle={onToggleListEvent} />
+      )}
+      {targetMode === 'PLAYER' && <PlayerTarget opponents={opponents} coordinates={coordinates} onApply={onApply} />}
+    </div>
+  )
 }
 
 /**
@@ -70,25 +239,13 @@ export function ActionPanel({
     return (
       <section aria-label="Your action">
         <h2>Your action</h2>
-        <p role="status">Your action is submitted for this round. Private until round closure.</p>
+        <output>Your action is submitted for this round. Private until round closure.</output>
       </section>
     )
   }
 
-  const selected: Selected =
-    draft.kind === 'card'
-      ? (() => {
-          const card = view.hand.find((entry) => entry.cardInstanceId === draft.cardInstanceId) ?? null
-          return card ? { kind: 'card', card } : null
-        })()
-      : draft.kind === 'special'
-        ? (() => {
-            const special = view.specials.find((entry) => entry.specialAction === draft.specialAction) ?? null
-            return special ? { kind: 'special', special } : null
-          })()
-        : null
-
-  const targetMode = selected?.kind === 'card' ? selected.card.targetMode : selected?.kind === 'special' ? selected.special.targetMode : null
+  const selected = selectedOptionFor(view, draft)
+  const targetMode = targetModeFor(selected)
   const requiredEventCount = selected?.kind === 'card' && selected.card.targetMode === 'EVENT_LIST' ? scanEventCountForGrade(selected.card.grade) : 0
   const coordinates: ActionCoordinates = draft.kind === 'none' ? {} : draft.coordinates
 
@@ -102,15 +259,17 @@ export function ActionPanel({
 
   function toggleListEvent(eventId: string): void {
     const current = coordinates.targetEventIds ?? []
-    const next = current.includes(eventId)
-      ? current.filter((id) => id !== eventId)
-      : current.length < requiredEventCount
-        ? [...current, eventId]
-        : current
-    applyCoordinates({ targetEventIds: next })
+    if (current.includes(eventId)) {
+      applyCoordinates({ targetEventIds: current.filter((id) => id !== eventId) })
+      return
+    }
+    if (current.length < requiredEventCount) {
+      applyCoordinates({ targetEventIds: [...current, eventId] })
+    }
   }
 
   const isComplete = selected !== null && targetMode !== null && coordinatesComplete(targetMode, coordinates, requiredEventCount)
+  const selectedName = selected === null ? null : selected.kind === 'card' ? selected.card.name : selected.special.name
 
   return (
     <section aria-label="Your action">
@@ -162,113 +321,23 @@ export function ActionPanel({
         ))}
       </ul>
 
-      {selected && targetMode && targetMode !== 'NONE' && (
-        <div aria-label="Choose a target">
-          <h3>Choose a target</h3>
-          {(targetMode === 'EVENT_OUTCOME' || targetMode === 'EVENT_OUTCOME_PAIR' || targetMode === 'EVENT_ONLY') && (
-            <ul aria-label="Events">
-              {view.activeEvents.map((event) => (
-                <li key={event.eventId}>
-                  <button
-                    type="button"
-                    aria-pressed={coordinates.targetEventId === event.eventId}
-                    onClick={() => applyCoordinates({ targetEventId: event.eventId })}
-                  >
-                    {event.title}
-                  </button>
-                  {coordinates.targetEventId === event.eventId && targetMode === 'EVENT_OUTCOME' && (
-                    <ul aria-label={`${event.title} outcomes`}>
-                      {event.outcomes.map((outcome) => (
-                        <li key={outcome.outcomeId}>
-                          <button
-                            type="button"
-                            aria-pressed={coordinates.targetOutcomeId === outcome.outcomeId}
-                            onClick={() => applyCoordinates({ targetEventId: event.eventId, targetOutcomeId: outcome.outcomeId })}
-                          >
-                            {outcome.description}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {coordinates.targetEventId === event.eventId && targetMode === 'EVENT_OUTCOME_PAIR' && (
-                    <>
-                      <p>From</p>
-                      <ul aria-label={`${event.title} source outcomes`}>
-                        {event.outcomes.map((outcome) => (
-                          <li key={outcome.outcomeId}>
-                            <button
-                              type="button"
-                              aria-pressed={coordinates.sourceOutcomeId === outcome.outcomeId}
-                              onClick={() => applyCoordinates({ ...coordinates, targetEventId: event.eventId, sourceOutcomeId: outcome.outcomeId })}
-                            >
-                              {outcome.description}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      <p>To</p>
-                      <ul aria-label={`${event.title} target outcomes`}>
-                        {event.outcomes.map((outcome) => (
-                          <li key={outcome.outcomeId}>
-                            <button
-                              type="button"
-                              aria-pressed={coordinates.targetOutcomeId === outcome.outcomeId}
-                              disabled={outcome.outcomeId === coordinates.sourceOutcomeId}
-                              onClick={() => applyCoordinates({ ...coordinates, targetEventId: event.eventId, targetOutcomeId: outcome.outcomeId })}
-                            >
-                              {outcome.description}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {targetMode === 'EVENT_LIST' && (
-            <>
-              <p>
-                Choose {requiredEventCount} event{requiredEventCount === 1 ? '' : 's'} ({coordinates.targetEventIds?.length ?? 0}/
-                {requiredEventCount} selected)
-              </p>
-              <ul aria-label="Events">
-                {view.activeEvents.map((event) => (
-                  <li key={event.eventId}>
-                    <button type="button" aria-pressed={(coordinates.targetEventIds ?? []).includes(event.eventId)} onClick={() => toggleListEvent(event.eventId)}>
-                      {event.title}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {targetMode === 'PLAYER' && (
-            <ul aria-label="Players">
-              {view.opponents.map((opponent) => (
-                <li key={opponent.playerId}>
-                  <button
-                    type="button"
-                    aria-pressed={coordinates.targetPlayerId === opponent.playerId}
-                    disabled={!opponent.isConnected}
-                    onClick={() => applyCoordinates({ targetPlayerId: opponent.playerId })}
-                  >
-                    {opponent.playerName}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      {selected && targetMode && (
+        <TargetPicker
+          targetMode={targetMode}
+          activeEvents={view.activeEvents}
+          opponents={view.opponents}
+          requiredEventCount={requiredEventCount}
+          coordinates={coordinates}
+          onApply={applyCoordinates}
+          onToggleListEvent={toggleListEvent}
+        />
       )}
 
       <section aria-label="Action confirmation" aria-live="polite" aria-atomic="true">
         <h3>Confirm</h3>
-        {selected ? (
+        {selectedName ? (
           <p>
-            {selected.kind === 'card' ? selected.card.name : selected.special.name}
+            {selectedName}
             {isComplete ? ' · target selected' : ' · choose a target'}
           </p>
         ) : (
@@ -290,7 +359,7 @@ export function ActionPanel({
             </button>
           </p>
         )}
-        {submitPhase.kind === 'submitted' && <p role="status">Action submitted.</p>}
+        {submitPhase.kind === 'submitted' && <output>Action submitted.</output>}
         <p>Exact live weights remain hidden. The server validates your action.</p>
       </section>
     </section>
