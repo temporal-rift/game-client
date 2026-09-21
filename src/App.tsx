@@ -83,25 +83,25 @@ function SignedInView({
       <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
       {activeGameId && (
-        <>
-          <ActionPanel
-            view={action.view}
-            draft={action.draft}
-            submitPhase={action.submitPhase}
-            onSelectCard={action.selectCard}
-            onSelectSpecial={action.selectSpecial}
-            onClearDraft={action.clearDraft}
-            onConfirm={() => void action.confirm()}
-            onDismissRejection={action.dismissRejection}
-          />
-          <ResultsPanel
-            view={results.view}
-            ownPlayerId={lobby.state.ownPlayerId}
-            error={results.message}
-            isRefreshing={results.isRefreshing}
-            onRefresh={() => void results.refresh()}
-          />
-        </>
+        <ActionPanel
+          view={action.view}
+          draft={action.draft}
+          submitPhase={action.submitPhase}
+          onSelectCard={action.selectCard}
+          onSelectSpecial={action.selectSpecial}
+          onClearDraft={action.clearDraft}
+          onConfirm={() => void action.confirm()}
+          onDismissRejection={action.dismissRejection}
+        />
+      )}
+      {(activeGameId || results.view.kind !== 'active') && (
+        <ResultsPanel
+          view={results.view}
+          ownPlayerId={lobby.state.ownPlayerId}
+          error={results.message}
+          isRefreshing={results.isRefreshing}
+          onRefresh={() => void results.refresh()}
+        />
       )}
       <AppShell key={authSession.identity.subject} playerView={sampleFixturePlayerView} isSampleData />
     </div>

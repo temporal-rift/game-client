@@ -56,15 +56,31 @@ function writeStoredGameId(gameId: string, perspectiveKey: string | null): void 
  */
 export function useResults(options: UseResultsOptions): ResultsSession {
   const { apiBaseUrl, fetchFn, gameId, ownPlayerId, perspectiveKey, pollIntervalMs } = options
-  const [scores, setScores] = useState<ScoresView | null>(null)
-  const [history, setHistory] = useState<ScoresHistoryView | null>(null)
-  const [scoresError, setScoresError] = useState<{ message: string; code: string | null; gameId: string } | null>(null)
-  const [isRefreshingScores, setIsRefreshingScores] = useState(false)
+  const [scores, setScores] = useState<{ data: ScoresView; perspectiveKey: string | null } | null>(null)
+  const [history, setHistory] = useState<{ data: ScoresHistoryView; perspectiveKey: string | null } | null>(null)
+  const [scoresError, setScoresError] = useState<{
+    message: string
+    code: string | null
+    gameId: string
+    perspectiveKey: string | null
+  } | null>(null)
+  const [activeRefresh, setActiveRefresh] = useState<{
+    seq: number
+    gameId: string
+    perspectiveKey: string | null
+  } | null>(null)
+  const refreshSeqRef = useRef(0)
 
   const fetchRef = useRef(fetchFn)
   useEffect(() => {
     fetchRef.current = fetchFn
   }, [fetchFn])
+
+  const perspectiveRef = useRef(perspectiveKey)
+  useEffect(() => {
+    perspectiveRef.current = perspectiveKey
+  }, [perspectiveKey])
+  const gameIdRef = useRef<string | null>(null)
 
   const effectiveGameId = useMemo(() => {
     if (gameId) {
@@ -72,6 +88,10 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     }
     return readStoredGameId(perspectiveKey)
   }, [gameId, perspectiveKey])
+
+  useEffect(() => {
+    gameIdRef.current = effectiveGameId
+  }, [effectiveGameId])
 
   useEffect(() => {
     if (gameId) {
@@ -90,37 +110,46 @@ export function useResults(options: UseResultsOptions): ResultsSession {
   const state = gameState.state
   const hasCompleteResult = state?.phase === 'GAME_ENDED' && state.result !== null
 
-  const visibleScores = scores?.gameId === effectiveGameId ? scores : null
-  const visibleHistory = history?.gameId === effectiveGameId ? history : null
-  const visibleScoresError = scoresError?.gameId === effectiveGameId ? scoresError : null
+  const visibleScores =
+    scores && scores.data.gameId === effectiveGameId && scores.perspectiveKey === perspectiveKey ? scores.data : null
+  const visibleHistory =
+    history && history.data.gameId === effectiveGameId && history.perspectiveKey === perspectiveKey
+      ? history.data
+      : null
+  const visibleScoresError =
+    scoresError && scoresError.gameId === effectiveGameId && scoresError.perspectiveKey === perspectiveKey
+      ? scoresError
+      : null
 
   useEffect(() => {
     if (!hasCompleteResult || !effectiveGameId) {
       return
     }
+    const requestGameId = effectiveGameId
+    const requestPerspective = perspectiveKey
     let cancelled = false
     const controller = new AbortController()
     void (async () => {
       try {
         const [nextScores, nextHistory] = await Promise.all([
-          getScores(fetchRef.current, apiBaseUrl, effectiveGameId, { signal: controller.signal }),
-          getScoresHistory(fetchRef.current, apiBaseUrl, effectiveGameId, { signal: controller.signal }),
+          getScores(fetchRef.current, apiBaseUrl, requestGameId, { signal: controller.signal }),
+          getScoresHistory(fetchRef.current, apiBaseUrl, requestGameId, { signal: controller.signal }),
         ])
-        if (cancelled) {
+        if (cancelled || perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
           return
         }
-        setScores(nextScores)
-        setHistory(nextHistory)
+        setScores({ data: nextScores, perspectiveKey: requestPerspective })
+        setHistory({ data: nextHistory, perspectiveKey: requestPerspective })
         setScoresError(null)
       } catch (error) {
         if (cancelled || (error instanceof DOMException && error.name === 'AbortError')) {
           return
         }
-        const code = error instanceof ScoresApiError ? error.code : null
-        const failedGameId = effectiveGameId
-        if (failedGameId) {
-          setScoresError({ message: scoresErrorMessage(error), code, gameId: failedGameId })
+        if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
+          return
         }
+        const code = error instanceof ScoresApiError ? error.code : null
+        setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
       }
     })()
     return () => {
@@ -130,28 +159,38 @@ export function useResults(options: UseResultsOptions): ResultsSession {
   }, [hasCompleteResult, effectiveGameId, apiBaseUrl, perspectiveKey])
 
   const refresh = useCallback(async () => {
+    const requestGameId = effectiveGameId
+    const requestPerspective = perspectiveRef.current
     const next = await gameState.refresh()
     const terminal = next?.phase === 'GAME_ENDED' && next.result !== null
-    if (!terminal || !effectiveGameId) {
+    if (!terminal || !requestGameId) {
       return
     }
-    setIsRefreshingScores(true)
+    refreshSeqRef.current += 1
+    const seq = refreshSeqRef.current
+    setActiveRefresh({ seq, gameId: requestGameId, perspectiveKey: requestPerspective })
     try {
       const [nextScores, nextHistory] = await Promise.all([
-        getScores(fetchRef.current, apiBaseUrl, effectiveGameId),
-        getScoresHistory(fetchRef.current, apiBaseUrl, effectiveGameId),
+        getScores(fetchRef.current, apiBaseUrl, requestGameId),
+        getScoresHistory(fetchRef.current, apiBaseUrl, requestGameId),
       ])
-      setScores(nextScores)
-      setHistory(nextHistory)
+      if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
+        return
+      }
+      setScores({ data: nextScores, perspectiveKey: requestPerspective })
+      setHistory({ data: nextHistory, perspectiveKey: requestPerspective })
       setScoresError(null)
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return
       }
+      if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
+        return
+      }
       const code = error instanceof ScoresApiError ? error.code : null
-      setScoresError({ message: scoresErrorMessage(error), code, gameId: effectiveGameId })
+      setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
     } finally {
-      setIsRefreshingScores(false)
+      setActiveRefresh((current) => (current?.seq === seq ? null : current))
     }
   }, [gameState, effectiveGameId, apiBaseUrl])
 
@@ -171,15 +210,20 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     return { status: detail.kind, message: null, code: null }
   }, [gameState.status, visibleScoresError, view.kind])
 
+  const isRefreshingForContext =
+    activeRefresh !== null &&
+    activeRefresh.gameId === effectiveGameId &&
+    activeRefresh.perspectiveKey === perspectiveKey
+
   return useMemo(
     () => ({
       view,
       status: combined.status,
       message: combined.message,
       code: combined.code,
-      isRefreshing: gameState.status.kind === 'loading' || isRefreshingScores,
+      isRefreshing: gameState.status.kind === 'loading' || isRefreshingForContext,
       refresh,
     }),
-    [view, combined, gameState.status.kind, isRefreshingScores, refresh],
+    [view, combined, gameState.status.kind, isRefreshingForContext, refresh],
   )
 }
