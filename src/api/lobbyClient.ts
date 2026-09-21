@@ -7,6 +7,8 @@
  * `code` values (`<status>-<nn>`), never on free-text `detail`.
  */
 
+import { readJsonSafe, stringField } from './httpJson';
+
 export type LobbyStatus = 'WAITING' | 'STARTED' | 'CLOSED';
 
 export interface LobbyMember {
@@ -82,26 +84,6 @@ export class LobbyApiError extends Error {
 function lobbyUrl(apiBaseUrl: string, path: string): string {
   const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
   return `${normalized}${path}`;
-}
-
-async function readJsonSafe(response: Response): Promise<Record<string, unknown> | null> {
-  try {
-    const text = await response.text();
-    if (!text) {
-      return null;
-    }
-    const parsed: unknown = JSON.parse(text);
-    if (typeof parsed === 'object' && parsed !== null) {
-      return parsed as Record<string, unknown>;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function stringArray(value: unknown): readonly string[] | null {

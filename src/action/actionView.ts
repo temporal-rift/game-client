@@ -6,6 +6,7 @@
  * how `resultsView.ts` reads `state.raw['players']` for its own feature.
  */
 
+import { CARD_GRADES, CARD_TYPES, SPECIAL_ACTIONS } from '../api/actionClient'
 import type { CardGrade, CardType, Faction, SpecialAction } from '../api/actionClient'
 import type { GameStateView } from '../api/gameStateClient'
 import { hasAcceptedSubmission } from '../game/reconciliation'
@@ -75,60 +76,25 @@ export type ActionRoundView =
       readonly opponents: readonly OpponentOption[]
     }
 
-const KNOWN_CARD_TYPES: readonly string[] = [
-  'PUSH',
-  'SUPPRESS',
-  'SWING',
-  'AMPLIFY',
-  'INTERCEPT',
-  'SCAN',
-  'TRACE',
-  'DECOY',
-  'JAM',
-  'STALL',
-  'REDIRECT',
-  'NULLIFY',
-  'COLLIDE',
-  'STABILIZE',
-  'DETONATE',
-]
-
-const KNOWN_GRADES: readonly string[] = ['I', 'II', 'III']
-
-const KNOWN_SPECIAL_ACTIONS: readonly string[] = [
-  'ANNIHILATE',
-  'CORRUPT',
-  'CASCADE',
-  'FORESIGHT',
-  'SEAL',
-  'FULFILLMENT',
-  'REWRITE',
-  'MIMIC',
-  'OBSCURE',
-  'THREAD',
-  'TAPESTRY',
-  'REWEAVE',
-  'RALLY',
-  'EXPOSE',
-  'MOMENTUM',
-]
-
-const KNOWN_CARRY_OVER_STATES: readonly string[] = ['FRESH', 'CASCADED', 'STALLED']
+const KNOWN_CARD_TYPES: ReadonlySet<string> = new Set(CARD_TYPES)
+const KNOWN_GRADES: ReadonlySet<string> = new Set(CARD_GRADES)
+const KNOWN_SPECIAL_ACTIONS: ReadonlySet<string> = new Set(SPECIAL_ACTIONS)
+const KNOWN_CARRY_OVER_STATES: ReadonlySet<string> = new Set(['FRESH', 'CASCADED', 'STALLED'])
 
 function stringField(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 function parseCardType(value: unknown): CardType | null {
-  return typeof value === 'string' && KNOWN_CARD_TYPES.includes(value) ? (value as CardType) : null
+  return typeof value === 'string' && KNOWN_CARD_TYPES.has(value) ? (value as CardType) : null
 }
 
 function parseGrade(value: unknown): CardGrade | null {
-  return typeof value === 'string' && KNOWN_GRADES.includes(value) ? (value as CardGrade) : null
+  return typeof value === 'string' && KNOWN_GRADES.has(value) ? (value as CardGrade) : null
 }
 
 function parseSpecialAction(value: unknown): SpecialAction | null {
-  return typeof value === 'string' && KNOWN_SPECIAL_ACTIONS.includes(value) ? (value as SpecialAction) : null
+  return typeof value === 'string' && KNOWN_SPECIAL_ACTIONS.has(value) ? (value as SpecialAction) : null
 }
 
 function parseHand(value: unknown): readonly HandCardOption[] {
@@ -193,7 +159,7 @@ function parseActiveEvents(value: unknown): readonly ActiveEventOption[] {
     const eventId = stringField(source['eventId'])
     const title = stringField(source['title'])
     const carryOverState = source['carryOverState']
-    if (!eventId || !title || typeof carryOverState !== 'string' || !KNOWN_CARRY_OVER_STATES.includes(carryOverState)) {
+    if (!eventId || !title || typeof carryOverState !== 'string' || !KNOWN_CARRY_OVER_STATES.has(carryOverState)) {
       continue
     }
     events.push({
