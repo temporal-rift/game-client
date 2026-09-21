@@ -73,7 +73,7 @@ function SignedInView({
     <div>
       <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
-      {activeGameId && (
+      {(activeGameId || results.view.kind !== 'active') && (
         <ResultsPanel
           view={results.view}
           ownPlayerId={lobby.state.ownPlayerId}

@@ -15,6 +15,13 @@ function displayName(playerId: string, playerName: string | null, ownPlayerId: s
   return playerName ?? `Player ${playerId.slice(0, 8)}`
 }
 
+function factionLabel(isRevealed: boolean, faction: string | null): string {
+  if (!isRevealed) {
+    return 'faction hidden until the final reveal'
+  }
+  return faction ?? 'faction withheld'
+}
+
 function WinnerList({ view, ownPlayerId }: { readonly view: Extract<ResultsView, { kind: 'complete' }>; readonly ownPlayerId: string | null }) {
   if (view.winners.length === 0) {
     return <p>No winners were recorded for this ending.</p>
@@ -24,7 +31,7 @@ function WinnerList({ view, ownPlayerId }: { readonly view: Extract<ResultsView,
       {view.winners.map((winner) => (
         <li key={winner.playerId}>
           <strong>{displayName(winner.playerId, winner.playerName, ownPlayerId)}</strong>
-          {winner.faction ? <span> · {winner.faction}</span> : <span> · faction withheld</span>}
+          <span> · {factionLabel(view.isRevealed, winner.faction)}</span>
           <span> · {winner.score} points</span>
         </li>
       ))}
@@ -59,7 +66,7 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
     return (
       <section aria-label="Final results">
         <h2>Final results</h2>
-        <p role="status">The game has ended. Final results are being prepared — refresh until the authoritative winners arrive.</p>
+        <output>The game has ended. Final results are being prepared — refresh until the authoritative winners arrive.</output>
         <button type="button" onClick={onRefresh} disabled={isRefreshing}>
           {isRefreshing ? 'Refreshing…' : 'Refresh results'}
         </button>
@@ -96,15 +103,7 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
             <span>{displayName(entry.playerId, entry.playerName, ownPlayerId)}</span>
             <span> · {entry.score} points</span>
             {entry.isWinner && <span> · winner</span>}
-            {view.isRevealed ? (
-              entry.faction ? (
-                <span> · {entry.faction}</span>
-              ) : (
-                <span> · faction withheld</span>
-              )
-            ) : (
-              <span> · faction hidden until the final reveal</span>
-            )}
+            <span> · {factionLabel(view.isRevealed, entry.faction)}</span>
           </li>
         ))}
       </ol>
