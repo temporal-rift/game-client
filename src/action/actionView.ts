@@ -146,7 +146,7 @@ function parseOutcomes(value: unknown): readonly EventOutcomeOption[] {
   return outcomes
 }
 
-function parseActiveEvents(value: unknown): readonly ActiveEventOption[] {
+export function parseActiveEvents(value: unknown): readonly ActiveEventOption[] {
   if (!Array.isArray(value)) {
     return []
   }

@@ -141,6 +141,31 @@ export interface RoundStatusView {
   readonly mySubmission: MyRoundSubmissionView | null
 }
 
+export interface EligibleParadoxCardView {
+  readonly cardInstanceId: string
+  readonly cardType: 'PUSH' | 'SUPPRESS' | 'STABILIZE' | 'DETONATE'
+  readonly grade: CardGrade
+}
+
+export interface ParadoxResolutionStatusView {
+  readonly eraNumber: number
+  readonly phaseOpen: boolean
+  readonly timerRemainingSeconds: number | null
+  readonly submittedCount: number
+  readonly totalPlayers: number
+  readonly pendingPlayerIds: readonly string[]
+  readonly mySubmitted: boolean
+  readonly affectedEventIds: readonly string[]
+  readonly eligibleCards: readonly EligibleParadoxCardView[]
+}
+
+export interface SubmitParadoxResolutionCardResult {
+  readonly gameId: string
+  readonly eraNumber: number
+  readonly playerId: string
+  readonly status: 'SUBMITTED'
+}
+
 export type AuthenticatedFetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 export class ActionApiError extends Error {
@@ -167,6 +192,16 @@ function actionsUrl(apiBaseUrl: string, gameId: string, eraNumber: number, round
 function roundStatusUrl(apiBaseUrl: string, gameId: string, eraNumber: number, roundNumber: number): string {
   const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
   return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/eras/${eraNumber}/rounds/${roundNumber}/status`
+}
+
+function paradoxResolutionActionsUrl(apiBaseUrl: string, gameId: string, eraNumber: number): string {
+  const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
+  return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/eras/${eraNumber}/paradox-resolution/actions`
+}
+
+function paradoxResolutionStatusUrl(apiBaseUrl: string, gameId: string, eraNumber: number): string {
+  const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
+  return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/eras/${eraNumber}/paradox-resolution/status`
 }
 
 function nullableNumber(value: unknown): number | null {
@@ -257,6 +292,57 @@ function parseRoundStatusView(json: Record<string, unknown>): RoundStatusView {
   }
 }
 
+function parseEligibleParadoxCards(value: unknown): readonly EligibleParadoxCardView[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  const eligibleTypes = new Set(['PUSH', 'SUPPRESS', 'STABILIZE', 'DETONATE'])
+  return value.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) {
+      return []
+    }
+    const source = entry as Record<string, unknown>
+    const cardInstanceId = stringField(source['cardInstanceId'])
+    const cardType = stringField(source['cardType'])
+    const grade = stringField(source['grade'])
+    if (!cardInstanceId || !cardType || !eligibleTypes.has(cardType) || !grade || !CARD_GRADES.includes(grade as CardGrade)) {
+      return []
+    }
+    return [{ cardInstanceId, cardType: cardType as EligibleParadoxCardView['cardType'], grade: grade as CardGrade }]
+  })
+}
+
+function parseParadoxResolutionStatusView(json: Record<string, unknown>): ParadoxResolutionStatusView {
+  const phaseOpen = json['phaseOpen']
+  const mySubmitted = json['mySubmitted']
+  if (typeof phaseOpen !== 'boolean' || typeof mySubmitted !== 'boolean') {
+    throw new Error('Paradox-resolution status response is incomplete.')
+  }
+  return {
+    eraNumber: requireNumber(json['eraNumber'], 'eraNumber'),
+    phaseOpen,
+    timerRemainingSeconds: nullableNumber(json['timerRemainingSeconds']),
+    submittedCount: requireNumber(json['submittedCount'], 'submittedCount'),
+    totalPlayers: requireNumber(json['totalPlayers'], 'totalPlayers'),
+    pendingPlayerIds: parsePendingPlayerIds(json['pendingPlayerIds']),
+    mySubmitted,
+    affectedEventIds: parsePendingPlayerIds(json['affectedEventIds']),
+    eligibleCards: parseEligibleParadoxCards(json['eligibleCards']),
+  }
+}
+
+function parseSubmitParadoxResolutionCardResult(json: Record<string, unknown>): SubmitParadoxResolutionCardResult {
+  if (json['status'] !== 'SUBMITTED') {
+    throw new Error('Paradox-resolution response carries an unknown status.')
+  }
+  return {
+    gameId: requireString(json['gameId'], 'gameId'),
+    eraNumber: requireNumber(json['eraNumber'], 'eraNumber'),
+    playerId: requireString(json['playerId'], 'playerId'),
+    status: 'SUBMITTED',
+  }
+}
+
 async function postJson<T>(
   fetchFn: AuthenticatedFetchFn,
   url: string,
@@ -344,6 +430,60 @@ export async function getRoundStatus(
   return parseRoundStatusView(json)
 }
 
+/** Submits one caller-owned eligible card during the current paradox-resolution phase. */
+export function submitParadoxResolutionCard(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  request: { readonly cardInstanceId: string; readonly targetEventId: string; readonly targetOutcomeId: string },
+): Promise<SubmitParadoxResolutionCardResult> {
+  if (!gameId.trim()) {
+    return Promise.reject(new Error('A game reference is needed to submit a paradox-resolution choice.'))
+  }
+  return postJson(
+    fetchFn,
+    paradoxResolutionActionsUrl(apiBaseUrl, gameId, eraNumber),
+    request,
+    parseSubmitParadoxResolutionCardResult,
+    'submit the paradox-resolution choice',
+  )
+}
+
+/** Recovers phase-scoped targets, caller-owned eligible cards, deadline, and acceptance state. */
+export async function getParadoxResolutionStatus(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  init: { readonly signal?: AbortSignal } = {},
+): Promise<ParadoxResolutionStatusView> {
+  if (!gameId.trim()) {
+    throw new Error('A game reference is needed to read paradox-resolution status.')
+  }
+  let response: Response
+  try {
+    response = await fetchFn(paradoxResolutionStatusUrl(apiBaseUrl, gameId, eraNumber), {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: init.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error
+    }
+    throw new Error('Could not reach the game server to read paradox-resolution status. Check your connection and try again.')
+  }
+  if (!response.ok) {
+    await throwProblem(response, 'Could not read paradox-resolution status. Try again.')
+  }
+  const json = await readJsonSafe(response)
+  if (!json) {
+    throw new Error('The server answered without paradox-resolution status. Refresh and try again.')
+  }
+  return parseParadoxResolutionStatusView(json)
+}
+
 /** Maps stable problem codes to player-safe messages; unknown codes keep the server detail. */
 export function actionErrorMessage(error: unknown): string {
   if (error instanceof ActionApiError) {
@@ -352,6 +492,10 @@ export function actionErrorMessage(error: unknown): string {
         return 'The round already closed. Reconciling your accepted action.'
       case '409-02':
         return 'You already submitted for this round. Reconciling your accepted action.'
+      case '409-06':
+        return 'The paradox-resolution phase already closed. Reconciling your accepted choice.'
+      case '409-07':
+        return 'You already submitted a paradox-resolution choice. Reconciling your accepted choice.'
       case '409-05':
         return 'Expose was already used this era.'
       case '409-10':
@@ -369,7 +513,7 @@ export function actionErrorMessage(error: unknown): string {
       case '422-06':
         return "That target does not belong to the current game's era."
       case '422-10':
-        return 'That card cannot be played during an action round.'
+        return 'That card is not eligible during this phase.'
       case '422-12':
         return 'That card cannot be played in this specific round.'
       default:
