@@ -18,8 +18,9 @@ import type { CardGrade, CardType } from '../api/actionClient'
 import type { GameStateView } from '../api/gameStateClient'
 import { stringField } from '../api/httpJson'
 import { cardDisplayName, specialDisplayName } from '../action/actionRules'
+import type { ProbabilityBand } from '../types/playerView'
 
-export type ProbabilityBand = 'low' | 'medium' | 'high' | 'unknown'
+export type { ProbabilityBand }
 
 export interface BandOutcomeEntry {
   readonly outcomeId: string

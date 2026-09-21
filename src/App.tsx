@@ -122,7 +122,14 @@ function SignedInView({
           onDismissRejection={paradox.dismissRejection}
         />
       )}
-      {activeGameId && <KnowledgePanel view={knowledge.view} />}
+      {activeGameId && (
+        <KnowledgePanel
+          view={knowledge.view}
+          error={knowledge.message}
+          isRefreshing={knowledge.isRefreshing}
+          onRefresh={() => void knowledge.refresh()}
+        />
+      )}
       {(activeGameId || results.view.kind !== 'active') && (
         <ResultsPanel
           view={results.view}
