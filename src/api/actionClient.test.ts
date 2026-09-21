@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ActionApiError, actionErrorMessage, getRoundStatus, submitAction } from './actionClient'
+import {
+  ActionApiError,
+  actionErrorMessage,
+  getParadoxResolutionStatus,
+  getRoundStatus,
+  submitAction,
+  submitParadoxResolutionCard,
+} from './actionClient'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -117,10 +124,50 @@ describe('getRoundStatus', () => {
   })
 })
 
+describe('paradox resolution', () => {
+  it('recovers only caller-safe eligible cards and affected event targets', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        eraNumber: 2,
+        phaseOpen: true,
+        timerRemainingSeconds: 30,
+        submittedCount: 1,
+        totalPlayers: 3,
+        pendingPlayerIds: ['p2', 'p3'],
+        mySubmitted: false,
+        affectedEventIds: ['evt-1'],
+        eligibleCards: [{ cardInstanceId: 'offer-1', cardType: 'STABILIZE', grade: 'I' }],
+      }),
+    )
+
+    const view = await getParadoxResolutionStatus(fetchFn, 'https://api.example.test', 'game-1', 2)
+
+    expect(fetchFn.mock.calls[0]?.[0]).toBe('https://api.example.test/api/v1/games/game-1/eras/2/paradox-resolution/status')
+    expect(view.affectedEventIds).toEqual(['evt-1'])
+    expect(view.eligibleCards).toEqual([{ cardInstanceId: 'offer-1', cardType: 'STABILIZE', grade: 'I' }])
+  })
+
+  it('posts a phase-scoped card choice without an ordinary action payload', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId: 'game-1', eraNumber: 2, playerId: 'p1', status: 'SUBMITTED' }))
+
+    await submitParadoxResolutionCard(fetchFn, 'https://api.example.test', 'game-1', 2, {
+      cardInstanceId: 'offer-1',
+      targetEventId: 'evt-1',
+      targetOutcomeId: 'out-1',
+    })
+
+    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.example.test/api/v1/games/game-1/eras/2/paradox-resolution/actions')
+    expect(JSON.parse(init.body as string)).toEqual({ cardInstanceId: 'offer-1', targetEventId: 'evt-1', targetOutcomeId: 'out-1' })
+  })
+})
+
 describe('actionErrorMessage', () => {
   it.each([
     ['409-01', /already closed/i],
     ['409-02', /already submitted/i],
+    ['409-06', /phase already closed/i],
+    ['409-07', /already submitted a paradox/i],
     ['409-05', /expose/i],
     ['409-10', /already used this era/i],
     ['422-01', /not in your hand/i],
@@ -129,7 +176,7 @@ describe('actionErrorMessage', () => {
     ['422-04', /faction is required/i],
     ['422-05', /does not own/i],
     ['422-06', /current game's era/i],
-    ['422-10', /action round/i],
+    ['422-10', /not eligible/i],
     ['422-12', /this specific round/i],
   ])('maps code %s to a player-safe message', (code, pattern) => {
     expect(actionErrorMessage(new ActionApiError(422, code, 'raw detail'))).toMatch(pattern)

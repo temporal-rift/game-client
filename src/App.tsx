@@ -8,6 +8,7 @@ import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
 import { useActionSubmission } from './action/useActionSubmission'
+import { useParadoxResolution } from './paradox/useParadoxResolution'
 import { useLobby } from './lobby/useLobby'
 import { useResults } from './results/useResults'
 import { ActionPanel } from './components/ActionPanel'
@@ -16,6 +17,7 @@ import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
 import { LobbyPanel } from './components/LobbyPanel'
+import { ParadoxResolutionPanel } from './components/ParadoxResolutionPanel'
 import { ResultsPanel } from './components/ResultsPanel'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
@@ -77,6 +79,12 @@ function SignedInView({
     ownPlayerId: lobby.state.ownPlayerId,
     perspectiveKey: authSession.identity.subject,
   })
+  const paradox = useParadoxResolution({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    gameId: activeGameId,
+    perspectiveKey: authSession.identity.subject,
+  })
 
   return (
     <div>
@@ -92,6 +100,18 @@ function SignedInView({
           onClearDraft={action.clearDraft}
           onConfirm={() => void action.confirm()}
           onDismissRejection={action.dismissRejection}
+        />
+      )}
+      {activeGameId && (
+        <ParadoxResolutionPanel
+          view={paradox.view}
+          draft={paradox.draft}
+          submitPhase={paradox.submitPhase}
+          onSelectCard={paradox.selectCard}
+          onSelectTarget={paradox.selectTarget}
+          onClearDraft={paradox.clearDraft}
+          onConfirm={() => void paradox.confirm()}
+          onDismissRejection={paradox.dismissRejection}
         />
       )}
       {(activeGameId || results.view.kind !== 'active') && (
