@@ -4,6 +4,20 @@ import { KnowledgeScopeIcon } from './icons'
 
 interface KnowledgePanelProps {
   readonly view: KnowledgeView
+  readonly error: string | null
+  readonly isRefreshing: boolean
+  readonly onRefresh: () => void
+}
+
+/** A stable identity per entry — none of these carry a server-issued id, but each kind names its own subject. */
+function revealedKnowledgeKey(entry: RevealedKnowledgeEntry): string {
+  switch (entry.kind) {
+    case 'PROBABILITY':
+    case 'INFLUENCE':
+      return `${entry.kind}-${entry.eventId}`
+    case 'HAND_CARD':
+      return `${entry.kind}-${entry.targetPlayerId}-${entry.observedInRound}`
+  }
 }
 
 function revealedKnowledgeLabel(entry: RevealedKnowledgeEntry): { readonly label: string; readonly detail: string } {
@@ -45,12 +59,17 @@ function revealedKnowledgeLabel(entry: RevealedKnowledgeEntry): { readonly label
  * other. Bands only ever show Low/Medium/High/Unknown — never a number —
  * and every list shows exactly what the server published, nothing more.
  */
-export function KnowledgePanel({ view }: KnowledgePanelProps) {
+export function KnowledgePanel({ view, error, isRefreshing, onRefresh }: KnowledgePanelProps) {
   if (view.kind === 'unavailable') {
     return (
       <section aria-label="Observations and knowledge">
         <h2>Observations and knowledge</h2>
         <p>{view.reason}</p>
+        {error && (
+          <p role="alert">
+            {error} <button type="button" onClick={onRefresh} disabled={isRefreshing}>Retry</button>
+          </p>
+        )}
       </section>
     )
   }
@@ -86,10 +105,10 @@ export function KnowledgePanel({ view }: KnowledgePanelProps) {
         <p>You have not bought any intel this era.</p>
       ) : (
         <ul className="knowledge-list" aria-label="Your earned knowledge">
-          {view.revealedKnowledge.map((entry, index) => {
+          {view.revealedKnowledge.map((entry) => {
             const { label, detail } = revealedKnowledgeLabel(entry)
             return (
-              <li key={`${entry.kind}-${index}`} className="knowledge-card knowledge-private">
+              <li key={revealedKnowledgeKey(entry)} className="knowledge-card knowledge-private">
                 <span className="knowledge-scope">
                   <KnowledgeScopeIcon scope="private" />
                   Private intel
@@ -110,8 +129,8 @@ export function KnowledgePanel({ view }: KnowledgePanelProps) {
         <p>No Rally or Momentum declarations have been recorded this era.</p>
       ) : (
         <ul className="knowledge-list" aria-label="Public declarations">
-          {view.declarations.map((declaration, index) => (
-            <li key={`${declaration.playerId}-${index}`} className="knowledge-card knowledge-public">
+          {view.declarations.map((declaration) => (
+            <li key={`${declaration.playerId}-${declaration.eraNumber}`} className="knowledge-card knowledge-public">
               <span className="knowledge-scope">
                 <KnowledgeScopeIcon scope="public" />
                 Public intel
@@ -133,8 +152,8 @@ export function KnowledgePanel({ view }: KnowledgePanelProps) {
         <p>No Expose signatures have been revealed this era.</p>
       ) : (
         <ul className="knowledge-list" aria-label="Expose facts">
-          {view.exposeFacts.map((fact, index) => (
-            <li key={`${fact.activistPlayerId}-${fact.targetPlayerId}-${index}`} className="knowledge-card knowledge-public">
+          {view.exposeFacts.map((fact) => (
+            <li key={`${fact.activistPlayerId}-${fact.targetPlayerId}-${fact.roundNumber}`} className="knowledge-card knowledge-public">
               <span className="knowledge-scope">
                 <KnowledgeScopeIcon scope="public" />
                 Public intel
@@ -151,6 +170,11 @@ export function KnowledgePanel({ view }: KnowledgePanelProps) {
             </li>
           ))}
         </ul>
+      )}
+      {error && (
+        <p role="alert">
+          {error} <button type="button" onClick={onRefresh} disabled={isRefreshing}>Retry</button>
+        </p>
       )}
     </section>
   )

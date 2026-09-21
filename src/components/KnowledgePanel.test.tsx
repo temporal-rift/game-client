@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { KnowledgeView } from '../knowledge/knowledgeView'
 import { KnowledgePanel } from './KnowledgePanel'
 
@@ -55,14 +55,16 @@ const READY_VIEW: Extract<KnowledgeView, { kind: 'ready' }> = {
   ],
 }
 
+const NO_ERROR_PROPS = { error: null, isRefreshing: false, onRefresh: vi.fn() }
+
 describe('KnowledgePanel', () => {
   it('shows the unavailable reason before state has loaded', () => {
-    render(<KnowledgePanel view={{ kind: 'unavailable', reason: 'Game state is not loaded yet.' }} />)
+    render(<KnowledgePanel view={{ kind: 'unavailable', reason: 'Game state is not loaded yet.' }} {...NO_ERROR_PROPS} />)
     expect(screen.getByText('Game state is not loaded yet.')).toBeInTheDocument()
   })
 
   it('distinguishes public bands from private earned knowledge by scope, age and expiry', () => {
-    render(<KnowledgePanel view={READY_VIEW} />)
+    render(<KnowledgePanel view={READY_VIEW} {...NO_ERROR_PROPS} />)
 
     expect(screen.getByText('High')).toBeInTheDocument()
     expect(screen.getByText('Unknown')).toBeInTheDocument()
@@ -76,7 +78,7 @@ describe('KnowledgePanel', () => {
   })
 
   it('never invents an exact number for an unknown public band', () => {
-    render(<KnowledgePanel view={READY_VIEW} />)
+    render(<KnowledgePanel view={READY_VIEW} {...NO_ERROR_PROPS} />)
 
     const bandsSection = screen.getByRole('list', { name: 'Public bands' })
     expect(bandsSection).not.toHaveTextContent(/\d+%/)
@@ -87,6 +89,7 @@ describe('KnowledgePanel', () => {
     render(
       <KnowledgePanel
         view={{ kind: 'ready', gameId: 'game-1', eraNumber: 1, bands: [], revealedKnowledge: [], declarations: [], exposeFacts: [] }}
+        {...NO_ERROR_PROPS}
       />,
     )
 
@@ -94,5 +97,16 @@ describe('KnowledgePanel', () => {
     expect(screen.getByText('You have not bought any intel this era.')).toBeInTheDocument()
     expect(screen.getByText('No Rally or Momentum declarations have been recorded this era.')).toBeInTheDocument()
     expect(screen.getByText('No Expose signatures have been revealed this era.')).toBeInTheDocument()
+  })
+
+  it('surfaces a stalled poll as a retryable alert instead of silently showing stale data', () => {
+    const onRefresh = vi.fn()
+    render(<KnowledgePanel view={READY_VIEW} error="Could not reach the game server." isRefreshing={false} onRefresh={onRefresh} />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Could not reach the game server.')
+
+    screen.getByRole('button', { name: 'Retry' }).click()
+    expect(onRefresh).toHaveBeenCalledTimes(1)
   })
 })

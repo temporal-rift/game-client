@@ -16,6 +16,7 @@ export interface KnowledgeSession {
   readonly view: KnowledgeView
   readonly status: 'idle' | 'loading' | 'ready' | 'stalled' | 'failed'
   readonly message: string | null
+  readonly isRefreshing: boolean
   readonly refresh: () => Promise<void>
 }
 
@@ -46,6 +47,6 @@ export function useKnowledge(options: UseKnowledgeOptions): KnowledgeSession {
   return useMemo(() => {
     const detail = gameState.status
     const message = detail.kind === 'stalled' || detail.kind === 'failed' ? detail.message : null
-    return { view, status: detail.kind, message, refresh }
+    return { view, status: detail.kind, message, isRefreshing: detail.kind === 'loading', refresh }
   }, [view, gameState.status, refresh])
 }
