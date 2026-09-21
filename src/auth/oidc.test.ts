@@ -88,6 +88,38 @@ describe('discoverOidc', () => {
     ).rejects.toBeInstanceOf(OidcError)
   })
 
+  it('rejects endpoints on a different origin than the configured issuer', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        issuer: 'https://issuer.example.test',
+        authorization_endpoint: 'https://issuer.example.test/authorize',
+        token_endpoint: 'https://tokens.example.test/token',
+      }),
+    })
+
+    await expect(discoverOidc('https://issuer.example.test', fetcher as unknown as typeof fetch)).rejects.toBeInstanceOf(
+      OidcError,
+    )
+  })
+
+  it('allows endpoints on the same origin under different paths', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        issuer: 'https://issuer.example.test/realms/game',
+        authorization_endpoint: 'https://issuer.example.test/realms/game/protocol/openid-connect/auth',
+        token_endpoint: 'https://issuer.example.test/realms/game/protocol/openid-connect/token',
+      }),
+    })
+
+    const result = await discoverOidc(
+      'https://issuer.example.test/realms/game',
+      fetcher as unknown as typeof fetch,
+    )
+    expect(result.tokenEndpoint).toContain('https://issuer.example.test')
+  })
+
   it('rejects a discovery document from a different issuer', async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,

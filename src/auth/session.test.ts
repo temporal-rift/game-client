@@ -40,7 +40,7 @@ function memoryStorage(): Storage {
 
 const session: AuthSession = {
   accessToken: 'access',
-  idToken: 'id',
+  idToken: idToken({ sub: 'auth0|one', iss: 'https://issuer.example.test' }),
   expiresAtEpochMs: 2_000,
   identity: { subject: 'auth0|one', issuer: 'https://issuer.example.test', displayName: 'one' },
   clientId: 'game-client',
@@ -96,6 +96,15 @@ describe('player session storage', () => {
   it('rejects malformed stored sessions instead of fabricating identity', () => {
     storage.setItem('temporal-rift.auth.session.v1', '{"accessToken":1}')
     expect(loadSession(storage)).toBeNull()
+  })
+
+  it('refuses to persist sessions that fail write-time validation', () => {
+    expect(() => saveSession({ ...session, accessToken: '' }, storage)).toThrow(OidcError)
+    expect(() => saveSession({ ...session, idToken: 'not-a-jwt' }, storage)).toThrow(OidcError)
+    expect(() => saveSession({ ...session, accessToken: 'x'.repeat(9000) }, storage)).toThrow(OidcError)
+    expect(() => saveSession({ ...session, clientId: '' }, storage)).toThrow(OidcError)
+    expect(() => saveSession({ ...session, expiresAtEpochMs: Number.NaN }, storage)).toThrow(OidcError)
+    expect(storage.getItem('temporal-rift.auth.session.v1')).toBeNull()
   })
 
   it('clears sessions, pending logins and private caches together', () => {

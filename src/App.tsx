@@ -61,11 +61,11 @@ function App() {
   const sessionStatus = session.status
   switch (sessionStatus.state) {
     case 'restoring':
-      return <p role="status">Restoring session…</p>
+      return <output>Restoring session…</output>
     case 'signing-in':
-      return <p role="status">Redirecting to sign-in…</p>
+      return <output>Redirecting to sign-in…</output>
     case 'handling-callback':
-      return <p role="status">Completing sign-in…</p>
+      return <output>Completing sign-in…</output>
     case 'signed-out':
       return (
         <SignInPanel

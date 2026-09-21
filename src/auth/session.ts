@@ -123,7 +123,70 @@ export function loadSession(storage: SessionStorageLike | null = sessionStorageO
   return parseSession(storage.getItem(SESSION_KEY))
 }
 
+const MAX_TOKEN_LENGTH = 8192
+const MAX_SUBJECT_LENGTH = 1024
+const MAX_ISSUER_LENGTH = 2048
+const MAX_DISPLAY_NAME_LENGTH = 320
+
+function isBase64UrlSegment(segment: string): boolean {
+  if (segment.length === 0) {
+    return false
+  }
+  for (let index = 0; index < segment.length; index += 1) {
+    const code = segment.charCodeAt(index)
+    const isWord = code === 45 || code === 95 || (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+    if (!isWord) {
+      return false
+    }
+  }
+  return true
+}
+
+/** Checks the JWS compact shape (header.payload.signature) without crypto. */
+function isJwtShape(value: string): boolean {
+  const segments = value.split('.')
+  return (
+    segments.length === 3 && isBase64UrlSegment(segments[0]) && isBase64UrlSegment(segments[1]) && (segments[2].length === 0 || isBase64UrlSegment(segments[2]))
+  )
+}
+
+function invalidSessionError(): OidcError {
+  return new OidcError('Sign-in returned an unusable credential. Try signing in again.')
+}
+
+/**
+ * Fail-closed validation enforced before anything reaches browser storage:
+ * bounded non-empty credentials, a well-formed ID token, bounded identity
+ * fields and a usable expiry. Never persist a session that fails these.
+ */
+function requireStorableSession(session: AuthSession): void {
+  if (session.accessToken.length === 0 || session.accessToken.length > MAX_TOKEN_LENGTH) {
+    throw invalidSessionError()
+  }
+  if (!isJwtShape(session.idToken) || session.idToken.length > MAX_TOKEN_LENGTH) {
+    throw invalidSessionError()
+  }
+  if (
+    session.identity.subject.length === 0 ||
+    session.identity.subject.length > MAX_SUBJECT_LENGTH ||
+    session.identity.issuer.length === 0 ||
+    session.identity.issuer.length > MAX_ISSUER_LENGTH
+  ) {
+    throw invalidSessionError()
+  }
+  if (session.identity.displayName !== null && session.identity.displayName.length > MAX_DISPLAY_NAME_LENGTH) {
+    throw invalidSessionError()
+  }
+  if (session.clientId.length === 0) {
+    throw invalidSessionError()
+  }
+  if (!Number.isFinite(session.expiresAtEpochMs) || session.expiresAtEpochMs <= 0) {
+    throw invalidSessionError()
+  }
+}
+
 export function saveSession(session: AuthSession, storage: SessionStorageLike | null = sessionStorageOrNull()): void {
+  requireStorableSession(session)
   storage?.setItem(SESSION_KEY, JSON.stringify(session))
 }
 

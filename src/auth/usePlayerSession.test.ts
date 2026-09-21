@@ -24,7 +24,7 @@ function idToken(payload: Record<string, unknown>): string {
 
 const storedSession: AuthSession = {
   accessToken: 'stored-access',
-  idToken: 'stored-id',
+  idToken: idToken({ sub: 'auth0|stored', iss: config.oidcIssuerUrl }),
   expiresAtEpochMs: Date.now() + 3_600_000,
   identity: { subject: 'auth0|stored', issuer: config.oidcIssuerUrl, displayName: 'stored' },
   clientId: config.oidcClientId,
