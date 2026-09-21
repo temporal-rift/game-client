@@ -1,4 +1,4 @@
-import type { GameStateView } from '../api/gameStateClient'
+import type { GameResultView, GameStateView } from '../api/gameStateClient'
 import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
 
 export type EndReason =
@@ -96,12 +96,7 @@ function parseRawPlayer(entry: unknown): RawPlayer | null {
   if (!playerId || score === null) {
     return null
   }
-  return {
-    playerId,
-    playerName: nonEmptyString(source['playerName']),
-    score,
-    faction: nonEmptyString(source['faction']),
-  }
+  return { playerId, playerName: nonEmptyString(source['playerName']), score, faction: nonEmptyString(source['faction']) }
 }
 
 function rawPlayersFrom(state: GameStateView): readonly RawPlayer[] {
@@ -109,14 +104,10 @@ function rawPlayersFrom(state: GameStateView): readonly RawPlayer[] {
   if (!Array.isArray(raw)) {
     return []
   }
-  const players: RawPlayer[] = []
-  for (const entry of raw) {
+  return raw.flatMap((entry) => {
     const player = parseRawPlayer(entry)
-    if (player) {
-      players.push(player)
-    }
-  }
-  return players
+    return player ? [player] : []
+  })
 }
 
 function playerNameFor(playerId: string, rawPlayers: readonly RawPlayer[], scores: ScoresView | null): string | null {
@@ -127,46 +118,17 @@ function playerNameFor(playerId: string, rawPlayers: readonly RawPlayer[], score
   return scores?.scores.find((score) => score.playerId === playerId)?.playerName ?? null
 }
 
-/**
- * Builds the terminal results view from authoritative facts only. Winners,
- * ending cause and final scores come straight from the published result;
- * nothing is derived from score order or faction guesses. A terminal phase
- * without a complete result stays in `waiting` until the authoritative
- * final awards arrive. Factions and detailed reasons are shown only when
- * the recorded reveal boundary permits them; otherwise they remain
- * withheld and the view marks them as such.
- */
-interface TerminalFacts {
-  readonly endReason: EndReason
-  readonly isRevealed: boolean
-  readonly rawPlayers: readonly RawPlayer[]
-  readonly winnerIds: ReadonlySet<string>
-  readonly result: NonNullable<GameStateView['result']>
-}
-
-function terminalFactsFor(state: GameStateView): TerminalFacts | null {
-  const result = state.result
-  if (!result || !isKnownEndReason(result.endReason)) {
-    return null
-  }
-  return {
-    endReason: result.endReason,
-    isRevealed: result.revealBoundary === 'FACTIONS_AND_SCORES_PUBLIC',
-    rawPlayers: rawPlayersFrom(state),
-    winnerIds: new Set(result.winners.map((winner) => winner.playerId)),
-    result,
-  }
-}
-
-function factionFor(
+function factionForPlayer(
   playerId: string,
-  facts: TerminalFacts,
+  isRevealed: boolean,
+  result: GameResultView,
   scores: ScoresView | null,
+  rawPlayers: readonly RawPlayer[],
 ): string | null {
-  if (!facts.isRevealed) {
+  if (!isRevealed) {
     return null
   }
-  const fromResult = facts.result.winners.find((winner) => winner.playerId === playerId)?.faction ?? null
+  const fromResult = result.winners.find((winner) => winner.playerId === playerId)?.faction ?? null
   if (fromResult) {
     return fromResult
   }
@@ -174,45 +136,50 @@ function factionFor(
   if (fromScores) {
     return fromScores
   }
-  return facts.rawPlayers.find((player) => player.playerId === playerId)?.faction ?? null
+  return rawPlayers.find((player) => player.playerId === playerId)?.faction ?? null
 }
 
-function buildOrderedEntries(facts: TerminalFacts, scores: ScoresView | null): ResultsPlayerEntry[] {
-  const scoreByPlayer = new Map(facts.result.finalScores.map((entry) => [entry.playerId, entry.score] as const))
+function orderedPlayersFrom(
+  result: GameResultView,
+  rawPlayers: readonly RawPlayer[],
+  scores: ScoresView | null,
+  isRevealed: boolean,
+): readonly ResultsPlayerEntry[] {
+  const winnerIds = new Set(result.winners.map((winner) => winner.playerId))
+  const scoreByPlayer = new Map(result.finalScores.map((entry) => [entry.playerId, entry.score] as const))
   const playerIds = Array.from(
     new Set([
-      ...facts.result.finalScores.map((entry) => entry.playerId),
-      ...facts.result.winners.map((winner) => winner.playerId),
-      ...facts.rawPlayers.map((player) => player.playerId),
+      ...result.finalScores.map((entry) => entry.playerId),
+      ...result.winners.map((winner) => winner.playerId),
+      ...rawPlayers.map((player) => player.playerId),
     ]),
   )
   return playerIds.map((playerId) => ({
     playerId,
-    playerName: playerNameFor(playerId, facts.rawPlayers, scores),
-    score: scoreByPlayer.get(playerId) ?? facts.rawPlayers.find((player) => player.playerId === playerId)?.score ?? 0,
-    isWinner: facts.winnerIds.has(playerId),
-    faction: factionFor(playerId, facts, scores),
+    playerName: playerNameFor(playerId, rawPlayers, scores),
+    score: scoreByPlayer.get(playerId) ?? rawPlayers.find((player) => player.playerId === playerId)?.score ?? 0,
+    isWinner: winnerIds.has(playerId),
+    faction: factionForPlayer(playerId, isRevealed, result, scores, rawPlayers),
   }))
 }
 
-function buildExplanations(
+function explanationsFrom(
   history: ScoresHistoryView | null,
-  facts: TerminalFacts,
+  rawPlayers: readonly RawPlayer[],
   scores: ScoresView | null,
   ownPlayerId: string | null,
-): ResultsExplanationEntry[] {
-  if (!history) {
-    return []
-  }
-  return history.history.flatMap((era) =>
-    era.deltas.map((delta) => ({
-      playerId: delta.playerId,
-      playerName: playerNameFor(delta.playerId, facts.rawPlayers, scores),
-      eraNumber: era.eraNumber,
-      pointsDelta: delta.pointsDelta,
-      reason: delta.reason,
-      isOwn: ownPlayerId !== null && delta.playerId === ownPlayerId,
-    })),
+): readonly ResultsExplanationEntry[] {
+  return (
+    history?.history.flatMap((era) =>
+      era.deltas.map((delta) => ({
+        playerId: delta.playerId,
+        playerName: playerNameFor(delta.playerId, rawPlayers, scores),
+        eraNumber: era.eraNumber,
+        pointsDelta: delta.pointsDelta,
+        reason: delta.reason,
+        isOwn: ownPlayerId !== null && delta.playerId === ownPlayerId,
+      })),
+    ) ?? []
   )
 }
 
@@ -234,22 +201,25 @@ export function selectResultsView(
   if (state?.phase !== 'GAME_ENDED') {
     return { kind: 'active' }
   }
-  if (!state.result) {
+  const result = state.result
+  if (!result) {
     return { kind: 'waiting', gameId: state.gameId, eraNumber: state.eraNumber }
   }
-  const facts = terminalFactsFor(state)
-  if (!facts) {
-    return { kind: 'unknown-terminal', gameId: state.gameId, endReasonRaw: state.result.endReason }
+  if (!isKnownEndReason(result.endReason)) {
+    return { kind: 'unknown-terminal', gameId: state.gameId, endReasonRaw: result.endReason }
   }
-  const ordered = buildOrderedEntries(facts, scores)
+  const isRevealed = result.revealBoundary === 'FACTIONS_AND_SCORES_PUBLIC'
+  const rawPlayers = rawPlayersFrom(state)
+  const ordered = orderedPlayersFrom(result, rawPlayers, scores, isRevealed)
+
   return {
     kind: 'complete',
     gameId: state.gameId,
-    endReason: facts.endReason,
-    endReasonRaw: facts.endReason,
+    endReason: result.endReason,
+    endReasonRaw: result.endReason,
     winners: ordered.filter((entry) => entry.isWinner),
     scores: ordered,
-    isRevealed: facts.isRevealed,
-    explanations: buildExplanations(history, facts, scores, ownPlayerId),
+    isRevealed,
+    explanations: explanationsFrom(history, rawPlayers, scores, ownPlayerId),
   }
 }

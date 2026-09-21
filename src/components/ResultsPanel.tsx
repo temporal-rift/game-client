@@ -15,7 +15,7 @@ function displayName(playerId: string, playerName: string | null, ownPlayerId: s
   return playerName ?? `Player ${playerId.slice(0, 8)}`
 }
 
-function factionLabel(isRevealed: boolean, faction: string | null): string {
+function factionLabel(faction: string | null, isRevealed: boolean): string {
   if (!isRevealed) {
     return 'faction hidden until the final reveal'
   }
@@ -31,7 +31,7 @@ function WinnerList({ view, ownPlayerId }: { readonly view: Extract<ResultsView,
       {view.winners.map((winner) => (
         <li key={winner.playerId}>
           <strong>{displayName(winner.playerId, winner.playerName, ownPlayerId)}</strong>
-          <span> · {factionLabel(view.isRevealed, winner.faction)}</span>
+          {winner.faction ? <span> · {winner.faction}</span> : <span> · faction withheld</span>}
           <span> · {winner.score} points</span>
         </li>
       ))}
@@ -103,7 +103,7 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
             <span>{displayName(entry.playerId, entry.playerName, ownPlayerId)}</span>
             <span> · {entry.score} points</span>
             {entry.isWinner && <span> · winner</span>}
-            <span> · {factionLabel(view.isRevealed, entry.faction)}</span>
+            <span> · {factionLabel(entry.faction, view.isRevealed)}</span>
           </li>
         ))}
       </ol>

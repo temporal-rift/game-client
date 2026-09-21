@@ -7,8 +7,10 @@ import { usePlayerSession } from './auth/usePlayerSession'
 import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
+import { useActionSubmission } from './action/useActionSubmission'
 import { useLobby } from './lobby/useLobby'
 import { useResults } from './results/useResults'
+import { ActionPanel } from './components/ActionPanel'
 import { AppShell } from './components/AppShell'
 import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
@@ -68,11 +70,30 @@ function SignedInView({
     ownPlayerId: lobby.state.ownPlayerId,
     perspectiveKey: authSession.identity.subject,
   })
+  const action = useActionSubmission({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    gameId: activeGameId,
+    ownPlayerId: lobby.state.ownPlayerId,
+    perspectiveKey: authSession.identity.subject,
+  })
 
   return (
     <div>
       <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
+      {activeGameId && (
+        <ActionPanel
+          view={action.view}
+          draft={action.draft}
+          submitPhase={action.submitPhase}
+          onSelectCard={action.selectCard}
+          onSelectSpecial={action.selectSpecial}
+          onClearDraft={action.clearDraft}
+          onConfirm={() => void action.confirm()}
+          onDismissRejection={action.dismissRejection}
+        />
+      )}
       {(activeGameId || results.view.kind !== 'active') && (
         <ResultsPanel
           view={results.view}
