@@ -90,7 +90,8 @@ function requireOidcUrl(value: unknown): string {
   if (url.protocol === 'https:') {
     return value
   }
-  if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) {
+  const allowedLoopbackSchemes = ['http:']
+  if (allowedLoopbackSchemes.includes(url.protocol) && isLoopbackHost(url.hostname)) {
     return value
   }
   throw new OidcError('The configured issuer returned an invalid discovery document.')
@@ -113,7 +114,10 @@ function requireDiscoveredEndpoint(value: unknown, issuer: string): string {
   } catch {
     throw new OidcError('The configured issuer returned an invalid discovery document.')
   }
-  if (endpointUrl.origin !== issuerUrl.origin) {
+  // Allowlist of one trusted origin: the configured issuer. Endpoint URLs
+  // must match it exactly (scheme, host and port) or they are rejected.
+  const allowedOrigins = [issuerUrl.origin]
+  if (!allowedOrigins.includes(endpointUrl.origin)) {
     throw new OidcError('The configured issuer returned an invalid discovery document.')
   }
   return endpoint
