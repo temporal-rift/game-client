@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { checkApiConnectivity } from './api/connectivity'
+import { createAuthenticatedFetch } from './auth/authenticatedFetch'
+import { parseLobbyInvitation, writeLobbyInvitationToUrl } from './auth/invitation'
+import type { PlayerSession } from './auth/usePlayerSession'
 import { usePlayerSession } from './auth/usePlayerSession'
+import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
+import type { AppConfig } from './config/appConfig'
+import { useLobby } from './lobby/useLobby'
 import { AppShell } from './components/AppShell'
 import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
+import { LobbyPanel } from './components/LobbyPanel'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
 import { sampleFixturePlayerView } from './fixtures/playerView'
@@ -14,6 +21,52 @@ type ConnectivityState =
   | { readonly status: 'checking' }
   | { readonly status: 'connected' }
   | { readonly status: 'failed'; readonly reason: string }
+
+function defaultPlayerNameFor(identity: AuthSession['identity']): string {
+  if (identity.displayName && identity.displayName.trim().length > 0) {
+    return identity.displayName.trim()
+  }
+  return identity.subject.length > 12 ? `player-${identity.subject.slice(-4)}` : 'player'
+}
+
+function SignedInView({
+  config,
+  playerSession,
+  authSession,
+}: {
+  readonly config: AppConfig
+  readonly playerSession: PlayerSession
+  readonly authSession: AuthSession
+}) {
+  const authenticatedFetch = useMemo(
+    () => createAuthenticatedFetch(playerSession.getAccessToken),
+    [playerSession],
+  )
+  const fetchWithUnauthorized = useMemo(
+    () =>
+      ((input: RequestInfo | URL, init: RequestInit = {}) =>
+        authenticatedFetch(input, { ...init, onUnauthorized: playerSession.handleUnauthorized })) as (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => Promise<Response>,
+    [authenticatedFetch, playerSession],
+  )
+  const initialLobbyId = useMemo(() => parseLobbyInvitation(window.location.search)?.lobbyId ?? null, [])
+  const lobby = useLobby({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    initialLobbyId,
+    onLobbyIdChange: writeLobbyInvitationToUrl,
+  })
+
+  return (
+    <div>
+      <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
+      <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
+      <AppShell key={authSession.identity.subject} playerView={sampleFixturePlayerView} isSampleData />
+    </div>
+  )
+}
 
 function App() {
   const configResult = useMemo(() => resolveAppConfig(import.meta.env), [])
@@ -84,14 +137,11 @@ function App() {
       )
     case 'signed-in':
       return (
-        <div>
-          <SessionBar identity={sessionStatus.session.identity} onSignOut={() => void session.signOut()} />
-          <AppShell
-            key={sessionStatus.session.identity.subject}
-            playerView={sampleFixturePlayerView}
-            isSampleData
-          />
-        </div>
+        <SignedInView
+          config={configResult.config}
+          playerSession={session}
+          authSession={sessionStatus.session}
+        />
       )
   }
 }
