@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { checkApiConnectivity } from './api/connectivity'
-import { identityKey } from './auth/session'
 import { usePlayerSession } from './auth/usePlayerSession'
 import { resolveAppConfig } from './config/appConfig'
 import { AppShell } from './components/AppShell'
@@ -86,9 +85,9 @@ function App() {
     case 'signed-in':
       return (
         <div>
-          <SessionBar identity={sessionStatus.session.identity} onSignOut={session.signOut} />
+          <SessionBar identity={sessionStatus.session.identity} onSignOut={() => void session.signOut()} />
           <AppShell
-            key={identityKey(sessionStatus.session.identity)}
+            key={sessionStatus.session.identity.subject}
             playerView={sampleFixturePlayerView}
             isSampleData
           />

@@ -1,30 +1,41 @@
 /**
  * Authenticated HTTP for the browser gameplay client.
  *
- * Every private API call carries the current access token as a Bearer
- * credential. A 401 means the session expired or was revoked: the caller
- * clears private state and offers reauthentication instead of retrying
- * with a stale identity.
+ * Every private API call carries a fresh access token from the Auth0 SDK
+ * as a Bearer credential. Token renewal is the SDK's job; when the
+ * session cannot supply one (or the API answers 401) the caller clears
+ * private state and offers reauthentication instead of retrying with a
+ * stale identity.
  */
 
-import type { AuthSession } from './session'
+export type AccessTokenProvider = () => Promise<string | undefined>
 
 export type UnauthorizedHandler = () => void
-
-export function authorizationHeader(session: AuthSession): string {
-  return `Bearer ${session.accessToken}`
-}
 
 export interface AuthenticatedFetchOptions extends RequestInit {
   readonly onUnauthorized?: UnauthorizedHandler
 }
 
-/** Fetches with the session Bearer token; never logs the token. */
-export function createAuthenticatedFetch(session: AuthSession) {
-  return async function authenticatedFetch(input: RequestInfo | URL, init: AuthenticatedFetchOptions = {}): Promise<Response> {
+/** Fetches with a fresh SDK Bearer token; never logs the token. */
+export function createAuthenticatedFetch(getAccessToken: AccessTokenProvider) {
+  return async function authenticatedFetch(
+    input: RequestInfo | URL,
+    init: AuthenticatedFetchOptions = {},
+  ): Promise<Response> {
     const { onUnauthorized, ...requestInit } = init
+    let accessToken: string | undefined
+    try {
+      accessToken = await getAccessToken()
+    } catch {
+      onUnauthorized?.()
+      throw new Error('The player session cannot supply access credentials. Sign in again to continue.')
+    }
+    if (!accessToken) {
+      onUnauthorized?.()
+      throw new Error('The player session cannot supply access credentials. Sign in again to continue.')
+    }
     const headers = new Headers(requestInit.headers)
-    headers.set('Authorization', authorizationHeader(session))
+    headers.set('Authorization', `Bearer ${accessToken}`)
     if (!headers.has('Accept')) {
       headers.set('Accept', 'application/json')
     }
@@ -34,16 +45,4 @@ export function createAuthenticatedFetch(session: AuthSession) {
     }
     return response
   }
-}
-
-/** Confirms the session against the OIDC userinfo endpoint when present. */
-export async function verifySessionAtUserinfo(
-  userinfoEndpoint: string,
-  session: AuthSession,
-  fetcher: typeof fetch = fetch,
-): Promise<boolean> {
-  const response = await fetcher(userinfoEndpoint, {
-    headers: { Authorization: authorizationHeader(session), Accept: 'application/json' },
-  })
-  return response.ok
 }

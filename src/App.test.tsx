@@ -1,22 +1,39 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Auth0Client } from '@auth0/auth0-spa-js'
 import App from './App'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
+
+const sdk = vi.hoisted(() => ({ client: null as Record<string, unknown> | null }))
+
+vi.mock('@auth0/auth0-spa-js', () => ({
+  Auth0Client: vi.fn().mockImplementation(function MockAuth0Client(this: unknown) {
+    if (!sdk.client) {
+      throw new Error('stub Auth0 client is not configured')
+    }
+    return sdk.client
+  }),
+}))
 
 const validEnv = {
   VITE_API_BASE_URL: 'https://api.example.test',
   VITE_OIDC_ISSUER_URL: 'https://issuer.example.test',
   VITE_OIDC_CLIENT_ID: 'game-client',
+  VITE_OIDC_AUDIENCE: 'https://api.example.test',
 }
 
-const signedInSession = {
-  accessToken: 'access',
-  idToken: 'id',
-  expiresAtEpochMs: Date.now() + 3_600_000,
-  identity: { subject: 'auth0|one', issuer: 'https://issuer.example.test', displayName: 'player-one' },
-  clientId: 'game-client',
+function stubClient(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    getUser: async () => undefined,
+    handleRedirectCallback: async () => ({}),
+    loginWithRedirect: async () => {},
+    logout: async () => {},
+    getTokenSilently: async () => 'token',
+    isAuthenticated: async () => false,
+    ...overrides,
+  }
 }
 
 describe('App', () => {
@@ -24,8 +41,10 @@ describe('App', () => {
     vi.stubEnv('VITE_API_BASE_URL', validEnv.VITE_API_BASE_URL)
     vi.stubEnv('VITE_OIDC_ISSUER_URL', validEnv.VITE_OIDC_ISSUER_URL)
     vi.stubEnv('VITE_OIDC_CLIENT_ID', validEnv.VITE_OIDC_CLIENT_ID)
+    vi.stubEnv('VITE_OIDC_AUDIENCE', validEnv.VITE_OIDC_AUDIENCE)
     sessionStorage.clear()
     window.history.replaceState(null, '', '/')
+    vi.mocked(Auth0Client).mockClear()
   })
 
   afterEach(() => {
@@ -37,6 +56,7 @@ describe('App', () => {
 
   it('shows a configuration error instead of inventing state when config is missing', async () => {
     vi.stubEnv('VITE_API_BASE_URL', '')
+    sdk.client = stubClient()
 
     render(<App />)
 
@@ -49,6 +69,7 @@ describe('App', () => {
       .mockRejectedValueOnce(new Error('network down'))
       .mockResolvedValueOnce({ ok: true, status: 200 })
     vi.stubGlobal('fetch', fetchMock)
+    sdk.client = stubClient()
 
     render(<App />)
 
@@ -63,6 +84,7 @@ describe('App', () => {
 
   it('gates gameplay behind sign-in instead of fabricating a player', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
+    sdk.client = stubClient()
 
     render(<App />)
 
@@ -70,9 +92,13 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Temporal Rift' })).not.toBeInTheDocument()
   })
 
-  it('restores an authenticated session and keeps private state identity-bound', async () => {
+  it('restores an authenticated session and signs out through the SDK', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
-    sessionStorage.setItem('temporal-rift.auth.session.v1', JSON.stringify(signedInSession))
+    const logout = vi.fn(async () => {})
+    sdk.client = stubClient({
+      getUser: async () => ({ sub: 'auth0|one', preferred_username: 'player-one' }),
+      logout,
+    })
 
     render(<App />)
 
@@ -81,23 +107,9 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
+    expect(logout).toHaveBeenCalledTimes(1)
     expect(await screen.findByRole('heading', { name: 'Sign in to play' })).toBeInTheDocument()
-    expect(sessionStorage.getItem('temporal-rift.auth.session.v1')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Temporal Rift' })).not.toBeInTheDocument()
-  })
-
-  it('clears expired sessions and offers recoverable reauthentication', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
-    sessionStorage.setItem(
-      'temporal-rift.auth.session.v1',
-      JSON.stringify({ ...signedInSession, expiresAtEpochMs: 1 }),
-    )
-
-    render(<App />)
-
-    expect(await screen.findByRole('heading', { name: 'Sign in to play' })).toBeInTheDocument()
-    expect(await screen.findByRole('status')).toHaveTextContent('expired')
-    expect(sessionStorage.getItem('temporal-rift.auth.session.v1')).toBeNull()
   })
 })
 
@@ -113,7 +125,12 @@ describe('player session components', () => {
   })
 
   it('shows the signed-in player with a sign-out control', () => {
-    render(<SessionBar identity={signedInSession.identity} onSignOut={() => {}} />)
+    render(
+      <SessionBar
+        identity={{ subject: 'auth0|one', displayName: 'player-one' }}
+        onSignOut={() => {}}
+      />,
+    )
 
     expect(screen.getByRole('status', { name: 'Current player session' })).toHaveTextContent('player-one')
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
