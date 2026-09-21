@@ -96,6 +96,29 @@ function requireOidcUrl(value: unknown): string {
   throw new OidcError('The configured issuer returned an invalid discovery document.')
 }
 
+/**
+ * Validates a discovered OIDC endpoint: correct transport (HTTPS, or HTTP
+ * only for loopback development hosts) and same origin as the configured
+ * issuer. Pinning the origin means a tampered discovery document cannot
+ * redirect the authorization redirect or the credential-bearing token and
+ * userinfo calls to another host.
+ */
+function requireDiscoveredEndpoint(value: unknown, issuer: string): string {
+  const endpoint = requireOidcUrl(value)
+  let endpointUrl: URL
+  let issuerUrl: URL
+  try {
+    endpointUrl = new URL(endpoint)
+    issuerUrl = new URL(issuer)
+  } catch {
+    throw new OidcError('The configured issuer returned an invalid discovery document.')
+  }
+  if (endpointUrl.origin !== issuerUrl.origin) {
+    throw new OidcError('The configured issuer returned an invalid discovery document.')
+  }
+  return endpoint
+}
+
 /** Fetches and validates the issuer discovery document. */
 export async function discoverOidc(issuerUrl: string, fetcher: typeof fetch = fetch): Promise<OidcDiscovery> {
   const issuer = trimTrailingSlashes(issuerUrl.trim())
@@ -129,16 +152,16 @@ export async function discoverOidc(issuerUrl: string, fetcher: typeof fetch = fe
     }
     return {
       issuer,
-      authorizationEndpoint: requireOidcUrl(document['authorization_endpoint']),
-      tokenEndpoint: requireOidcUrl(document['token_endpoint']),
+      authorizationEndpoint: requireDiscoveredEndpoint(document['authorization_endpoint'], issuer),
+      tokenEndpoint: requireDiscoveredEndpoint(document['token_endpoint'], issuer),
       userinfoEndpoint:
         document['userinfo_endpoint'] === undefined || document['userinfo_endpoint'] === null
           ? null
-          : requireOidcUrl(document['userinfo_endpoint']),
+          : requireDiscoveredEndpoint(document['userinfo_endpoint'], issuer),
       endSessionEndpoint:
         document['end_session_endpoint'] === undefined || document['end_session_endpoint'] === null
           ? null
-          : requireOidcUrl(document['end_session_endpoint']),
+          : requireDiscoveredEndpoint(document['end_session_endpoint'], issuer),
     }
   } catch (error) {
     if (error instanceof OidcError) {

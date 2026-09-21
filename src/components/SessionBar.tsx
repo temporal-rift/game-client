@@ -15,13 +15,13 @@ function displayLabel(identity: PlayerIdentity): string {
 
 export function SessionBar({ identity, onSignOut }: SessionBarProps) {
   return (
-    <div role="status" aria-label="Current player session">
+    <output aria-label="Current player session">
       <span>
         Signed in as <strong>{displayLabel(identity)}</strong>
       </span>{' '}
       <button type="button" onClick={onSignOut}>
         Sign out
       </button>
-    </div>
+    </output>
   )
 }

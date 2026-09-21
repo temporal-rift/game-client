@@ -21,9 +21,8 @@ export function SignInPanel({ issuerUrl, isSigningIn, notice, onSignIn }: SignIn
         Each player signs in through <strong>{issuerHost(issuerUrl)}</strong> so hands and private knowledge stay
         separate. This browser keeps your session private to this context.
       </p>
-      {notice && (
-        <p role={notice.includes('expired') ? 'status' : 'alert'}>{notice}</p>
-      )}
+      {notice &&
+        (notice.includes('expired') ? <output>{notice}</output> : <p role="alert">{notice}</p>)}
       <button type="button" onClick={onSignIn} disabled={isSigningIn}>
         {isSigningIn ? 'Redirecting to sign-in…' : 'Sign in'}
       </button>
