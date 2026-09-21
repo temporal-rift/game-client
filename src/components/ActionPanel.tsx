@@ -35,6 +35,13 @@ function targetModeFor(selected: Selected): TargetMode | null {
   return selected.kind === 'card' ? selected.card.targetMode : selected.special.targetMode
 }
 
+function selectedNameFor(selected: Selected): string | null {
+  if (!selected) {
+    return null
+  }
+  return selected.kind === 'card' ? selected.card.name : selected.special.name
+}
+
 function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, requiredEventCount: number): boolean {
   switch (mode) {
     case 'EVENT_OUTCOME':
@@ -269,7 +276,7 @@ export function ActionPanel({
   }
 
   const isComplete = selected !== null && targetMode !== null && coordinatesComplete(targetMode, coordinates, requiredEventCount)
-  const selectedName = selected === null ? null : selected.kind === 'card' ? selected.card.name : selected.special.name
+  const selectedName = selectedNameFor(selected)
 
   return (
     <section aria-label="Your action">
