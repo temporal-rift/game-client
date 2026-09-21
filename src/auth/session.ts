@@ -22,15 +22,17 @@ export function identityFromUser(user: User): PlayerIdentity | null {
   if (typeof user.sub !== 'string' || user.sub.length === 0) {
     return null
   }
-  const displayName =
-    typeof user.preferred_username === 'string' && user.preferred_username.length > 0
-      ? user.preferred_username
-      : typeof user.email === 'string' && user.email.length > 0
-        ? user.email
-        : typeof user.name === 'string' && user.name.length > 0
-          ? user.name
-          : null
-  return { subject: user.sub, displayName }
+  return { subject: user.sub, displayName: displayNameFrom(user) }
+}
+
+function displayNameFrom(user: User): string | null {
+  const candidates = [user.preferred_username, user.email, user.name]
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.length > 0) {
+      return candidate
+    }
+  }
+  return null
 }
 
 export function sameIdentity(left: PlayerIdentity, right: PlayerIdentity): boolean {
