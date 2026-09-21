@@ -140,6 +140,25 @@ interface EventLookupEntry {
   readonly outcomes: ReadonlyMap<string, string>
 }
 
+function outcomeDescriptionsFrom(value: unknown): ReadonlyMap<string, string> {
+  const outcomes = new Map<string, string>()
+  if (!Array.isArray(value)) {
+    return outcomes
+  }
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) {
+      continue
+    }
+    const source = entry as Record<string, unknown>
+    const outcomeId = stringField(source['outcomeId'])
+    const description = stringField(source['description'])
+    if (outcomeId && description) {
+      outcomes.set(outcomeId, description)
+    }
+  }
+  return outcomes
+}
+
 function activeEventLookup(raw: Record<string, unknown>): ReadonlyMap<string, EventLookupEntry> {
   const lookup = new Map<string, EventLookupEntry>()
   const value = raw['activeEvents']
@@ -156,21 +175,7 @@ function activeEventLookup(raw: Record<string, unknown>): ReadonlyMap<string, Ev
     if (!eventId || !title) {
       continue
     }
-    const outcomes = new Map<string, string>()
-    if (Array.isArray(source['outcomes'])) {
-      for (const outcomeEntry of source['outcomes']) {
-        if (typeof outcomeEntry !== 'object' || outcomeEntry === null) {
-          continue
-        }
-        const outcomeSource = outcomeEntry as Record<string, unknown>
-        const outcomeId = stringField(outcomeSource['outcomeId'])
-        const description = stringField(outcomeSource['description'])
-        if (outcomeId && description) {
-          outcomes.set(outcomeId, description)
-        }
-      }
-    }
-    lookup.set(eventId, { title, outcomes })
+    lookup.set(eventId, { title, outcomes: outcomeDescriptionsFrom(source['outcomes']) })
   }
   return lookup
 }
@@ -317,60 +322,103 @@ function parseRevealedKnowledge(
   }
   const entries: RevealedKnowledgeEntry[] = []
   for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
-    }
-    const source = entry as Record<string, unknown>
-    const observedInRound = nullableNumber(source['observedInRound'])
-    if (observedInRound === null) {
-      continue
-    }
-    const kind = source['kind']
-    if (kind === 'PROBABILITY') {
-      const eventId = stringField(source['eventId'])
-      if (!eventId) {
-        continue
-      }
-      entries.push({
-        kind: 'PROBABILITY',
-        eventId,
-        eventTitle: titleFor(eventId, eventLookup),
-        observedInRound,
-        expiresAtEraEnd: eraNumber,
-        outcomes: parseRevealedProbabilityOutcomes(source['outcomes'], eventId, eventLookup),
-      })
-    } else if (kind === 'INFLUENCE') {
-      const eventId = stringField(source['eventId'])
-      if (!eventId) {
-        continue
-      }
-      const influencerIds = Array.isArray(source['influencerPlayerIds'])
-        ? source['influencerPlayerIds'].filter((id): id is string => typeof id === 'string')
-        : []
-      entries.push({
-        kind: 'INFLUENCE',
-        eventId,
-        eventTitle: titleFor(eventId, eventLookup),
-        observedInRound,
-        expiresAtEraEnd: eraNumber,
-        influencerNames: influencerIds.map((id) => nameFor(id, playerLookup)),
-      })
-    } else if (kind === 'HAND_CARD') {
-      const targetPlayerId = stringField(source['targetPlayerId'])
-      if (!targetPlayerId) {
-        continue
-      }
-      entries.push({
-        kind: 'HAND_CARD',
-        targetPlayerId,
-        targetPlayerName: nameFor(targetPlayerId, playerLookup),
-        observedInRound,
-        expiresAtEraEnd: eraNumber,
-        revealedCards: parseRevealedCards(source['revealedCards']),
-      })
+    const parsed = parseRevealedKnowledgeEntry(entry, eventLookup, playerLookup, eraNumber)
+    if (parsed) {
+      entries.push(parsed)
     }
   }
   return entries
+}
+
+function parseProbabilityEntry(
+  source: Record<string, unknown>,
+  observedInRound: number,
+  eraNumber: number,
+  eventLookup: ReadonlyMap<string, EventLookupEntry>,
+): RevealedKnowledgeEntry | null {
+  const eventId = stringField(source['eventId'])
+  if (!eventId) {
+    return null
+  }
+  return {
+    kind: 'PROBABILITY',
+    eventId,
+    eventTitle: titleFor(eventId, eventLookup),
+    observedInRound,
+    expiresAtEraEnd: eraNumber,
+    outcomes: parseRevealedProbabilityOutcomes(source['outcomes'], eventId, eventLookup),
+  }
+}
+
+function parseInfluenceEntry(
+  source: Record<string, unknown>,
+  observedInRound: number,
+  eraNumber: number,
+  eventLookup: ReadonlyMap<string, EventLookupEntry>,
+  playerLookup: ReadonlyMap<string, string>,
+): RevealedKnowledgeEntry | null {
+  const eventId = stringField(source['eventId'])
+  if (!eventId) {
+    return null
+  }
+  const influencerIds = Array.isArray(source['influencerPlayerIds'])
+    ? source['influencerPlayerIds'].filter((id): id is string => typeof id === 'string')
+    : []
+  return {
+    kind: 'INFLUENCE',
+    eventId,
+    eventTitle: titleFor(eventId, eventLookup),
+    observedInRound,
+    expiresAtEraEnd: eraNumber,
+    influencerNames: influencerIds.map((id) => nameFor(id, playerLookup)),
+  }
+}
+
+function parseHandCardEntry(
+  source: Record<string, unknown>,
+  observedInRound: number,
+  eraNumber: number,
+  playerLookup: ReadonlyMap<string, string>,
+): RevealedKnowledgeEntry | null {
+  const targetPlayerId = stringField(source['targetPlayerId'])
+  if (!targetPlayerId) {
+    return null
+  }
+  return {
+    kind: 'HAND_CARD',
+    targetPlayerId,
+    targetPlayerName: nameFor(targetPlayerId, playerLookup),
+    observedInRound,
+    expiresAtEraEnd: eraNumber,
+    revealedCards: parseRevealedCards(source['revealedCards']),
+  }
+}
+
+function parseRevealedKnowledgeEntry(
+  entry: unknown,
+  eventLookup: ReadonlyMap<string, EventLookupEntry>,
+  playerLookup: ReadonlyMap<string, string>,
+  eraNumber: number,
+): RevealedKnowledgeEntry | null {
+  if (typeof entry !== 'object' || entry === null) {
+    return null
+  }
+  const source = entry as Record<string, unknown>
+  const observedInRound = nullableNumber(source['observedInRound'])
+  if (observedInRound === null) {
+    return null
+  }
+  const kind = source['kind']
+  if (kind === 'PROBABILITY') {
+    return parseProbabilityEntry(source, observedInRound, eraNumber, eventLookup)
+  }
+  if (kind === 'INFLUENCE') {
+    return parseInfluenceEntry(source, observedInRound, eraNumber, eventLookup, playerLookup)
+  }
+  if (kind === 'HAND_CARD') {
+    return parseHandCardEntry(source, observedInRound, eraNumber, playerLookup)
+  }
+  return null
 }
 
 function parseDeclarations(
