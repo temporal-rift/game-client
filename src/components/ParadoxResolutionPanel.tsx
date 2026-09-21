@@ -30,12 +30,12 @@ export function ParadoxResolutionPanel({
 }: ParadoxResolutionPanelProps) {
   if (view.kind === 'unavailable') return null
   if (view.kind === 'loading') return <output>Loading paradox-resolution choices…</output>
-  if (view.kind === 'closed') return <p role="status">{view.reason}</p>
+  if (view.kind === 'closed') return <output>{view.reason}</output>
   if (view.kind === 'submitted') {
     return (
       <section aria-label="Paradox resolution">
         <h2>Paradox resolution</h2>
-        <p role="status">Your resolution choice was accepted.</p>
+        <output>Your resolution choice was accepted.</output>
         <p>
           {view.submittedCount} / {view.totalPlayers} participants have responded. Waiting for the authoritative phase result.
         </p>
@@ -45,6 +45,7 @@ export function ParadoxResolutionPanel({
 
   const selectedCard = draft.kind === 'card' ? view.cards.find((card) => card.cardInstanceId === draft.cardInstanceId) : null
   const complete = Boolean(selectedCard && draft.kind === 'card' && draft.targetEventId && draft.targetOutcomeId)
+  const isSubmitting = submitPhase.kind === 'submitting'
   return (
     <section aria-label="Paradox resolution">
       <h2>Paradox resolution</h2>
@@ -57,7 +58,7 @@ export function ParadoxResolutionPanel({
 
       <h3>Your eligible choices</h3>
       {view.cards.length === 0 ? (
-        <p role="status">No eligible resolution cards are currently available.</p>
+        <output>No eligible resolution cards are currently available.</output>
       ) : (
         <ul aria-label="Eligible resolution cards">
           {view.cards.map((card) => (
@@ -65,6 +66,7 @@ export function ParadoxResolutionPanel({
               <button
                 type="button"
                 aria-pressed={selectedCard?.cardInstanceId === card.cardInstanceId}
+                disabled={isSubmitting}
                 onClick={() => onSelectCard(card.cardInstanceId)}
               >
                 {card.name} · Grade {card.grade}
@@ -79,7 +81,7 @@ export function ParadoxResolutionPanel({
         <>
           <h3>Affected events</h3>
           {view.affectedEvents.length === 0 ? (
-            <p role="status">Resolution targets are still being refreshed. Do not submit until an affected event is shown.</p>
+            <output>Resolution targets are still being refreshed. Do not submit until an affected event is shown.</output>
           ) : (
             <ul aria-label="Affected events">
               {view.affectedEvents.map((event) => (
@@ -91,6 +93,7 @@ export function ParadoxResolutionPanel({
                         <button
                           type="button"
                           aria-pressed={draft.kind === 'card' && draft.targetOutcomeId === outcome.outcomeId}
+                          disabled={isSubmitting}
                           onClick={() => onSelectTarget(event.eventId, outcome.outcomeId)}
                         >
                           {outcome.description}
@@ -107,11 +110,11 @@ export function ParadoxResolutionPanel({
 
       <section aria-live="polite" aria-atomic="true">
         <h3>Confirm resolution choice</h3>
-        <button type="button" disabled={!complete || submitPhase.kind === 'submitting'} onClick={onConfirm}>
-          {submitPhase.kind === 'submitting' ? 'Submitting…' : 'Confirm resolution choice'}
+        <button type="button" disabled={!complete || isSubmitting} onClick={onConfirm}>
+          {isSubmitting ? 'Submitting…' : 'Confirm resolution choice'}
         </button>
         {selectedCard && (
-          <button type="button" onClick={onClearDraft}>
+          <button type="button" disabled={isSubmitting} onClick={onClearDraft}>
             Clear selection
           </button>
         )}
