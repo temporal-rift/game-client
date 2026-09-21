@@ -5,6 +5,7 @@ const validEnv: AppEnv = {
   VITE_API_BASE_URL: 'https://api.example.test',
   VITE_OIDC_ISSUER_URL: 'https://issuer.example.test',
   VITE_OIDC_CLIENT_ID: 'game-client',
+  VITE_OIDC_AUDIENCE: 'https://api.example.test',
 }
 
 describe('resolveAppConfig', () => {
@@ -17,6 +18,7 @@ describe('resolveAppConfig', () => {
         apiBaseUrl: 'https://api.example.test',
         oidcIssuerUrl: 'https://issuer.example.test',
         oidcClientId: 'game-client',
+        oidcAudience: 'https://api.example.test',
       },
     })
   })
@@ -26,11 +28,12 @@ describe('resolveAppConfig', () => {
       VITE_API_BASE_URL: '',
       VITE_OIDC_ISSUER_URL: '',
       VITE_OIDC_CLIENT_ID: '',
+      VITE_OIDC_AUDIENCE: '',
     })
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.errors).toHaveLength(3)
+      expect(result.errors).toHaveLength(4)
     }
   })
 

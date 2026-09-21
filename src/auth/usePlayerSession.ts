@@ -1,21 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { discoverOidc, exchangeCodeForTokens, buildAuthorizationUrl, OidcError, normalizeIssuer } from './oidc'
-import type { OidcDiscovery } from './oidc'
-import { createCodeVerifier, createOAuthState, toCodeChallenge } from './pkce'
-import {
-  clearPendingLogin,
-  clearPrivateState,
-  isSessionExpired,
-  loadPendingLogin,
-  loadSession,
-  sameIdentity,
-  savePendingLogin,
-  saveSession,
-  sessionFromValidatedTokens,
-} from './session'
-import type { AuthSession, PendingLogin } from './session'
+import type { Auth0Client } from '@auth0/auth0-spa-js'
+import { createGameAuth0Client } from './auth0Client'
+import { clearPrivateCaches, identityFromUser, sameIdentity } from './session'
+import type { AuthSession, PlayerIdentity } from './session'
 import { cleanAuthCallbackUrl, parseAuthCallback, parseGameInvitation } from './invitation'
-import type { AuthCallbackParams } from './invitation'
 import type { AppConfig } from '../config/appConfig'
 
 export type PlayerSessionStatus =
@@ -29,219 +17,192 @@ export type PlayerSessionStatus =
 export interface PlayerSession {
   readonly status: PlayerSessionStatus
   readonly signIn: () => Promise<void>
-  readonly signOut: () => void
+  readonly signOut: () => Promise<void>
   readonly handleUnauthorized: () => void
+  readonly getAccessToken: () => Promise<string | undefined>
+}
+
+export interface SignInAppState {
+  readonly gameId: string | null
 }
 
 const EXPIRED_REASON = 'Your session expired. Sign in again to continue.'
-
-// Largest setTimeout delay before 32-bit overflow coerces it to ~1ms.
-const MAX_TIMER_DELAY_MS = 2_147_483_647
-
-function redirectUri(): string {
-  return `${window.location.origin}${window.location.pathname}`
-}
-
-function friendlyError(error: unknown): string {
-  if (error instanceof OidcError) {
-    return error.userMessage
-  }
-  return 'Sign-in failed unexpectedly. Try signing in again.'
-}
 
 /** Removes OAuth fields from the address bar; parsed values stay in memory. */
 function stripCallbackFromUrl(): void {
   window.history.replaceState(null, '', cleanAuthCallbackUrl(window.location.href))
 }
 
-/** Restores the stored session, clearing it when expired or misconfigured. */
-function restoreStoredSession(active: AppConfig): PlayerSessionStatus {
-  const restored = loadSession()
-  if (!restored) {
-    return { state: 'signed-out', reason: null }
-  }
-  if (isSessionExpired(restored)) {
-    clearPrivateState()
-    return { state: 'signed-out', reason: EXPIRED_REASON }
-  }
-  if (normalizeIssuer(restored.identity.issuer) !== normalizeIssuer(active.oidcIssuerUrl)) {
-    clearPrivateState()
-    return { state: 'signed-out', reason: 'The sign-in configuration changed. Sign in again to continue.' }
-  }
-  if (restored.clientId !== active.oidcClientId) {
-    clearPrivateState()
-    return { state: 'signed-out', reason: 'The sign-in configuration changed. Sign in again to continue.' }
-  }
-  return { state: 'signed-in', session: restored }
+function returnUrlPreservingGame(): string {
+  const base = `${window.location.origin}${window.location.pathname}`
+  const invitation = parseGameInvitation(window.location.search)
+  return invitation ? `${base}?game=${encodeURIComponent(invitation.gameId)}` : base
 }
 
-function denialMessage(callback: AuthCallbackParams): string {
-  return callback.error === 'access_denied'
-    ? 'Sign-in was denied. Try again or contact the game host.'
-    : 'Sign-in failed. Try signing in again.'
+function authErrorCode(error: unknown): string | null {
+  if (typeof error === 'object' && error !== null && 'error' in error) {
+    const code = (error as { error?: unknown }).error
+    return typeof code === 'string' ? code : null
+  }
+  return null
+}
+
+function friendlyAuthError(error: unknown): string {
+  const code = authErrorCode(error)
+  if (code === 'access_denied') {
+    return 'Sign-in was denied. Try again or contact the game host.'
+  }
+  if (
+    code === 'login_required' ||
+    code === 'consent_required' ||
+    code === 'interaction_required' ||
+    code === 'account_selection_required' ||
+    code === 'missing_refresh_token'
+  ) {
+    return EXPIRED_REASON
+  }
+  return 'Sign-in failed. Try signing in again.'
 }
 
 /**
- * Completes one authorization callback. The pending login is consumed
- * synchronously (single-flight under StrictMode remounts) and the URL is
- * cleaned before any network work. Failures discard only the pending login
- * and preserve an existing session; only an explicit logout, expiry or
- * identity change clears private state.
+ * Completes one authorization callback through the SDK, which owns code
+ * validation, the token exchange and ID-token validation. The invitation
+ * reference round-trips in the SDK's application state, never as identity.
  */
-async function handleCallback(
-  active: AppConfig,
-  callback: AuthCallbackParams,
-  pending: PendingLogin,
-): Promise<PlayerSessionStatus> {
-  if (!callback.state || callback.state !== pending.state) {
-    return restoreStoredSession(active)
-  }
+async function handleCallback(client: Auth0Client): Promise<PlayerSessionStatus> {
+  let appState: SignInAppState | undefined
   try {
-    if (callback.error) {
-      throw new OidcError(denialMessage(callback))
-    }
-    if (!callback.code) {
-      throw new OidcError('Sign-in did not complete. Try signing in again.')
-    }
-    const discovery = await discoverOidc(active.oidcIssuerUrl)
-    const tokens = await exchangeCodeForTokens({
-      discovery,
-      clientId: active.oidcClientId,
-      redirectUri: pending.redirectUri,
-      code: callback.code,
-      codeVerifier: pending.codeVerifier,
-    })
-    const next = sessionFromValidatedTokens({
-      accessToken: tokens.accessToken,
-      idToken: tokens.idToken,
-      expiresAtEpochMs: tokens.expiresAtEpochMs,
-      expectedIssuer: active.oidcIssuerUrl,
-      expectedClientId: active.oidcClientId,
-    })
-    const previous = loadSession()
-    if (previous && !sameIdentity(previous.identity, next.identity)) {
-      clearPrivateState()
-    }
-    saveSession(next)
-    if (pending.invitationGameId) {
-      const url = new URL(window.location.href)
-      url.searchParams.set('game', pending.invitationGameId)
-      window.history.replaceState(null, '', url.toString())
-    }
-    return { state: 'signed-in', session: next }
+    const result = await client.handleRedirectCallback()
+    const candidate = (result?.appState ?? undefined) as Partial<SignInAppState> | undefined
+    appState = { gameId: typeof candidate?.gameId === 'string' ? candidate.gameId : null }
   } catch (error) {
-    const fallback = restoreStoredSession(active)
-    if (fallback.state === 'signed-in') {
-      return fallback
-    }
-    return { state: 'error', message: friendlyError(error) }
+    stripCallbackFromUrl()
+    return { state: 'error', message: friendlyAuthError(error) }
   }
+  stripCallbackFromUrl()
+  const restoredGameId =
+    appState?.gameId != null ? parseGameInvitation(`?game=${encodeURIComponent(appState.gameId)}`)?.gameId : undefined
+  if (restoredGameId) {
+    const url = new URL(window.location.href)
+    url.searchParams.set('game', restoredGameId)
+    window.history.replaceState(null, '', url.toString())
+  }
+  const user = await client.getUser().catch(() => undefined)
+  const identity = user ? identityFromUser(user) : null
+  if (!identity) {
+    return { state: 'error', message: 'Sign-in did not complete. Try signing in again.' }
+  }
+  return { state: 'signed-in', session: { identity } }
 }
 
+// Single-flight for the authorization callback across StrictMode remounts:
+// the SDK consumes its single-use transaction on the first call.
+let callbackFlightKey: string | null = null
+let callbackFlight: Promise<PlayerSessionStatus> | null = null
+
 /**
- * Owns the identity-bound browser session: OIDC PKCE login, callback
- * exchange, reload restoration, expiry/logout/identity-change clearing and
- * recoverable reauthentication. Private gameplay state mounts only under a
- * signed-in session and unmounts (keyed by identity) when it ends.
+ * Owns the identity-bound browser session on top of the maintained Auth0
+ * SPA SDK: interactive login, callback handling, reload restoration and
+ * recoverable reauthentication. Token lifecycle and renewal belong to the
+ * SDK; private gameplay state mounts only under a signed-in session and
+ * unmounts (keyed by identity) when it ends.
  */
 export function usePlayerSession(config: AppConfig | null): PlayerSession {
   const [status, setStatus] = useState<PlayerSessionStatus>({ state: 'restoring' })
-  const discoveryRef = useRef<OidcDiscovery | null>(null)
-  const configRef = useRef<AppConfig | null>(config)
+  const lastIdentityRef = useRef<PlayerIdentity | null>(null)
+  const client = useMemo(() => (config ? createGameAuth0Client(config) : null), [config])
 
   useEffect(() => {
-    configRef.current = config
-  }, [config])
-
-  useEffect(() => {
-    const active = config
-    if (!active) {
+    if (!client) {
       return
     }
-    async function restore(activeConfig: AppConfig): Promise<void> {
-      const callback = parseAuthCallback(window.location.search)
-      if (!callback.code && !callback.error && !callback.state) {
-        setStatus(restoreStoredSession(activeConfig))
+
+    async function restore(activeClient: Auth0Client): Promise<void> {
+      const search = window.location.search
+      const callback = parseAuthCallback(search)
+      const isCallback = Boolean((callback.code && callback.state) || callback.error)
+      if (!isCallback) {
+        const user = await activeClient.getUser().catch(() => undefined)
+        const identity = user ? identityFromUser(user) : null
+        if (identity) {
+          lastIdentityRef.current = identity
+          setStatus({ state: 'signed-in', session: { identity } })
+        } else {
+          setStatus({ state: 'signed-out', reason: null })
+        }
         return
       }
       setStatus({ state: 'handling-callback' })
-      // Consume synchronously: a StrictMode remount must not exchange the
-      // single-use code twice, and the code must leave the URL before awaits.
-      const pending = loadPendingLogin()
-      clearPendingLogin()
-      stripCallbackFromUrl()
-      if (!pending) {
-        setStatus(restoreStoredSession(activeConfig))
-        return
+      if (callbackFlightKey !== search || !callbackFlight) {
+        callbackFlightKey = search
+        callbackFlight = handleCallback(activeClient).finally(() => {
+          if (callbackFlightKey === search) {
+            callbackFlightKey = null
+            callbackFlight = null
+          }
+        })
       }
-      // The result is applied even when a StrictMode remount cancelled this
-      // run: the remount falls through to the stored-session path while the
-      // single consumed exchange finishes here and must win.
-      setStatus(await handleCallback(activeConfig, callback, pending))
+      const next = await callbackFlight
+      if (next.state === 'signed-in') {
+        const previous = lastIdentityRef.current
+        lastIdentityRef.current = next.session.identity
+        if (previous && !sameIdentity(previous, next.session.identity)) {
+          clearPrivateCaches()
+        }
+      }
+      setStatus(next)
     }
 
-    void restore(active)
-  }, [config])
-
-  useEffect(() => {
-    if (status.state !== 'signed-in') {
-      return
-    }
-    const session = status.session
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const checkExpiry = (): void => {
-      const remaining = session.expiresAtEpochMs - Date.now()
-      if (remaining <= 0) {
-        clearPrivateState()
-        setStatus({ state: 'signed-out', reason: EXPIRED_REASON })
-        return
-      }
-      // Re-arm below the 32-bit timer limit; distant expiries re-check later.
-      timer = setTimeout(checkExpiry, Math.min(remaining, MAX_TIMER_DELAY_MS))
-    }
-    const initialRemaining = session.expiresAtEpochMs - Date.now()
-    timer = setTimeout(checkExpiry, Math.min(Math.max(0, initialRemaining), MAX_TIMER_DELAY_MS))
-    return () => clearTimeout(timer)
-  }, [status])
+    void restore(client)
+  }, [client])
 
   const signIn = useCallback(async () => {
-    const current = configRef.current
-    if (!current) {
+    if (!client) {
       return
     }
     setStatus({ state: 'signing-in' })
     try {
-      const discovery = discoveryRef.current ?? (await discoverOidc(current.oidcIssuerUrl))
-      discoveryRef.current = discovery
-      const codeVerifier = createCodeVerifier()
-      const state = createOAuthState()
-      const challenge = await toCodeChallenge(codeVerifier)
-      const uri = redirectUri()
       const invitation = parseGameInvitation(window.location.search)
-      savePendingLogin({ codeVerifier, state, redirectUri: uri, invitationGameId: invitation?.gameId ?? null })
-      window.location.assign(
-        buildAuthorizationUrl({
-          discovery,
-          clientId: current.oidcClientId,
-          redirectUri: uri,
-          codeChallenge: challenge,
-          state,
-        }),
-      )
+      const appState: SignInAppState = { gameId: invitation?.gameId ?? null }
+      await client.loginWithRedirect({ appState })
     } catch (error) {
-      setStatus({ state: 'error', message: friendlyError(error) })
+      setStatus({ state: 'error', message: friendlyAuthError(error) })
     }
-  }, [])
+  }, [client])
 
-  const signOut = useCallback(() => {
-    clearPrivateState()
+  const signOut = useCallback(async () => {
+    clearPrivateCaches()
+    lastIdentityRef.current = null
     setStatus({ state: 'signed-out', reason: null })
-  }, [])
+    try {
+      await client?.logout({ logoutParams: { returnTo: returnUrlPreservingGame() } })
+    } catch {
+      // Local sign-out is already applied; the Auth0 redirect is best-effort.
+    }
+  }, [client])
 
   const handleUnauthorized = useCallback(() => {
-    clearPrivateState()
+    clearPrivateCaches()
+    lastIdentityRef.current = null
     setStatus({ state: 'signed-out', reason: EXPIRED_REASON })
   }, [])
 
-  return useMemo(() => ({ status, signIn, signOut, handleUnauthorized }), [status, signIn, signOut, handleUnauthorized])
+  const getAccessToken = useCallback(async (): Promise<string | undefined> => {
+    if (!client) {
+      return undefined
+    }
+    try {
+      return await client.getTokenSilently()
+    } catch {
+      clearPrivateCaches()
+      lastIdentityRef.current = null
+      setStatus({ state: 'signed-out', reason: EXPIRED_REASON })
+      return undefined
+    }
+  }, [client])
+
+  return useMemo(
+    () => ({ status, signIn, signOut, handleUnauthorized, getAccessToken }),
+    [status, signIn, signOut, handleUnauthorized, getAccessToken],
+  )
 }

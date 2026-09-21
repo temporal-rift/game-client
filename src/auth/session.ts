@@ -1,38 +1,41 @@
 /**
- * Identity-bound browser session persistence.
+ * Identity-bound browser session on top of the maintained Auth0 SPA SDK.
  *
- * Sessions live in sessionStorage so two independent browser contexts keep
- * separate identities, a reload restores the same player, and closing the
- * context drops private state. Expiration, logout or an observed identity
- * change clears prior private state before anything new is stored.
+ * The SDK owns the OIDC protocol, token validation and token caching; this
+ * module only maps the SDK user to the player identity the shell renders
+ * and sweeps the client's own private cache namespace on logout, expiry
+ * or identity change.
  */
 
-import { decodeIdTokenClaims, OidcError, validateIdTokenClaims } from './oidc'
+import type { User } from '@auth0/auth0-spa-js'
 
 export interface PlayerIdentity {
   readonly subject: string
-  readonly issuer: string
   readonly displayName: string | null
 }
 
 export interface AuthSession {
-  readonly accessToken: string
-  readonly idToken: string
-  readonly expiresAtEpochMs: number
   readonly identity: PlayerIdentity
-  /** Client the ID token was validated for; re-checked on restore. */
-  readonly clientId: string
 }
 
-export interface PendingLogin {
-  readonly codeVerifier: string
-  readonly state: string
-  readonly redirectUri: string
-  readonly invitationGameId: string | null
+export function identityFromUser(user: User): PlayerIdentity | null {
+  if (typeof user.sub !== 'string' || user.sub.length === 0) {
+    return null
+  }
+  const displayName =
+    typeof user.preferred_username === 'string' && user.preferred_username.length > 0
+      ? user.preferred_username
+      : typeof user.email === 'string' && user.email.length > 0
+        ? user.email
+        : typeof user.name === 'string' && user.name.length > 0
+          ? user.name
+          : null
+  return { subject: user.sub, displayName }
 }
 
-const SESSION_KEY = 'temporal-rift.auth.session.v1'
-const PENDING_LOGIN_KEY = 'temporal-rift.auth.pending-login.v1'
+export function sameIdentity(left: PlayerIdentity, right: PlayerIdentity): boolean {
+  return left.subject === right.subject
+}
 
 export type SessionStorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> &
   Partial<Pick<Storage, 'length' | 'key'>>;
@@ -48,208 +51,23 @@ function sessionStorageOrNull(): SessionStorageLike | null {
   }
 }
 
-/** Stable identity key used to detect a changed player (iss + sub). */
-export function identityKey(identity: PlayerIdentity): string {
-  return `${identity.issuer}|${identity.subject}`
-}
-
-export function sameIdentity(left: PlayerIdentity, right: PlayerIdentity): boolean {
-  return identityKey(left) === identityKey(right)
-}
-
-export function isSessionExpired(session: AuthSession, nowEpochMs: number = Date.now()): boolean {
-  return session.expiresAtEpochMs <= nowEpochMs
-}
-
-export interface ValidatedTokenInput {
-  readonly accessToken: string
-  readonly idToken: string
-  readonly expiresAtEpochMs: number
-  readonly expectedIssuer: string
-  readonly expectedClientId: string
-}
-
 /**
- * Builds a session from fresh tokens after checking the ID-token claims
- * against the configured issuer and client. Rejects tokens issued for a
- * different issuer or application before they can bind an identity.
+ * Clears the client's own private cache entries. The SDK's token cache is
+ * cleared through its logout; call this alongside for logout, session
+ * failure or identity change.
  */
-export function sessionFromValidatedTokens(input: ValidatedTokenInput): AuthSession {
-  if (input.accessToken.length === 0) {
-    throw new OidcError('Sign-in returned an unusable credential. Try signing in again.')
-  }
-  const claims = decodeIdTokenClaims(input.idToken)
-  validateIdTokenClaims(claims, { issuer: input.expectedIssuer, clientId: input.expectedClientId })
-  const effectiveExpiry =
-    claims.expiresAtEpochMs !== null
-      ? Math.min(input.expiresAtEpochMs, claims.expiresAtEpochMs)
-      : input.expiresAtEpochMs
-  return {
-    accessToken: input.accessToken,
-    idToken: input.idToken,
-    expiresAtEpochMs: effectiveExpiry,
-    identity: { subject: claims.subject, issuer: claims.issuer, displayName: claims.displayName },
-    clientId: input.expectedClientId,
-  }
-}
-
-function parseSession(raw: string | null): AuthSession | null {
-  if (!raw) {
-    return null
-  }
-  try {
-    const parsed = JSON.parse(raw) as Partial<AuthSession>
-    if (
-      typeof parsed.accessToken !== 'string' ||
-      typeof parsed.idToken !== 'string' ||
-      typeof parsed.expiresAtEpochMs !== 'number' ||
-      typeof parsed.clientId !== 'string' ||
-      parsed.clientId.length === 0 ||
-      typeof parsed.identity?.subject !== 'string' ||
-      typeof parsed.identity?.issuer !== 'string'
-    ) {
-      return null
-    }
-    return parsed as AuthSession
-  } catch {
-    return null
-  }
-}
-
-export function loadSession(storage: SessionStorageLike | null = sessionStorageOrNull()): AuthSession | null {
-  if (!storage) {
-    return null
-  }
-  return parseSession(storage.getItem(SESSION_KEY))
-}
-
-const MAX_TOKEN_LENGTH = 8192
-const MAX_SUBJECT_LENGTH = 1024
-const MAX_ISSUER_LENGTH = 2048
-const MAX_DISPLAY_NAME_LENGTH = 320
-
-function isBase64UrlSegment(segment: string): boolean {
-  if (segment.length === 0) {
-    return false
-  }
-  for (let index = 0; index < segment.length; index += 1) {
-    const code = segment.codePointAt(index) ?? 0
-    const isWord = code === 45 || code === 95 || (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
-    if (!isWord) {
-      return false
-    }
-  }
-  return true
-}
-
-/** Checks the JWS compact shape (header.payload.signature) without crypto. */
-function isJwtShape(value: string): boolean {
-  const segments = value.split('.')
-  return (
-    segments.length === 3 && isBase64UrlSegment(segments[0]) && isBase64UrlSegment(segments[1]) && (segments[2].length === 0 || isBase64UrlSegment(segments[2]))
-  )
-}
-
-function invalidSessionError(): OidcError {
-  return new OidcError('Sign-in returned an unusable credential. Try signing in again.')
-}
-
-/**
- * Fail-closed validation enforced before anything reaches browser storage:
- * bounded non-empty credentials, a well-formed ID token, bounded identity
- * fields and a usable expiry. Never persist a session that fails these.
- */
-function requireStorableSession(session: AuthSession): void {
-  if (session.accessToken.length === 0 || session.accessToken.length > MAX_TOKEN_LENGTH) {
-    throw invalidSessionError()
-  }
-  if (!isJwtShape(session.idToken) || session.idToken.length > MAX_TOKEN_LENGTH) {
-    throw invalidSessionError()
-  }
-  if (
-    session.identity.subject.length === 0 ||
-    session.identity.subject.length > MAX_SUBJECT_LENGTH ||
-    session.identity.issuer.length === 0 ||
-    session.identity.issuer.length > MAX_ISSUER_LENGTH
-  ) {
-    throw invalidSessionError()
-  }
-  if (session.identity.displayName !== null && session.identity.displayName.length > MAX_DISPLAY_NAME_LENGTH) {
-    throw invalidSessionError()
-  }
-  if (session.clientId.length === 0) {
-    throw invalidSessionError()
-  }
-  if (!Number.isFinite(session.expiresAtEpochMs) || session.expiresAtEpochMs <= 0) {
-    throw invalidSessionError()
-  }
-}
-
-export function saveSession(session: AuthSession, storage: SessionStorageLike | null = sessionStorageOrNull()): void {
-  requireStorableSession(session)
-  storage?.setItem(SESSION_KEY, JSON.stringify(session))
-}
-
-export function loadPendingLogin(
-  storage: SessionStorageLike | null = sessionStorageOrNull(),
-): PendingLogin | null {
-  if (!storage) {
-    return null
-  }
-  const raw = storage.getItem(PENDING_LOGIN_KEY)
-  if (!raw) {
-    return null
-  }
-  try {
-    const parsed = JSON.parse(raw) as Partial<PendingLogin>
-    if (
-      typeof parsed.codeVerifier !== 'string' ||
-      typeof parsed.state !== 'string' ||
-      typeof parsed.redirectUri !== 'string'
-    ) {
-      return null
-    }
-    return {
-      codeVerifier: parsed.codeVerifier,
-      state: parsed.state,
-      redirectUri: parsed.redirectUri,
-      invitationGameId: typeof parsed.invitationGameId === 'string' ? parsed.invitationGameId : null,
-    }
-  } catch {
-    return null
-  }
-}
-
-export function savePendingLogin(
-  pending: PendingLogin,
-  storage: SessionStorageLike | null = sessionStorageOrNull(),
-): void {
-  storage?.setItem(PENDING_LOGIN_KEY, JSON.stringify(pending))
-}
-
-/** Discards only the pending PKCE login, preserving any signed-in session. */
-export function clearPendingLogin(storage: SessionStorageLike | null = sessionStorageOrNull()): void {
-  storage?.removeItem(PENDING_LOGIN_KEY)
-}
-
-/**
- * Clears the session, any pending PKCE login and every namespaced private
- * cache entry. Call on logout, expiry or identity change before storing
- * anything for the new perspective.
- */
-export function clearPrivateState(storage: SessionStorageLike | null = sessionStorageOrNull()): void {
+export function clearPrivateCaches(storage: SessionStorageLike | null = sessionStorageOrNull()): void {
   if (!storage) {
     return
   }
-  storage.removeItem(SESSION_KEY)
-  storage.removeItem(PENDING_LOGIN_KEY)
+  if (typeof storage.length !== 'number' || typeof storage.key !== 'function') {
+    return
+  }
   const keys: string[] = []
-  if (typeof storage.length === 'number' && typeof storage.key === 'function') {
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index)
-      if (key?.startsWith('temporal-rift.private.')) {
-        keys.push(key)
-      }
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index)
+    if (key?.startsWith('temporal-rift.private.')) {
+      keys.push(key)
     }
   }
   for (const key of keys) {

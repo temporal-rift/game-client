@@ -2,12 +2,14 @@ export interface AppConfig {
   readonly apiBaseUrl: string
   readonly oidcIssuerUrl: string
   readonly oidcClientId: string
+  readonly oidcAudience: string
 }
 
 export interface AppEnv {
   readonly VITE_API_BASE_URL?: string
   readonly VITE_OIDC_ISSUER_URL?: string
   readonly VITE_OIDC_CLIENT_ID?: string
+  readonly VITE_OIDC_AUDIENCE?: string
 }
 
 export type AppConfigResult =
@@ -50,6 +52,11 @@ export function resolveAppConfig(env: AppEnv): AppConfigResult {
     errors.push('VITE_OIDC_CLIENT_ID is not configured.')
   }
 
+  const oidcAudience = env.VITE_OIDC_AUDIENCE?.trim()
+  if (!oidcAudience) {
+    errors.push('VITE_OIDC_AUDIENCE is not configured.')
+  }
+
   if (errors.length > 0) {
     return { ok: false, errors }
   }
@@ -60,6 +67,7 @@ export function resolveAppConfig(env: AppEnv): AppConfigResult {
       apiBaseUrl: apiBaseUrl!,
       oidcIssuerUrl: oidcIssuerUrl!,
       oidcClientId: oidcClientId!,
+      oidcAudience: oidcAudience!,
     },
   }
 }
