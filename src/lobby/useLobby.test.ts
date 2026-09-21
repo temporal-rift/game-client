@@ -114,6 +114,26 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+// Creates a lobby as its host, waits for the host to see it, then unmounts
+// the host hook so the returned reference can be recovered independently.
+async function createHostedLobby(
+  server: ReturnType<typeof createFakeServer>,
+  playerName: string,
+): Promise<{ lobbyId: string; hostPlayerId: string }> {
+  const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
+  const host = renderHook(() =>
+    useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+  )
+  await act(async () => {
+    await host.result.current.create(playerName)
+  })
+  await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
+  const lobbyId = host.result.current.state.lobby?.lobbyId as string
+  const hostPlayerId = host.result.current.state.ownPlayerId as string
+  host.unmount()
+  return { lobbyId, hostPlayerId }
+}
+
 describe('useLobby', () => {
   it('creates and recovers membership after reload without duplicate joins', async () => {
     const server = createFakeServer()
@@ -147,7 +167,6 @@ describe('useLobby', () => {
 
   it('lets separate browser contexts share one lobby and start a valid roster', async () => {
     const server = createFakeServer()
-    const hostFetch = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
     // Identifies the caller the way a real Bearer token would, so the fake
     // can enforce host-only start the same way the authoritative server does.
     let guestPlayerId: string | null = null
@@ -159,15 +178,7 @@ describe('useLobby', () => {
       return server.fetch(input, { ...init, headers })
     }
 
-    const host = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: hostFetch, initialLobbyId: null, pollWhileWaitingMs: 0 }),
-    )
-    await act(async () => {
-      await host.result.current.create('host-one')
-    })
-    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
-    const lobbyId = host.result.current.state.lobby?.lobbyId as string
-    host.unmount()
+    const { lobbyId } = await createHostedLobby(server, 'host-one')
     sessionStorage.clear()
 
     const guest = renderHook(() =>
@@ -239,15 +250,7 @@ describe('useLobby', () => {
   it('shows the join view for an invited non-member instead of fabricating membership', async () => {
     const server = createFakeServer()
     const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
-    const host = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
-    )
-    await act(async () => {
-      await host.result.current.create('host-one')
-    })
-    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
-    const lobbyId = host.result.current.state.lobby?.lobbyId as string
-    host.unmount()
+    const { lobbyId } = await createHostedLobby(server, 'host-one')
     sessionStorage.clear()
 
     // A fresh browser context opening the invitation link has never joined.
@@ -271,29 +274,11 @@ describe('useLobby', () => {
 
   it('does not silently succeed against a stale prior lobby when a join response is lost', async () => {
     const server = createFakeServer()
-    const hostFetch = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
-
-    const host = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: hostFetch, initialLobbyId: null, pollWhileWaitingMs: 0 }),
-    )
-    await act(async () => {
-      await host.result.current.create('host-one')
-    })
-    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
-    const targetLobbyId = host.result.current.state.lobby?.lobbyId as string
-    host.unmount()
+    const { lobbyId: targetLobbyId } = await createHostedLobby(server, 'host-one')
 
     // The guest already has their own unrelated lobby open in this browser
     // context; its reference is what's left stored before the real join.
-    const other = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: hostFetch, initialLobbyId: null, pollWhileWaitingMs: 0 }),
-    )
-    await act(async () => {
-      await other.result.current.create('guest-two')
-    })
-    await waitFor(() => expect(other.result.current.state.lobby).not.toBeNull())
-    const staleLobbyId = other.result.current.state.lobby?.lobbyId as string
-    other.unmount()
+    const { lobbyId: staleLobbyId } = await createHostedLobby(server, 'guest-two')
     expect(staleLobbyId).not.toBe(targetLobbyId)
 
     let joinCalls = 0
@@ -340,17 +325,7 @@ describe('useLobby', () => {
   it('does not adopt another member\'s identity through a shared display name', async () => {
     const server = createFakeServer()
     const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
-
-    const host = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
-    )
-    await act(async () => {
-      await host.result.current.create('same-name')
-    })
-    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
-    const lobbyId = host.result.current.state.lobby?.lobbyId as string
-    const hostPlayerId = host.result.current.state.ownPlayerId as string
-    host.unmount()
+    const { lobbyId, hostPlayerId } = await createHostedLobby(server, 'same-name')
     sessionStorage.clear()
 
     // A different, never-before-seen guest happens to share the host's name.
