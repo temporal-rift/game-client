@@ -121,8 +121,9 @@ export function useLobby(options: UseLobbyOptions) {
       const stillMember = knownOwn !== null && view.members.some((member) => member.playerId === knownOwn);
       if (!stillMember) {
         // No confirmed membership in the authoritative view: don't show a
-        // member view for a lobby we can't prove we're part of.
-        setLobbyId(null);
+        // member view for a lobby we can't prove we're part of. The lobby
+        // reference (and its invitation URL) stays intact so a join still
+        // has a target.
         writeStored(OWN_PLAYER_STORAGE_KEY, null);
         setState({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, lastGameId: null, isHost: false, canStart: false });
         return null;
@@ -173,8 +174,9 @@ export function useLobby(options: UseLobbyOptions) {
         const stillMember = knownOwn !== null && view.members.some((member) => member.playerId === knownOwn);
         if (!stillMember) {
           // Invited or stale reference with no confirmed membership: show
-          // the join view rather than a member view we can't back up.
-          setLobbyId(null);
+          // the join view rather than a member view we can't back up. Keep
+          // the lobby reference (and its invitation URL) so the join view
+          // can still target it.
           writeStored(OWN_PLAYER_STORAGE_KEY, null);
           setState((previous) => ({ ...previous, phase: { kind: 'idle' }, lobby: null, ownPlayerId: null }));
           return;
@@ -241,16 +243,15 @@ export function useLobby(options: UseLobbyOptions) {
 
   // Reconciles a join against the lobby actually being joined (never a
   // stale prior reference) when the join response itself was lost or
-  // already landed. Returns whether membership was confirmed.
+  // already landed. Never infers identity from playerName: a display name
+  // is not unique, so only a confirmed own-player-id counts as membership.
+  // Returns whether membership was confirmed.
   const reconcileJoin = useCallback(
-    async (target: string, playerName: string): Promise<boolean> => {
+    async (target: string): Promise<boolean> => {
       try {
         const view = await apiGetLobby(fetchRef.current, apiBaseUrl, target);
         const knownOwn = readStored(OWN_PLAYER_STORAGE_KEY);
-        const reconciledOwn =
-          knownOwn && view.members.some((member) => member.playerId === knownOwn)
-            ? knownOwn
-            : (view.members.find((member) => member.playerName === playerName.trim())?.playerId ?? null);
+        const reconciledOwn = knownOwn && view.members.some((member) => member.playerId === knownOwn) ? knownOwn : null;
         if (!reconciledOwn) {
           return false;
         }
@@ -288,7 +289,7 @@ export function useLobby(options: UseLobbyOptions) {
         // targeted may both mean the join actually landed: reconcile
         // against `target` itself rather than a stale prior reference.
         const shouldReconcile = (error instanceof LobbyApiError && error.code === '409-02') || !(error instanceof LobbyApiError);
-        if (shouldReconcile && (await reconcileJoin(target, playerName))) {
+        if (shouldReconcile && (await reconcileJoin(target))) {
           return;
         }
         setState((previous) => ({
