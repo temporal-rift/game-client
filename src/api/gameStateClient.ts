@@ -12,6 +12,8 @@
  * not need to know their shape.
  */
 
+import { readJsonSafe, stringField } from './httpJson'
+
 export type GamePhase =
   | 'LOBBY'
   | 'ERA_START'
@@ -110,23 +112,6 @@ const KNOWN_SUBMISSION_KINDS: readonly SubmissionKind[] = ['HAND_SELECTION', 'DE
 function gameStateUrl(apiBaseUrl: string, gameId: string): string {
   const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
   return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/state`
-}
-
-async function readJsonSafe(response: Response): Promise<Record<string, unknown> | null> {
-  try {
-    const text = await response.text()
-    if (!text) {
-      return null
-    }
-    const parsed: unknown = JSON.parse(text)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null
-  } catch {
-    return null
-  }
-}
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 async function throwProblem(response: Response, fallback: string): Promise<never> {

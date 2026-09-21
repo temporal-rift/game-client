@@ -64,7 +64,12 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     gameId: string
     perspectiveKey: string | null
   } | null>(null)
-  const [isRefreshingScores, setIsRefreshingScores] = useState(false)
+  const [activeRefresh, setActiveRefresh] = useState<{
+    seq: number
+    gameId: string
+    perspectiveKey: string | null
+  } | null>(null)
+  const refreshSeqRef = useRef(0)
 
   const fetchRef = useRef(fetchFn)
   useEffect(() => {
@@ -161,7 +166,9 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     if (!terminal || !requestGameId) {
       return
     }
-    setIsRefreshingScores(true)
+    refreshSeqRef.current += 1
+    const seq = refreshSeqRef.current
+    setActiveRefresh({ seq, gameId: requestGameId, perspectiveKey: requestPerspective })
     try {
       const [nextScores, nextHistory] = await Promise.all([
         getScores(fetchRef.current, apiBaseUrl, requestGameId),
@@ -183,9 +190,7 @@ export function useResults(options: UseResultsOptions): ResultsSession {
       const code = error instanceof ScoresApiError ? error.code : null
       setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
     } finally {
-      if (perspectiveRef.current === requestPerspective && gameIdRef.current === requestGameId) {
-        setIsRefreshingScores(false)
-      }
+      setActiveRefresh((current) => (current?.seq === seq ? null : current))
     }
   }, [gameState, effectiveGameId, apiBaseUrl])
 
@@ -205,15 +210,20 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     return { status: detail.kind, message: null, code: null }
   }, [gameState.status, visibleScoresError, view.kind])
 
+  const isRefreshingForContext =
+    activeRefresh !== null &&
+    activeRefresh.gameId === effectiveGameId &&
+    activeRefresh.perspectiveKey === perspectiveKey
+
   return useMemo(
     () => ({
       view,
       status: combined.status,
       message: combined.message,
       code: combined.code,
-      isRefreshing: gameState.status.kind === 'loading' || isRefreshingScores,
+      isRefreshing: gameState.status.kind === 'loading' || isRefreshingForContext,
       refresh,
     }),
-    [view, combined, gameState.status.kind, isRefreshingScores, refresh],
+    [view, combined, gameState.status.kind, isRefreshingForContext, refresh],
   )
 }

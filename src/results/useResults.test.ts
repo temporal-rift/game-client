@@ -193,6 +193,34 @@ describe('useResults', () => {
     }
   })
 
+  it('does not leave the refresh control stuck after the context changes mid-refresh', async () => {
+    const hangingFetch = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input)
+      if (url.endsWith('/state')) {
+        return jsonResponse(terminalStateBody())
+      }
+      return new Promise<Response>(() => {})
+    }) as unknown as AuthenticatedFetchFn
+    const { result, rerender } = renderHook(
+      ({ perspectiveKey, ownPlayerId }: { perspectiveKey: string; ownPlayerId: string }) =>
+        useResults({ ...BASE, fetchFn: hangingFetch, gameId: 'game-1', ownPlayerId, perspectiveKey }),
+      { initialProps: { perspectiveKey: 'alice', ownPlayerId: 'p-1' } },
+    )
+    await flush()
+    await flush()
+
+    act(() => {
+      void result.current.refresh()
+    })
+    await flush()
+    expect(result.current.isRefreshing).toBe(true)
+
+    rerender({ perspectiveKey: 'bob', ownPlayerId: 'p-2' })
+    await flush()
+
+    expect(result.current.isRefreshing).toBe(false)
+  })
+
   it('falls back to the stored game reference when the lobby has not loaded yet', async () => {
     const firstFetch = fetchForTerminal()
     const first = renderHook(() =>

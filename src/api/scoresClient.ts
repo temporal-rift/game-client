@@ -10,6 +10,8 @@
  * missing faction or reason and never derives winners from score order.
  */
 
+import { readJsonSafe, stringField } from './httpJson'
+
 export type AuthenticatedFetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 export class ScoresApiError extends Error {
@@ -61,23 +63,6 @@ export interface ScoresHistoryView {
 function scoresUrl(apiBaseUrl: string, gameId: string, suffix: '' | '/history'): string {
   const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
   return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/scores${suffix}`
-}
-
-async function readJsonSafe(response: Response): Promise<Record<string, unknown> | null> {
-  try {
-    const text = await response.text()
-    if (!text) {
-      return null
-    }
-    const parsed: unknown = JSON.parse(text)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null
-  } catch {
-    return null
-  }
-}
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 function nullableFaction(value: unknown): string | null {
