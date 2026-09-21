@@ -118,9 +118,16 @@ export function useLobby(options: UseLobbyOptions) {
     try {
       const view = await apiGetLobby(fetchRef.current, apiBaseUrl, lobbyId);
       const knownOwn = stateRef.current.ownPlayerId;
-      const inferredOwn =
-        knownOwn && view.members.some((member) => member.playerId === knownOwn) ? knownOwn : knownOwn;
-      applyLobby(view, inferredOwn);
+      const stillMember = knownOwn !== null && view.members.some((member) => member.playerId === knownOwn);
+      if (!stillMember) {
+        // No confirmed membership in the authoritative view: don't show a
+        // member view for a lobby we can't prove we're part of.
+        setLobbyId(null);
+        writeStored(OWN_PLAYER_STORAGE_KEY, null);
+        setState({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, lastGameId: null, isHost: false, canStart: false });
+        return null;
+      }
+      applyLobby(view, knownOwn);
       return view;
     } catch (error) {
       const code = error instanceof LobbyApiError ? error.code : null;
@@ -163,8 +170,16 @@ export function useLobby(options: UseLobbyOptions) {
           return;
         }
         const knownOwn = readStored(OWN_PLAYER_STORAGE_KEY);
-        const stillMember = knownOwn && view.members.some((member) => member.playerId === knownOwn);
-        applyLobby(view, stillMember ? knownOwn : knownOwn);
+        const stillMember = knownOwn !== null && view.members.some((member) => member.playerId === knownOwn);
+        if (!stillMember) {
+          // Invited or stale reference with no confirmed membership: show
+          // the join view rather than a member view we can't back up.
+          setLobbyId(null);
+          writeStored(OWN_PLAYER_STORAGE_KEY, null);
+          setState((previous) => ({ ...previous, phase: { kind: 'idle' }, lobby: null, ownPlayerId: null }));
+          return;
+        }
+        applyLobby(view, knownOwn);
       } catch (error) {
         if (cancelled) {
           return;
@@ -224,6 +239,32 @@ export function useLobby(options: UseLobbyOptions) {
     [apiBaseUrl, applyLobby, setLobbyId],
   );
 
+  // Reconciles a join against the lobby actually being joined (never a
+  // stale prior reference) when the join response itself was lost or
+  // already landed. Returns whether membership was confirmed.
+  const reconcileJoin = useCallback(
+    async (target: string, playerName: string): Promise<boolean> => {
+      try {
+        const view = await apiGetLobby(fetchRef.current, apiBaseUrl, target);
+        const knownOwn = readStored(OWN_PLAYER_STORAGE_KEY);
+        const reconciledOwn =
+          knownOwn && view.members.some((member) => member.playerId === knownOwn)
+            ? knownOwn
+            : (view.members.find((member) => member.playerName === playerName.trim())?.playerId ?? null);
+        if (!reconciledOwn) {
+          return false;
+        }
+        setLobbyId(target);
+        writeStored(OWN_PLAYER_STORAGE_KEY, reconciledOwn);
+        applyLobby(view, reconciledOwn);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [apiBaseUrl, applyLobby, setLobbyId],
+  );
+
   const join = useCallback(
     async (lobbyId: string, playerName: string): Promise<void> => {
       const target = lobbyId.trim();
@@ -243,33 +284,12 @@ export function useLobby(options: UseLobbyOptions) {
         const view = await apiGetLobby(fetchRef.current, apiBaseUrl, joined.lobbyId);
         applyLobby(view, joined.playerId);
       } catch (error) {
-        if (error instanceof LobbyApiError && error.code === '409-02') {
-          // Membership already landed (possibly a lost-response retry):
-          // reconcile instead of creating a duplicate join.
-          setLobbyId(target);
-          try {
-            const view = await apiGetLobby(fetchRef.current, apiBaseUrl, target);
-            const knownOwn = readStored(OWN_PLAYER_STORAGE_KEY);
-            const reconciledOwn =
-              knownOwn && view.members.some((member) => member.playerId === knownOwn)
-                ? knownOwn
-                : (view.members.find((member) => member.playerName === playerName.trim())?.playerId ?? knownOwn);
-            if (reconciledOwn) {
-              writeStored(OWN_PLAYER_STORAGE_KEY, reconciledOwn);
-            }
-            applyLobby(view, reconciledOwn);
-            return;
-          } catch {
-            // Fall through to the already-joined notice below.
-          }
-        }
-        // Lost-response safety for other failures when we already have a
-        // reference: a fresh GET decides whether the command landed.
-        if (!(error instanceof LobbyApiError) && lobbyIdRef.current) {
-          const reconciled = await refresh();
-          if (reconciled) {
-            return;
-          }
+        // A 409-02 (already joined) or a lost response for the lobby being
+        // targeted may both mean the join actually landed: reconcile
+        // against `target` itself rather than a stale prior reference.
+        const shouldReconcile = (error instanceof LobbyApiError && error.code === '409-02') || !(error instanceof LobbyApiError);
+        if (shouldReconcile && (await reconcileJoin(target, playerName))) {
+          return;
         }
         setState((previous) => ({
           ...previous,
@@ -281,7 +301,7 @@ export function useLobby(options: UseLobbyOptions) {
         }));
       }
     },
-    [apiBaseUrl, applyLobby, refresh, setLobbyId],
+    [apiBaseUrl, applyLobby, reconcileJoin, setLobbyId],
   );
 
   const leave = useCallback(async (): Promise<void> => {

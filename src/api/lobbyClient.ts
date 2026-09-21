@@ -151,9 +151,11 @@ export function lobbyErrorMessage(error: unknown): string {
         return 'Only the lobby host can start the game.';
       case '409-03': {
         const count = error.disconnectedPlayerIds?.length ?? 0;
-        return count > 0
-          ? `Cannot start while ${count} player${count === 1 ? ' is' : 's are'} disconnected. Reconnect them and try again.`
-          : 'Cannot start while players are disconnected. Reconnect them and try again.';
+        if (count === 0) {
+          return 'Cannot start while players are disconnected. Reconnect them and try again.';
+        }
+        const playerNoun = count === 1 ? 'player is' : 'players are';
+        return `Cannot start while ${count} ${playerNoun} disconnected. Reconnect them and try again.`;
       }
       case '422-02':
         return 'Starting needs 3 to 5 players. Invite more players before starting.';
@@ -233,7 +235,7 @@ function parseMember(value: unknown): LobbyMember {
   const member = value as Record<string, unknown>;
   const isHost = member['isHost'];
   if (typeof isHost !== 'boolean') {
-    throw new Error('Lobby response is missing member state.');
+    throw new TypeError('Lobby response is missing member state.');
   }
   return {
     playerId: requireString(member['playerId'], 'member playerId'),
@@ -244,7 +246,7 @@ function parseMember(value: unknown): LobbyMember {
 
 function parseMembers(value: unknown): readonly LobbyMember[] {
   if (!Array.isArray(value)) {
-    throw new Error('Lobby response is missing membership.');
+    throw new TypeError('Lobby response is missing membership.');
   }
   return value.map(parseMember);
 }
@@ -387,7 +389,7 @@ export function getGame(
       const playerCount = json['playerCount'];
       const cascaded = json['cascadedParadoxCount'];
       if (typeof eraNumber !== 'number' || typeof playerCount !== 'number' || typeof cascaded !== 'number') {
-        throw new Error('Game response is missing game state.');
+        throw new TypeError('Game response is missing game state.');
       }
       return {
         gameId: requireString(json['gameId'], 'game identity'),
