@@ -31,6 +31,10 @@ export function buildGameInvitationUrl(origin: string, gameId: string): string {
  * parameters (player, token, code, state, …) are deliberately ignored so a
  * crafted invitation can never fabricate or steal a player session.
  * Malformed game references are rejected rather than stored.
+ *
+ * Lobby invitations reuse the same `game` parameter carrying the lobbyId:
+ * the lobby's pre-assigned game identity correlates later game reads, and
+ * the existing sign-in flow already preserves this parameter through login.
  */
 export function parseGameInvitation(search: string): GameInvitation | null {
   const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`)
@@ -82,4 +86,33 @@ export function urlCarriesCredentials(href: string): boolean {
     lowered.includes('code_verifier') ||
     lowered.includes('client_secret')
   )
+}
+
+export interface LobbyInvitation {
+  readonly lobbyId: string;
+}
+
+/**
+ * Builds a shareable lobby invitation. The lobbyId travels in the same
+ * `game` parameter so sign-in preserves it and reload recovers from it.
+ */
+export function buildLobbyInvitationUrl(origin: string, lobbyId: string): string {
+  return buildGameInvitationUrl(origin, lobbyId);
+}
+
+/** Reads a lobby invitation from the URL without touching identity. */
+export function parseLobbyInvitation(search: string): LobbyInvitation | null {
+  const invitation = parseGameInvitation(search);
+  return invitation ? { lobbyId: invitation.gameId } : null;
+}
+
+/** Persists the active lobby reference in the address bar for reload recovery. */
+export function writeLobbyInvitationToUrl(lobbyId: string | null): void {
+  const url = new URL(window.location.href);
+  if (lobbyId) {
+    url.searchParams.set(INVITATION_PARAM, lobbyId);
+  } else {
+    url.searchParams.delete(INVITATION_PARAM);
+  }
+  window.history.replaceState(null, '', url.toString());
 }
