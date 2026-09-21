@@ -251,15 +251,25 @@ describe('useLobby', () => {
     sessionStorage.clear()
 
     // A fresh browser context opening the invitation link has never joined.
+    const onLobbyIdChange = vi.fn()
     const invited = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
+      useLobby({
+        apiBaseUrl: 'https://api.example.test',
+        fetchFn,
+        initialLobbyId: lobbyId,
+        pollWhileWaitingMs: 0,
+        onLobbyIdChange,
+      }),
     )
     await waitFor(() => expect(invited.result.current.state.phase).toMatchObject({ kind: 'idle' }))
     expect(invited.result.current.state.lobby).toBeNull()
     expect(invited.result.current.state.ownPlayerId).toBeNull()
+    // The invitation reference (and its URL) must survive: a non-member
+    // reset must not clear the lobby the user is still invited to.
+    expect(onLobbyIdChange).not.toHaveBeenCalledWith(null)
   })
 
-  it('reconciles a lost join response against the lobby being joined, not a stale reference', async () => {
+  it('does not silently succeed against a stale prior lobby when a join response is lost', async () => {
     const server = createFakeServer()
     const hostFetch = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
 
@@ -316,10 +326,49 @@ describe('useLobby', () => {
       await guest.result.current.join(targetLobbyId, 'guest-two')
     })
 
-    // The lost response must reconcile against the lobby actually joined,
-    // not silently re-adopt the stale prior reference as "success".
-    expect(guest.result.current.state.lobby?.lobbyId).toBe(targetLobbyId)
-    expect(guest.result.current.state.phase).toMatchObject({ kind: 'ready' })
+    // The join actually landed on the target lobby, but reconciliation can
+    // only confirm identity through a previously known own-player-id, and
+    // the guest's only known id belongs to the unrelated stale lobby. It
+    // must report failure rather than either fabricating a match on the
+    // target (inventing membership) or silently keeping the stale lobby as
+    // if the join had succeeded.
+    expect(guest.result.current.state.phase).toMatchObject({ kind: 'failed' });
+    expect(guest.result.current.state.lobby?.lobbyId).toBe(staleLobbyId)
+    expect(server.lobbies.get(targetLobbyId)?.members).toHaveLength(2)
+  })
+
+  it('does not adopt another member\'s identity through a shared display name', async () => {
+    const server = createFakeServer()
+    const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
+
+    const host = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    )
+    await act(async () => {
+      await host.result.current.create('same-name')
+    })
+    await waitFor(() => expect(host.result.current.state.lobby).not.toBeNull())
+    const lobbyId = host.result.current.state.lobby?.lobbyId as string
+    const hostPlayerId = host.result.current.state.ownPlayerId as string
+    host.unmount()
+    sessionStorage.clear()
+
+    // A different, never-before-seen guest happens to share the host's name.
+    const guest = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    )
+    await act(async () => {
+      await guest.result.current.join(lobbyId, 'same-name')
+    })
+
+    // The fake (like a real server keying off actual identity) reports the
+    // name as already taken. Without a confirmed own-player-id, the guest
+    // must not be reconciled onto the host's identity just because the
+    // display name matches.
+    expect(guest.result.current.state.phase).toMatchObject({ kind: 'failed', code: '409-02' })
+    expect(guest.result.current.state.ownPlayerId).toBeNull()
+    expect(guest.result.current.state.ownPlayerId).not.toBe(hostPlayerId)
+    expect(guest.result.current.state.isHost).toBe(false)
   })
 
   it('surfaces invalid invitation and permission errors', async () => {
