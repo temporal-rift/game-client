@@ -129,11 +129,25 @@ describe('player session components', () => {
     render(
       <SessionBar
         identity={{ subject: 'one', displayName: 'player-one' }}
+        faction="ERASERS"
         onSignOut={() => {}}
       />,
     )
 
     expect(screen.getByRole('status', { name: 'Current player session' })).toHaveTextContent('player-one')
+    expect(screen.getByLabelText('Your faction')).toHaveTextContent('Your faction: ERASERS')
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+  })
+
+  it('does not invent a faction before the server assigns one', () => {
+    render(
+      <SessionBar
+        identity={{ subject: 'one', displayName: 'player-one' }}
+        faction={null}
+        onSignOut={() => {}}
+      />,
+    )
+
+    expect(screen.queryByLabelText('Your faction')).not.toBeInTheDocument()
   })
 })
