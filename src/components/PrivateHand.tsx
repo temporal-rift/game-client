@@ -7,6 +7,16 @@ interface PrivateHandProps {
   readonly onSelectCard: (id: string) => void
 }
 
+function stateLabelFor(card: HandCard, isSelected: boolean): string {
+  if (isSelected) {
+    return 'Selected'
+  }
+  if (card.isAvailable) {
+    return 'Card'
+  }
+  return card.unavailableReason ?? 'Unavailable'
+}
+
 export function PrivateHand({ hand, selectedCardId, onSelectCard }: PrivateHandProps) {
   return (
     <section className="private-hand" aria-labelledby="private-hand-heading">
@@ -27,9 +37,7 @@ export function PrivateHand({ hand, selectedCardId, onSelectCard }: PrivateHandP
                 onClick={() => onSelectCard(card.id)}
               >
                 <span className="hand-card-topline">
-                  <span className="hand-card-state">
-                    {isSelected ? 'Selected' : card.isAvailable ? 'Card' : card.unavailableReason ?? 'Unavailable'}
-                  </span>
+                  <span className="hand-card-state">{stateLabelFor(card, isSelected)}</span>
                   <GradeBadge grade={card.grade} />
                 </span>
                 <span className="card-glyph-well">

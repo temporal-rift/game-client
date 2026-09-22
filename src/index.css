@@ -880,7 +880,7 @@ button:focus-visible {
 .confirm-button:disabled {
   border-color: #405168;
   background: #28354b;
-  color: #78869a;
+  color: #a7b4c7;
   cursor: not-allowed;
 }
 

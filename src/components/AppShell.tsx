@@ -84,7 +84,7 @@ export function AppShell({ playerView, isSampleData }: AppShellProps) {
           {playerView.phaseDeadlineLabel && <strong>{playerView.phaseDeadlineLabel}</strong>}
           <i aria-hidden="true" />
         </div>
-        {isSampleData && <p className="sample-state" role="status">Sample board · actions are disabled</p>}
+        {isSampleData && <output className="sample-state">Sample board · actions are disabled</output>}
       </header>
 
       <section className="player-strip" aria-label="Player scores">
