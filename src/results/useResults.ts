@@ -67,15 +67,11 @@ export function useResults(options: UseResultsOptions): ResultsSession {
   const hasCompleteResult = state?.phase === 'GAME_ENDED' && state.result !== null
 
   const visibleScores =
-    scores && scores.data.gameId === effectiveGameId && scores.perspectiveKey === perspectiveKey ? scores.data : null
+    scores?.data.gameId === effectiveGameId && scores?.perspectiveKey === perspectiveKey ? scores.data : null
   const visibleHistory =
-    history && history.data.gameId === effectiveGameId && history.perspectiveKey === perspectiveKey
-      ? history.data
-      : null
+    history?.data.gameId === effectiveGameId && history?.perspectiveKey === perspectiveKey ? history.data : null
   const visibleScoresError =
-    scoresError && scoresError.gameId === effectiveGameId && scoresError.perspectiveKey === perspectiveKey
-      ? scoresError
-      : null
+    scoresError?.gameId === effectiveGameId && scoresError?.perspectiveKey === perspectiveKey ? scoresError : null
 
   useEffect(() => {
     if (!hasCompleteResult || !effectiveGameId) {
