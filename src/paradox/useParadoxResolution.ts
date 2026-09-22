@@ -8,7 +8,7 @@ import {
   type ParadoxResolutionStatusView,
 } from '../api/actionClient'
 import { hasAcceptedSubmission } from '../game/reconciliation'
-import { useGameState } from '../game/useGameState'
+import type { GameStateSession } from '../game/useGameState'
 import { selectParadoxResolutionView, type ParadoxResolutionView } from './paradoxView'
 
 export type ParadoxDraft =
@@ -24,8 +24,7 @@ export type ParadoxSubmitPhase =
 export interface UseParadoxResolutionOptions {
   readonly apiBaseUrl: string
   readonly fetchFn: AuthenticatedFetchFn
-  readonly gameId: string | null
-  readonly perspectiveKey: string | null
+  readonly gameState: GameStateSession
 }
 
 export interface ParadoxResolutionSession {
@@ -40,8 +39,7 @@ export interface ParadoxResolutionSession {
 }
 
 export function useParadoxResolution(options: UseParadoxResolutionOptions): ParadoxResolutionSession {
-  const { apiBaseUrl, fetchFn, gameId, perspectiveKey } = options
-  const gameState = useGameState({ apiBaseUrl, fetchFn, gameId, perspectiveKey })
+  const { apiBaseUrl, fetchFn, gameState } = options
   const [status, setStatus] = useState<ParadoxResolutionStatusView | null>(null)
   const [draft, setDraft] = useState<ParadoxDraft>({ kind: 'none' })
   const [submitPhase, setSubmitPhase] = useState<ParadoxSubmitPhase>({ kind: 'idle' })
