@@ -105,7 +105,11 @@ function SignedInView({
 
   return (
     <div>
-      <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
+      <SessionBar
+        identity={authSession.identity}
+        faction={gameState.state?.myFaction ?? null}
+        onSignOut={() => void playerSession.signOut()}
+      />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
       {effectiveGameId && (
         <HandSelectionPanel
