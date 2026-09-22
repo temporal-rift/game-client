@@ -23,7 +23,13 @@ export function createGameOidcClient(config: AppConfig): UserManager {
     client_id: config.oidcClientId,
     redirect_uri: `${window.location.origin}${window.location.pathname}`,
     response_type: 'code',
-    scope: 'openid profile email',
+    // offline_access requests a refresh token so getAccessToken's on-demand signinSilent() call
+    // can renew via that token. Without it, an issuer that omits a refresh token forces
+    // signinSilent()'s iframe fallback, which needs a dedicated silent_redirect_uri callback page
+    // this client does not configure — that path degrades to a safe, self-announcing re-login
+    // rather than silently failing, but is not a substitute for requesting a refresh token from
+    // any issuer that honors this scope.
+    scope: 'openid profile email offline_access',
     extraQueryParams: { audience: config.oidcAudience },
     userStore: new WebStorageStateStore({ store: window.localStorage }),
     automaticSilentRenew: false,

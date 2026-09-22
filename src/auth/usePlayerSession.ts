@@ -175,7 +175,9 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
     lastIdentityRef.current = null
     setStatus({ state: 'signed-out', reason: null })
     try {
-      await client?.removeUser()
+      // signoutRedirect() itself loads the stored user for id_token_hint, then removes it —
+      // removing it first would send the logout request without that hint, which some issuers
+      // reject or ignore.
       await client?.signoutRedirect({ post_logout_redirect_uri: returnUrlPreservingGame() })
     } catch {
       // Local sign-out is already applied; the issuer's own logout redirect is best-effort.
