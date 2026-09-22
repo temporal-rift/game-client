@@ -1,20 +1,21 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Auth0Client } from '@auth0/auth0-spa-js'
+import { UserManager } from 'oidc-client-ts'
 import App from './App'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
 
 const sdk = vi.hoisted(() => ({ client: null as Record<string, unknown> | null }))
 
-vi.mock('@auth0/auth0-spa-js', () => ({
-  Auth0Client: vi.fn().mockImplementation(function MockAuth0Client(this: unknown) {
+vi.mock('oidc-client-ts', () => ({
+  UserManager: vi.fn().mockImplementation(function MockUserManager(this: unknown) {
     if (!sdk.client) {
-      throw new Error('stub Auth0 client is not configured')
+      throw new Error('stub UserManager is not configured')
     }
     return sdk.client
   }),
+  WebStorageStateStore: vi.fn(),
 }))
 
 const validEnv = {
@@ -26,12 +27,12 @@ const validEnv = {
 
 function stubClient(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    getUser: async () => undefined,
-    handleRedirectCallback: async () => ({}),
-    loginWithRedirect: async () => {},
-    logout: async () => {},
-    getTokenSilently: async () => 'token',
-    isAuthenticated: async () => false,
+    getUser: async () => null,
+    signinRedirectCallback: async () => ({ profile: {}, access_token: 'token' }),
+    signinRedirect: async () => {},
+    signoutRedirect: async () => {},
+    removeUser: async () => {},
+    signinSilent: async () => null,
     ...overrides,
   }
 }
@@ -44,7 +45,7 @@ describe('App', () => {
     vi.stubEnv('VITE_OIDC_AUDIENCE', validEnv.VITE_OIDC_AUDIENCE)
     sessionStorage.clear()
     window.history.replaceState(null, '', '/')
-    vi.mocked(Auth0Client).mockClear()
+    vi.mocked(UserManager).mockClear()
   })
 
   afterEach(() => {
@@ -94,10 +95,10 @@ describe('App', () => {
 
   it('restores an authenticated session and signs out through the SDK', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
-    const logout = vi.fn(async () => {})
+    const signoutRedirect = vi.fn(async () => {})
     sdk.client = stubClient({
-      getUser: async () => ({ sub: 'auth0|one', preferred_username: 'player-one' }),
-      logout,
+      getUser: async () => ({ profile: { sub: 'one', preferred_username: 'player-one' } }),
+      signoutRedirect,
     })
 
     render(<App />)
@@ -107,7 +108,7 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
-    expect(logout).toHaveBeenCalledTimes(1)
+    expect(signoutRedirect).toHaveBeenCalledTimes(1)
     expect(await screen.findByRole('heading', { name: 'Sign in to play' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Temporal Rift' })).not.toBeInTheDocument()
   })
@@ -127,7 +128,7 @@ describe('player session components', () => {
   it('shows the signed-in player with a sign-out control', () => {
     render(
       <SessionBar
-        identity={{ subject: 'auth0|one', displayName: 'player-one' }}
+        identity={{ subject: 'one', displayName: 'player-one' }}
         onSignOut={() => {}}
       />,
     )

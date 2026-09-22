@@ -1,7 +1,7 @@
 /**
  * Authenticated HTTP for the browser gameplay client.
  *
- * Every private API call carries a fresh access token from the Auth0 SDK
+ * Every private API call carries a fresh access token from the OIDC SDK
  * as a Bearer credential. Token renewal is the SDK's job; when the
  * session cannot supply one (or the API answers 401) the caller clears
  * private state and offers reauthentication instead of retrying with a
