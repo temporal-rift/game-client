@@ -54,4 +54,9 @@ describe('selectHandSelectionView', () => {
     expect(view.kind).toBe('accepted')
     if (view.kind === 'accepted') expect(view.cards.map((card) => card.cardInstanceId)).toEqual(['kept-1', 'kept-2', 'kept-3', 'kept-4', 'kept-5'])
   })
+
+  it('fails closed while an accepted hand is not yet available', () => {
+    const state = stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }] })
+    expect(selectHandSelectionView(state)).toEqual({ kind: 'unavailable', reason: 'Your accepted hand is being refreshed.' })
+  })
 })

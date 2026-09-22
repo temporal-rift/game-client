@@ -107,7 +107,7 @@ function SignedInView({
     <div>
       <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
-      {activeGameId && (
+      {effectiveGameId && (
         <HandSelectionPanel
           view={handSelection.view}
           selectedCardInstanceIds={handSelection.selectedCardInstanceIds}
