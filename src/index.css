@@ -47,6 +47,11 @@ button {
   font: inherit;
 }
 
+.connection-status {
+  display: block;
+  margin: 1em 0;
+}
+
 button:focus-visible {
   outline: 3px solid #f2e5bd;
   outline-offset: 3px;
