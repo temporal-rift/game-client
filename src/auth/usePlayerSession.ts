@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Auth0Client } from '@auth0/auth0-spa-js'
-import { createGameAuth0Client } from './auth0Client'
+import type { User, UserManager } from 'oidc-client-ts'
+import { createGameOidcClient } from './oidcClient'
 import { clearPrivateCaches, identityFromUser, sameIdentity } from './session'
 import type { AuthSession, PlayerIdentity } from './session'
 import { cleanAuthCallbackUrl, parseAuthCallback, parseGameInvitation } from './invitation'
@@ -67,13 +67,14 @@ function friendlyAuthError(error: unknown): string {
 /**
  * Completes one authorization callback through the SDK, which owns code
  * validation, the token exchange and ID-token validation. The invitation
- * reference round-trips in the SDK's application state, never as identity.
+ * reference round-trips in the SDK's own `state`, never as identity.
  */
-async function handleCallback(client: Auth0Client): Promise<PlayerSessionStatus> {
+async function handleCallback(client: UserManager): Promise<PlayerSessionStatus> {
   let appState: SignInAppState | undefined
+  let user: User
   try {
-    const result = await client.handleRedirectCallback()
-    const candidate = (result?.appState ?? undefined) as Partial<SignInAppState> | undefined
+    user = await client.signinRedirectCallback()
+    const candidate = (user.state ?? undefined) as Partial<SignInAppState> | undefined
     appState = { gameId: typeof candidate?.gameId === 'string' ? candidate.gameId : null }
   } catch (error) {
     stripCallbackFromUrl()
@@ -87,8 +88,7 @@ async function handleCallback(client: Auth0Client): Promise<PlayerSessionStatus>
     url.searchParams.set('game', restoredGameId)
     window.history.replaceState(null, '', url.toString())
   }
-  const user = await client.getUser().catch(() => undefined)
-  const identity = user ? identityFromUser(user) : null
+  const identity = identityFromUser(user.profile)
   if (!identity) {
     return { state: 'error', message: 'Sign-in did not complete. Try signing in again.' }
   }
@@ -101,8 +101,8 @@ let callbackFlightKey: string | null = null
 let callbackFlight: Promise<PlayerSessionStatus> | null = null
 
 /**
- * Owns the identity-bound browser session on top of the maintained Auth0
- * SPA SDK: interactive login, callback handling, reload restoration and
+ * Owns the identity-bound browser session on top of the maintained generic
+ * OIDC SDK: interactive login, callback handling, reload restoration and
  * recoverable reauthentication. Token lifecycle and renewal belong to the
  * SDK; private gameplay state mounts only under a signed-in session and
  * unmounts (keyed by identity) when it ends.
@@ -110,20 +110,20 @@ let callbackFlight: Promise<PlayerSessionStatus> | null = null
 export function usePlayerSession(config: AppConfig | null): PlayerSession {
   const [status, setStatus] = useState<PlayerSessionStatus>({ state: 'restoring' })
   const lastIdentityRef = useRef<PlayerIdentity | null>(null)
-  const client = useMemo(() => (config ? createGameAuth0Client(config) : null), [config])
+  const client = useMemo(() => (config ? createGameOidcClient(config) : null), [config])
 
   useEffect(() => {
     if (!client) {
       return
     }
 
-    async function restore(activeClient: Auth0Client): Promise<void> {
+    async function restore(activeClient: UserManager): Promise<void> {
       const search = window.location.search
       const callback = parseAuthCallback(search)
       const isCallback = Boolean((callback.code && callback.state) || callback.error)
       if (!isCallback) {
-        const user = await activeClient.getUser().catch(() => undefined)
-        const identity = user ? identityFromUser(user) : null
+        const user = await activeClient.getUser().catch(() => null)
+        const identity = user ? identityFromUser(user.profile) : null
         if (identity) {
           lastIdentityRef.current = identity
           setStatus({ state: 'signed-in', session: { identity } })
@@ -164,7 +164,7 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
     try {
       const invitation = parseGameInvitation(window.location.search)
       const appState: SignInAppState = { gameId: invitation?.gameId ?? null }
-      await client.loginWithRedirect({ appState })
+      await client.signinRedirect({ state: appState })
     } catch (error) {
       setStatus({ state: 'error', message: friendlyAuthError(error) })
     }
@@ -175,9 +175,10 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
     lastIdentityRef.current = null
     setStatus({ state: 'signed-out', reason: null })
     try {
-      await client?.logout({ logoutParams: { returnTo: returnUrlPreservingGame() } })
+      await client?.removeUser()
+      await client?.signoutRedirect({ post_logout_redirect_uri: returnUrlPreservingGame() })
     } catch {
-      // Local sign-out is already applied; the Auth0 redirect is best-effort.
+      // Local sign-out is already applied; the issuer's own logout redirect is best-effort.
     }
   }, [client])
 
@@ -192,7 +193,12 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
       return undefined
     }
     try {
-      return await client.getTokenSilently()
+      const current = await client.getUser()
+      if (current && !current.expired) {
+        return current.access_token
+      }
+      const renewed = await client.signinSilent()
+      return renewed?.access_token
     } catch {
       clearPrivateCaches()
       lastIdentityRef.current = null

@@ -1,26 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { Auth0Client } from '@auth0/auth0-spa-js'
+import { UserManager } from 'oidc-client-ts'
 import { usePlayerSession } from './usePlayerSession'
 import type { AppConfig } from '../config/appConfig'
 
+interface StubProfile {
+  readonly sub?: string
+  readonly preferred_username?: string
+}
+
+interface StubUser {
+  readonly profile: StubProfile
+  readonly access_token: string
+  readonly expired?: boolean
+  readonly state?: unknown
+}
+
 interface StubClient {
-  getUser: () => Promise<{ sub?: string; preferred_username?: string } | undefined>
-  handleRedirectCallback: () => Promise<{ appState?: unknown }>
-  loginWithRedirect: (options?: unknown) => Promise<void>
-  logout: (options?: unknown) => Promise<void>
-  getTokenSilently: () => Promise<string>
+  getUser: () => Promise<StubUser | null>
+  signinRedirectCallback: () => Promise<StubUser>
+  signinRedirect: (options?: unknown) => Promise<void>
+  signoutRedirect: (options?: unknown) => Promise<void>
+  removeUser: () => Promise<void>
+  signinSilent: () => Promise<StubUser | null>
 }
 
 const sdk = vi.hoisted(() => ({ client: null as StubClient | null }))
 
-vi.mock('@auth0/auth0-spa-js', () => ({
-  Auth0Client: vi.fn().mockImplementation(function MockAuth0Client(this: unknown) {
+vi.mock('oidc-client-ts', () => ({
+  UserManager: vi.fn().mockImplementation(function MockUserManager(this: unknown) {
     if (!sdk.client) {
-      throw new Error('stub Auth0 client is not configured')
+      throw new Error('stub UserManager is not configured')
     }
     return sdk.client
   }),
+  WebStorageStateStore: vi.fn(),
 }))
 
 const config: AppConfig = {
@@ -30,22 +44,27 @@ const config: AppConfig = {
   oidcAudience: 'https://api.example.test',
 }
 
+function stubUser(overrides: Partial<StubUser> = {}): StubUser {
+  return { profile: { sub: 'sub' }, access_token: 'token', expired: false, ...overrides }
+}
+
 function stubClient(overrides: Partial<StubClient> = {}): StubClient {
   return {
-    getUser: async () => undefined,
-    handleRedirectCallback: async () => ({}),
-    loginWithRedirect: async () => {},
-    logout: async () => {},
-    getTokenSilently: async () => 'token',
+    getUser: async () => null,
+    signinRedirectCallback: async () => stubUser(),
+    signinRedirect: async () => {},
+    signoutRedirect: async () => {},
+    removeUser: async () => {},
+    signinSilent: async () => null,
     ...overrides,
   }
 }
 
-describe('usePlayerSession with the Auth0 SDK', () => {
+describe('usePlayerSession with the generic OIDC SDK', () => {
   beforeEach(() => {
     sessionStorage.clear()
     window.history.replaceState(null, '', '/')
-    vi.mocked(Auth0Client).mockClear()
+    vi.mocked(UserManager).mockClear()
   })
 
   afterEach(() => {
@@ -56,8 +75,7 @@ describe('usePlayerSession with the Auth0 SDK', () => {
 
   it('completes a callback, restores the invitation and cleans the URL', async () => {
     sdk.client = stubClient({
-      handleRedirectCallback: async () => ({ appState: { gameId: 'game-9' } }),
-      getUser: async () => ({ sub: 'auth0|fresh', preferred_username: 'fresh' }),
+      signinRedirectCallback: async () => stubUser({ state: { gameId: 'game-9' }, profile: { sub: 'fresh', preferred_username: 'fresh' } }),
     })
     window.history.replaceState(null, '', '/?code=code-a&state=state-a')
 
@@ -66,7 +84,7 @@ describe('usePlayerSession with the Auth0 SDK', () => {
     await waitFor(() => expect(result.current.status.state).toBe('signed-in'))
     const status = result.current.status
     if (status.state === 'signed-in') {
-      expect(status.session.identity.subject).toBe('auth0|fresh')
+      expect(status.session.identity.subject).toBe('fresh')
     }
     expect(window.location.search).toContain('game=game-9')
     expect(window.location.search).not.toContain('code=')
@@ -74,7 +92,7 @@ describe('usePlayerSession with the Auth0 SDK', () => {
 
   it('reports a denied login without fabricating a player', async () => {
     sdk.client = stubClient({
-      handleRedirectCallback: async () => {
+      signinRedirectCallback: async () => {
         throw { error: 'access_denied' }
       },
     })
@@ -99,10 +117,12 @@ describe('usePlayerSession with the Auth0 SDK', () => {
   })
 
   it('signs out through the SDK and clears private caches', async () => {
-    const logout = vi.fn(async () => {})
+    const signoutRedirect = vi.fn(async () => {})
+    const removeUser = vi.fn(async () => {})
     sdk.client = stubClient({
-      getUser: async () => ({ sub: 'auth0|one' }),
-      logout,
+      getUser: async () => stubUser({ profile: { sub: 'one' } }),
+      signoutRedirect,
+      removeUser,
     })
     sessionStorage.setItem('temporal-rift.private.hand', 'private')
 
@@ -111,15 +131,16 @@ describe('usePlayerSession with the Auth0 SDK', () => {
 
     await result.current.signOut()
 
-    expect(logout).toHaveBeenCalledTimes(1)
+    expect(removeUser).toHaveBeenCalledTimes(1)
+    expect(signoutRedirect).toHaveBeenCalledTimes(1)
     expect(sessionStorage.getItem('temporal-rift.private.hand')).toBeNull()
     await waitFor(() => expect(result.current.status.state).toBe('signed-out'))
   })
 
   it('recovers when silent token renewal fails', async () => {
     sdk.client = stubClient({
-      getUser: async () => ({ sub: 'auth0|one' }),
-      getTokenSilently: async () => {
+      getUser: async () => stubUser({ profile: { sub: 'one' }, expired: true }),
+      signinSilent: async () => {
         throw { error: 'login_required' }
       },
     })

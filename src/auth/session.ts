@@ -1,13 +1,11 @@
 /**
- * Identity-bound browser session on top of the maintained Auth0 SPA SDK.
+ * Identity-bound browser session on top of the maintained generic OIDC SDK.
  *
  * The SDK owns the OIDC protocol, token validation and token caching; this
- * module only maps the SDK user to the player identity the shell renders
- * and sweeps the client's own private cache namespace on logout, expiry
- * or identity change.
+ * module only maps the SDK user's claims to the player identity the shell
+ * renders and sweeps the client's own private cache namespace on logout,
+ * expiry or identity change.
  */
-
-import type { User } from '@auth0/auth0-spa-js'
 
 export interface PlayerIdentity {
   readonly subject: string
@@ -18,14 +16,24 @@ export interface AuthSession {
   readonly identity: PlayerIdentity
 }
 
-export function identityFromUser(user: User): PlayerIdentity | null {
-  if (typeof user.sub !== 'string' || user.sub.length === 0) {
-    return null
-  }
-  return { subject: user.sub, displayName: displayNameFrom(user) }
+/** The subset of standard OIDC ID-token claims this module actually reads —
+ * deliberately not the SDK's full `IdTokenClaims` (which mandates `iss`,
+ * `aud`, `exp`, `iat`): every real `UserProfile` satisfies this structurally. */
+export interface IdentityClaims {
+  readonly sub?: string
+  readonly preferred_username?: string
+  readonly email?: string
+  readonly name?: string
 }
 
-function displayNameFrom(user: User): string | null {
+export function identityFromUser(profile: IdentityClaims): PlayerIdentity | null {
+  if (typeof profile.sub !== 'string' || profile.sub.length === 0) {
+    return null
+  }
+  return { subject: profile.sub, displayName: displayNameFrom(profile) }
+}
+
+function displayNameFrom(user: IdentityClaims): string | null {
   const candidates = [user.preferred_username, user.email, user.name]
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.length > 0) {
