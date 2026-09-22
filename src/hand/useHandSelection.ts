@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AuthenticatedFetchFn } from '../api/gameStateClient'
 import { ActionApiError, actionErrorMessage, submitHandSelection } from '../api/actionClient'
 import { hasAcceptedSubmission } from '../game/reconciliation'
@@ -39,7 +39,7 @@ export function useHandSelection({
   const view = useMemo(() => selectHandSelectionView(gameState.state), [gameState.state])
   const selectionKey = view.kind === 'open' ? `${view.gameId}:${view.eraNumber}:${view.cards.map((card) => card.cardInstanceId).join(':')}` : null
   const selectionKeyRef = useRef(selectionKey)
-  useEffect(() => {
+  useLayoutEffect(() => {
     selectionKeyRef.current = selectionKey
   }, [selectionKey])
   const [seenSelectionKey, setSeenSelectionKey] = useState<string | null>(null)
