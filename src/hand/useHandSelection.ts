@@ -38,6 +38,10 @@ export function useHandSelection({
 
   const view = useMemo(() => selectHandSelectionView(gameState.state), [gameState.state])
   const selectionKey = view.kind === 'open' ? `${view.gameId}:${view.eraNumber}:${view.cards.map((card) => card.cardInstanceId).join(':')}` : null
+  const selectionKeyRef = useRef(selectionKey)
+  useEffect(() => {
+    selectionKeyRef.current = selectionKey
+  }, [selectionKey])
   const [seenSelectionKey, setSeenSelectionKey] = useState<string | null>(null)
   if (seenSelectionKey !== selectionKey) {
     setSeenSelectionKey(selectionKey)
@@ -59,15 +63,19 @@ export function useHandSelection({
 
   const confirm = useCallback(async (): Promise<void> => {
     if (view.kind !== 'open' || selectedCardInstanceIds.length !== view.requiredSelectionCount) return
+    const submittedSelectionKey = selectionKey
     const { gameId, eraNumber } = view
     setSubmitPhase({ kind: 'submitting' })
     try {
       await submitHandSelection(fetchRef.current, apiBaseUrl, gameId, eraNumber, selectedCardInstanceIds)
+      if (selectionKeyRef.current !== submittedSelectionKey) return
       setSubmitPhase({ kind: 'submitted' })
       setSelectedCardInstanceIds([])
       await gameState.refresh()
     } catch (error) {
+      if (selectionKeyRef.current !== submittedSelectionKey) return
       const reconciled = await gameState.refresh()
+      if (selectionKeyRef.current !== submittedSelectionKey) return
       if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, kind: 'HAND_SELECTION' })) {
         setSubmitPhase({ kind: 'submitted' })
         setSelectedCardInstanceIds([])
@@ -79,7 +87,7 @@ export function useHandSelection({
         code: error instanceof ActionApiError ? error.code : null,
       })
     }
-  }, [apiBaseUrl, gameState, selectedCardInstanceIds, view])
+  }, [apiBaseUrl, gameState, selectedCardInstanceIds, selectionKey, view])
 
   const dismissRejection = useCallback(() => {
     setSubmitPhase((previous) => (previous.kind === 'rejected' ? { kind: 'idle' } : previous))

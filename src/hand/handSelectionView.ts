@@ -80,8 +80,11 @@ export function selectHandSelectionView(state: GameStateView | null): HandSelect
 
   const accepted = hasAcceptedSubmission(state, { eraNumber: state.eraNumber, kind: 'HAND_SELECTION' })
   const acceptedCards = parseCards(state.raw['myHand'], false)
-  if (accepted && acceptedCards && acceptedCards.length === 5) {
-    return { kind: 'accepted', eraNumber: state.eraNumber, cards: acceptedCards }
+  if (accepted) {
+    if (acceptedCards?.length === 5) {
+      return { kind: 'accepted', eraNumber: state.eraNumber, cards: acceptedCards }
+    }
+    return { kind: 'unavailable', reason: 'Your accepted hand is being refreshed.' }
   }
 
   if (state.phase !== 'HAND_SELECTION') {
@@ -93,7 +96,7 @@ export function selectHandSelectionView(state: GameStateView | null): HandSelect
   }
   const source = pending as Record<string, unknown>
   const cards = parseCards(source['cards'], true)
-  if (!cards || cards.length !== 7 || source['requiredSelectionCount'] !== 5) {
+  if (cards?.length !== 7 || source['requiredSelectionCount'] !== 5) {
     return { kind: 'unavailable', reason: 'Your private card offer is incomplete. Refreshing authoritative state.' }
   }
   const expiresAt = stringField(source['expiresAt'])
