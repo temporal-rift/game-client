@@ -9,12 +9,17 @@ interface KnowledgePanelProps {
   readonly onRefresh: () => void
 }
 
-/** A stable identity per entry — none of these carry a server-issued id, but each kind names its own subject. */
+/**
+ * A stable identity per entry — none carry a server-issued id. `observedInRound`
+ * is required: a player takes at most one action per round, so (kind, subject,
+ * observedInRound) can never collide even when the same event is traced/scanned
+ * or the same player intercepted more than once across an era's rounds.
+ */
 function revealedKnowledgeKey(entry: RevealedKnowledgeEntry): string {
   switch (entry.kind) {
     case 'PROBABILITY':
     case 'INFLUENCE':
-      return `${entry.kind}-${entry.eventId}`
+      return `${entry.kind}-${entry.eventId}-${entry.observedInRound}`
     case 'HAND_CARD':
       return `${entry.kind}-${entry.targetPlayerId}-${entry.observedInRound}`
   }
