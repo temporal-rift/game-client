@@ -99,6 +99,20 @@ describe('KnowledgePanel', () => {
     expect(screen.getByText('No Expose signatures have been revealed this era.')).toBeInTheDocument()
   })
 
+  it('gives repeated observations of the same event across rounds distinct keys', () => {
+    const view: Extract<KnowledgeView, { kind: 'ready' }> = {
+      ...READY_VIEW,
+      revealedKnowledge: [
+        { kind: 'INFLUENCE', eventId: 'event-1', eventTitle: 'The Delegate Arrives', observedInRound: 1, expiresAtEraEnd: 2, influencerNames: ['Nora'] },
+        { kind: 'INFLUENCE', eventId: 'event-1', eventTitle: 'The Delegate Arrives', observedInRound: 2, expiresAtEraEnd: 2, influencerNames: ['Eli'] },
+      ],
+    }
+    render(<KnowledgePanel view={view} {...NO_ERROR_PROPS} />)
+
+    expect(screen.getByText('Influenced by Nora')).toBeInTheDocument()
+    expect(screen.getByText('Influenced by Eli')).toBeInTheDocument()
+  })
+
   it('surfaces a stalled poll as a retryable alert instead of silently showing stale data', () => {
     const onRefresh = vi.fn()
     render(<KnowledgePanel view={READY_VIEW} error="Could not reach the game server." isRefreshing={false} onRefresh={onRefresh} />)
