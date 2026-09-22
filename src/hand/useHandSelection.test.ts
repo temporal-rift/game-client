@@ -66,4 +66,41 @@ describe('useHandSelection', () => {
     expect(result.current.submitPhase).toMatchObject({ kind: 'rejected', code: '422-11' })
     expect(result.current.selectedCardInstanceIds).toHaveLength(5)
   })
+
+  it('ignores a completion from an offer that a newer authoritative offer replaced', async () => {
+    let resolveSubmission: (() => void) | undefined
+    const fetchFn = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveSubmission = () => resolve(jsonResponse({ gameId: 'game-1', eraNumber: 2, playerId: 'me', status: 'SELECTED' }))
+        }),
+    ) as unknown as AuthenticatedFetchFn
+    const firstGameState = createGameStateSession({ state: stateBody() })
+    const secondGameState = createGameStateSession({
+      state: stateBody({
+        pendingHandSelection: {
+          cards: Array.from({ length: 7 }, (_, index) => ({ cardInstanceId: `replacement-${index + 1}`, cardType: 'SCAN', grade: 'I', dealSlot: index + 1 })),
+          requiredSelectionCount: 5,
+          expiresAt: '2026-10-01T12:00:00Z',
+        },
+      }),
+    })
+    const { result, rerender } = renderHook(
+      ({ gameState }) => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
+      { initialProps: { gameState: firstGameState } },
+    )
+    act(() => ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'].forEach(result.current.toggleCard))
+    const confirmation = result.current.confirm()
+
+    await act(async () => {
+      rerender({ gameState: secondGameState })
+    })
+    resolveSubmission?.()
+    await act(async () => {
+      await confirmation
+    })
+
+    expect(result.current.submitPhase).toEqual({ kind: 'idle' })
+    expect(firstGameState.refresh).not.toHaveBeenCalled()
+  })
 })
