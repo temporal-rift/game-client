@@ -77,6 +77,11 @@ describe('getGameState', () => {
     expect(view.mySpecialBudgets).toEqual([{ specialAction: 'SEAL', remainingUsesThisEra: 1, remainingUsesThisGame: 2 }])
   })
 
+  it('accepts the authoritative hand-selection phase', async () => {
+    const view = await getGameState(vi.fn().mockResolvedValue(jsonResponse({ ...minimalPayload, phase: 'HAND_SELECTION' })), 'https://api.example.test', 'game-1')
+    expect(view.phase).toBe('HAND_SELECTION')
+  })
+
   it('parses a terminal result', async () => {
     const payload = {
       ...minimalPayload,

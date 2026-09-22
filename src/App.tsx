@@ -8,6 +8,7 @@ import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
 import { useActionSubmission } from './action/useActionSubmission'
+import { useHandSelection } from './hand/useHandSelection'
 import { useEffectiveGameId } from './game/effectiveGameId'
 import { useGameState } from './game/useGameState'
 import { useKnowledge } from './knowledge/useKnowledge'
@@ -20,6 +21,7 @@ import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
 import { KnowledgePanel } from './components/KnowledgePanel'
+import { HandSelectionPanel } from './components/HandSelectionPanel'
 import { LobbyPanel } from './components/LobbyPanel'
 import { ParadoxResolutionPanel } from './components/ParadoxResolutionPanel'
 import { ResultsPanel } from './components/ResultsPanel'
@@ -89,6 +91,11 @@ function SignedInView({
     gameState,
     ownPlayerId: lobby.state.ownPlayerId,
   })
+  const handSelection = useHandSelection({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    gameState,
+  })
   const paradox = useParadoxResolution({
     apiBaseUrl: config.apiBaseUrl,
     fetchFn: fetchWithUnauthorized,
@@ -100,6 +107,16 @@ function SignedInView({
     <div>
       <SessionBar identity={authSession.identity} onSignOut={() => void playerSession.signOut()} />
       <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
+      {activeGameId && (
+        <HandSelectionPanel
+          view={handSelection.view}
+          selectedCardInstanceIds={handSelection.selectedCardInstanceIds}
+          submitPhase={handSelection.submitPhase}
+          onToggleCard={handSelection.toggleCard}
+          onConfirm={() => void handSelection.confirm()}
+          onDismissRejection={handSelection.dismissRejection}
+        />
+      )}
       {activeGameId && (
         <ActionPanel
           view={action.view}
