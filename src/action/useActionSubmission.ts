@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionCoordinates, AuthenticatedFetchFn, SpecialAction, SubmitActionRequest } from '../api/actionClient'
 import { ActionApiError, actionErrorMessage, submitAction } from '../api/actionClient'
 import { hasAcceptedSubmission } from '../game/reconciliation'
-import { useGameState } from '../game/useGameState'
+import type { GameStateSession } from '../game/useGameState'
 import { selectActionRoundView, type ActionRoundView } from './actionView'
 
 export type ActionDraft =
@@ -19,9 +19,8 @@ export type SubmitPhase =
 export interface UseActionSubmissionOptions {
   readonly apiBaseUrl: string
   readonly fetchFn: AuthenticatedFetchFn
-  readonly gameId: string | null
+  readonly gameState: GameStateSession
   readonly ownPlayerId: string | null
-  readonly perspectiveKey: string | null
 }
 
 export interface ActionSubmissionSession {
@@ -45,8 +44,7 @@ export interface ActionSubmissionSession {
  * only once acceptance is confirmed.
  */
 export function useActionSubmission(options: UseActionSubmissionOptions): ActionSubmissionSession {
-  const { apiBaseUrl, fetchFn, gameId, ownPlayerId, perspectiveKey } = options
-  const gameState = useGameState({ apiBaseUrl, fetchFn, gameId, perspectiveKey })
+  const { apiBaseUrl, fetchFn, gameState, ownPlayerId } = options
   const [draft, setDraft] = useState<ActionDraft>({ kind: 'none' })
   const [submitPhase, setSubmitPhase] = useState<SubmitPhase>({ kind: 'idle' })
 

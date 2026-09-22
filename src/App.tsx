@@ -8,6 +8,8 @@ import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
 import { useActionSubmission } from './action/useActionSubmission'
+import { useEffectiveGameId } from './game/effectiveGameId'
+import { useGameState } from './game/useGameState'
 import { useKnowledge } from './knowledge/useKnowledge'
 import { useLobby } from './lobby/useLobby'
 import { useParadoxResolution } from './paradox/useParadoxResolution'
@@ -67,32 +69,32 @@ function SignedInView({
     onLobbyIdChange: writeLobbyInvitationToUrl,
   })
   const activeGameId = lobby.state.lastGameId ?? lobby.state.lobby?.gameId ?? null
+  const effectiveGameId = useEffectiveGameId(activeGameId, authSession.identity.subject)
+  const gameState = useGameState({
+    apiBaseUrl: config.apiBaseUrl,
+    fetchFn: fetchWithUnauthorized,
+    gameId: effectiveGameId,
+    perspectiveKey: authSession.identity.subject,
+  })
   const results = useResults({
     apiBaseUrl: config.apiBaseUrl,
     fetchFn: fetchWithUnauthorized,
-    gameId: activeGameId,
+    gameState,
     ownPlayerId: lobby.state.ownPlayerId,
     perspectiveKey: authSession.identity.subject,
   })
   const action = useActionSubmission({
     apiBaseUrl: config.apiBaseUrl,
     fetchFn: fetchWithUnauthorized,
-    gameId: activeGameId,
+    gameState,
     ownPlayerId: lobby.state.ownPlayerId,
-    perspectiveKey: authSession.identity.subject,
   })
   const paradox = useParadoxResolution({
     apiBaseUrl: config.apiBaseUrl,
     fetchFn: fetchWithUnauthorized,
-    gameId: activeGameId,
-    perspectiveKey: authSession.identity.subject,
+    gameState,
   })
-  const knowledge = useKnowledge({
-    apiBaseUrl: config.apiBaseUrl,
-    fetchFn: fetchWithUnauthorized,
-    gameId: activeGameId,
-    perspectiveKey: authSession.identity.subject,
-  })
+  const knowledge = useKnowledge({ gameState })
 
   return (
     <div>

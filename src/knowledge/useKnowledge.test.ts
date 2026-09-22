@@ -1,14 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AuthenticatedFetchFn } from '../api/gameStateClient'
+import { describe, expect, it } from 'vitest'
+import type { GameStateView } from '../api/gameStateClient'
+import { createGameStateSession } from '../game/gameStateTestSupport'
 import { useKnowledge } from './useKnowledge'
 
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
-}
-
-function stateBodyFor(playerName: string): Record<string, unknown> {
-  return {
+function stateBodyFor(playerName: string): GameStateView {
+  const body = {
     gameId: 'game-1',
     eraNumber: 2,
     revision: 5,
@@ -18,37 +15,20 @@ function stateBodyFor(playerName: string): Record<string, unknown> {
     players: [{ playerId: 'p-1', playerName, score: 8, isConnected: true, faction: null }],
     myRevealedIntel: [{ kind: 'INFLUENCE', observedInRound: 2, eventId: 'event-1', influencerPlayerIds: ['p-1'] }],
   }
+  return { ...body, raw: body } as unknown as GameStateView
 }
-
-async function flush(ms = 0): Promise<void> {
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(ms)
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
-const BASE = { apiBaseUrl: 'https://api.example.test', pollIntervalMs: 1000 }
 
 describe('useKnowledge', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true })
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
-  })
-
-  it('reports unavailable before state loads, then derives bands and earned knowledge', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse(stateBodyFor('Nora'))) as unknown as AuthenticatedFetchFn
-    const { result } = renderHook(() => useKnowledge({ ...BASE, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+  it('reports unavailable before state is available', () => {
+    const gameState = createGameStateSession({ state: null, status: { kind: 'loading' } })
+    const { result } = renderHook(() => useKnowledge({ gameState }))
 
     expect(result.current.view.kind).toBe('unavailable')
+  })
 
-    await flush()
+  it('derives bands and earned knowledge once state resolves', () => {
+    const gameState = createGameStateSession({ state: stateBodyFor('Nora') })
+    const { result } = renderHook(() => useKnowledge({ gameState }))
 
     expect(result.current.view.kind).toBe('ready')
     if (result.current.view.kind !== 'ready') return
@@ -57,38 +37,27 @@ describe('useKnowledge', () => {
     ])
   })
 
-  it('does not expose the previous perspective’s entitled knowledge after a perspective switch', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse(stateBodyFor('Nora'))) as unknown as AuthenticatedFetchFn
-    const { result, rerender } = renderHook(
-      ({ perspectiveKey }: { perspectiveKey: string }) => useKnowledge({ ...BASE, fetchFn, gameId: 'game-1', perspectiveKey }),
-      { initialProps: { perspectiveKey: 'alice' } },
-    )
-    await flush()
-    expect(result.current.view.kind).toBe('ready')
+  it('reflects the shared session status, including stalled/failed', () => {
+    const gameState = createGameStateSession({
+      state: stateBodyFor('Nora'),
+      status: { kind: 'stalled', message: 'network down', code: null },
+    })
+    const { result } = renderHook(() => useKnowledge({ gameState }))
 
-    rerender({ perspectiveKey: 'bob' })
-
-    // Before the new perspective's poll resolves, alice's already-reconciled
-    // knowledge must not still be shown under bob's identity.
-    expect(result.current.view.kind).toBe('unavailable')
-
-    await flush()
+    expect(result.current.status).toBe('stalled')
+    expect(result.current.message).toBe('network down')
+    // Entitled knowledge already reconciled stays visible while merely stalled.
     expect(result.current.view.kind).toBe('ready')
   })
 
-  it('never regresses to an older, stale revision', async () => {
-    let call = 0
-    const fetchFn = vi.fn(async () => {
-      call += 1
-      // The second poll returns a lower revision than the first — a stale/duplicate delivery.
-      return jsonResponse({ ...stateBodyFor('Nora'), revision: call === 1 ? 5 : 3 })
-    }) as unknown as AuthenticatedFetchFn
-    const { result } = renderHook(() => useKnowledge({ ...BASE, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
-    await flush()
-    expect(result.current.view.kind).toBe('ready')
+  it('delegates refresh to the shared session', async () => {
+    const gameState = createGameStateSession({ state: stateBodyFor('Nora') })
+    const { result } = renderHook(() => useKnowledge({ gameState }))
 
-    await flush(1000)
-    expect(fetchFn).toHaveBeenCalledTimes(2)
-    expect(result.current.view.kind).toBe('ready')
+    await act(async () => {
+      await result.current.refresh()
+    })
+
+    expect(gameState.refresh).toHaveBeenCalledTimes(1)
   })
 })

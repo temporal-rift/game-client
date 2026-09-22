@@ -2,16 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AuthenticatedFetchFn } from '../api/gameStateClient'
 import { ScoresApiError, getScores, getScoresHistory, scoresErrorMessage } from '../api/scoresClient'
 import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
-import { useGameState } from '../game/useGameState'
+import type { GameStateSession } from '../game/useGameState'
 import { selectResultsView, type ResultsView } from './resultsView'
 
 export interface UseResultsOptions {
   readonly apiBaseUrl: string
   readonly fetchFn: AuthenticatedFetchFn
-  readonly gameId: string | null
+  readonly gameState: GameStateSession
   readonly ownPlayerId: string | null
   readonly perspectiveKey: string | null
-  readonly pollIntervalMs?: number
 }
 
 export interface ResultsSession {
@@ -23,29 +22,6 @@ export interface ResultsSession {
   readonly refresh: () => Promise<void>
 }
 
-const RESULTS_GAME_STORAGE_KEY = 'temporal-rift.private.resultsGameId'
-
-function storageKeyFor(perspectiveKey: string | null): string {
-  return perspectiveKey ? `${RESULTS_GAME_STORAGE_KEY}.${perspectiveKey}` : RESULTS_GAME_STORAGE_KEY
-}
-
-function readStoredGameId(perspectiveKey: string | null): string | null {
-  try {
-    const value = sessionStorage.getItem(storageKeyFor(perspectiveKey))
-    return value && value.length > 0 ? value : null
-  } catch {
-    return null
-  }
-}
-
-function writeStoredGameId(gameId: string, perspectiveKey: string | null): void {
-  try {
-    sessionStorage.setItem(storageKeyFor(perspectiveKey), gameId)
-  } catch {
-    // Reload recovery is best-effort; authoritative state stays server-side.
-  }
-}
-
 /**
  * Owns the reload-safe terminal results read for one participant. Game state
  * stays authoritative through the shared polling layer (freshness by
@@ -55,7 +31,7 @@ function writeStoredGameId(gameId: string, perspectiveKey: string | null): void 
  * same winner set and totals instead of a locally cached guess.
  */
 export function useResults(options: UseResultsOptions): ResultsSession {
-  const { apiBaseUrl, fetchFn, gameId, ownPlayerId, perspectiveKey, pollIntervalMs } = options
+  const { apiBaseUrl, fetchFn, gameState, ownPlayerId, perspectiveKey } = options
   const [scores, setScores] = useState<{ data: ScoresView; perspectiveKey: string | null } | null>(null)
   const [history, setHistory] = useState<{ data: ScoresHistoryView; perspectiveKey: string | null } | null>(null)
   const [scoresError, setScoresError] = useState<{
@@ -80,34 +56,14 @@ export function useResults(options: UseResultsOptions): ResultsSession {
   useEffect(() => {
     perspectiveRef.current = perspectiveKey
   }, [perspectiveKey])
+
+  const state = gameState.state
+  const effectiveGameId = state?.gameId ?? null
   const gameIdRef = useRef<string | null>(null)
-
-  const effectiveGameId = useMemo(() => {
-    if (gameId) {
-      return gameId
-    }
-    return readStoredGameId(perspectiveKey)
-  }, [gameId, perspectiveKey])
-
   useEffect(() => {
     gameIdRef.current = effectiveGameId
   }, [effectiveGameId])
 
-  useEffect(() => {
-    if (gameId) {
-      writeStoredGameId(gameId, perspectiveKey)
-    }
-  }, [gameId, perspectiveKey])
-
-  const gameState = useGameState({
-    apiBaseUrl,
-    fetchFn,
-    gameId: effectiveGameId,
-    perspectiveKey,
-    ...(pollIntervalMs === undefined ? {} : { pollIntervalMs }),
-  })
-
-  const state = gameState.state
   const hasCompleteResult = state?.phase === 'GAME_ENDED' && state.result !== null
 
   const visibleScores =
@@ -159,9 +115,9 @@ export function useResults(options: UseResultsOptions): ResultsSession {
   }, [hasCompleteResult, effectiveGameId, apiBaseUrl, perspectiveKey])
 
   const refresh = useCallback(async () => {
-    const requestGameId = effectiveGameId
     const requestPerspective = perspectiveRef.current
     const next = await gameState.refresh()
+    const requestGameId = next?.gameId ?? null
     const terminal = next?.phase === 'GAME_ENDED' && next.result !== null
     if (!terminal || !requestGameId) {
       return
@@ -192,7 +148,7 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     } finally {
       setActiveRefresh((current) => (current?.seq === seq ? null : current))
     }
-  }, [gameState, effectiveGameId, apiBaseUrl])
+  }, [gameState, apiBaseUrl])
 
   const view = useMemo(
     () => selectResultsView(state, visibleScores, visibleHistory, ownPlayerId),

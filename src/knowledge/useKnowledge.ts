@@ -1,15 +1,9 @@
 import { useCallback, useMemo } from 'react'
-import type { AuthenticatedFetchFn } from '../api/gameStateClient'
-import { useGameState } from '../game/useGameState'
+import type { GameStateSession } from '../game/useGameState'
 import { selectKnowledgeView, type KnowledgeView } from './knowledgeView'
 
 export interface UseKnowledgeOptions {
-  readonly apiBaseUrl: string
-  readonly fetchFn: AuthenticatedFetchFn
-  readonly gameId: string | null
-  /** Identifies the current viewer; entitled knowledge clears whenever this or gameId changes. */
-  readonly perspectiveKey: string | null
-  readonly pollIntervalMs?: number
+  readonly gameState: GameStateSession
 }
 
 export interface KnowledgeSession {
@@ -29,14 +23,7 @@ export interface KnowledgeSession {
  * this view is ever rebuilt from it.
  */
 export function useKnowledge(options: UseKnowledgeOptions): KnowledgeSession {
-  const { apiBaseUrl, fetchFn, gameId, perspectiveKey, pollIntervalMs } = options
-  const gameState = useGameState({
-    apiBaseUrl,
-    fetchFn,
-    gameId,
-    perspectiveKey,
-    ...(pollIntervalMs === undefined ? {} : { pollIntervalMs }),
-  })
+  const { gameState } = options
 
   const view = useMemo(() => selectKnowledgeView(gameState.state), [gameState.state])
 
