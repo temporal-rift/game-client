@@ -116,13 +116,11 @@ describe('usePlayerSession with the generic OIDC SDK', () => {
     await waitFor(() => expect(result.current.status.state).toBe('signed-out'))
   })
 
-  it('signs out through the SDK and clears private caches', async () => {
+  it('signs out through the SDK (preserving its id_token_hint) and clears private caches', async () => {
     const signoutRedirect = vi.fn(async () => {})
-    const removeUser = vi.fn(async () => {})
     sdk.client = stubClient({
       getUser: async () => stubUser({ profile: { sub: 'one' } }),
       signoutRedirect,
-      removeUser,
     })
     sessionStorage.setItem('temporal-rift.private.hand', 'private')
 
@@ -131,7 +129,6 @@ describe('usePlayerSession with the generic OIDC SDK', () => {
 
     await result.current.signOut()
 
-    expect(removeUser).toHaveBeenCalledTimes(1)
     expect(signoutRedirect).toHaveBeenCalledTimes(1)
     expect(sessionStorage.getItem('temporal-rift.private.hand')).toBeNull()
     await waitFor(() => expect(result.current.status.state).toBe('signed-out'))
