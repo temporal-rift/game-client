@@ -16,7 +16,11 @@ export interface AuthenticatedFetchOptions extends RequestInit {
   readonly onUnauthorized?: UnauthorizedHandler
 }
 
-/** Fetches with a fresh SDK Bearer token; never logs the token. */
+/** Fetches with a fresh SDK Bearer token; never logs the token. Callers must
+ * only pass `input` built from the trusted configured API origin (e.g. via
+ * `encodeURIComponent`-escaped path segments) — never a URL assembled from
+ * unescaped or cross-origin-influenced data, which would leak the Bearer
+ * token to whatever origin that URL resolves to. */
 export function createAuthenticatedFetch(getAccessToken: AccessTokenProvider) {
   return async function authenticatedFetch(
     input: RequestInfo | URL,
