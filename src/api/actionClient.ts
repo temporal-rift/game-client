@@ -125,6 +125,13 @@ export interface SubmitActionResult {
   readonly roundClosed: boolean
 }
 
+export interface SubmitHandSelectionResult {
+  readonly gameId: string
+  readonly eraNumber: number
+  readonly playerId: string
+  readonly status: 'SELECTED'
+}
+
 export interface MyRoundSubmissionView {
   readonly submitted: boolean
   readonly actionType: 'CARD' | 'SPECIAL' | null
@@ -189,6 +196,11 @@ function actionsUrl(apiBaseUrl: string, gameId: string, eraNumber: number, round
   return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/eras/${eraNumber}/rounds/${roundNumber}/actions`
 }
 
+function handSelectionUrl(apiBaseUrl: string, gameId: string, eraNumber: number): string {
+  const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
+  return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/eras/${eraNumber}/hand-selection`
+}
+
 function roundStatusUrl(apiBaseUrl: string, gameId: string, eraNumber: number, roundNumber: number): string {
   const normalized = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
   return `${normalized}/api/v1/games/${encodeURIComponent(gameId)}/eras/${eraNumber}/rounds/${roundNumber}/status`
@@ -249,6 +261,18 @@ function parseSubmitActionResult(json: Record<string, unknown>): SubmitActionRes
     playerId: requireString(json['playerId'], 'playerId'),
     status,
     roundClosed: json['roundClosed'] === true,
+  }
+}
+
+function parseSubmitHandSelectionResult(json: Record<string, unknown>): SubmitHandSelectionResult {
+  if (json['status'] !== 'SELECTED') {
+    throw new Error('Hand-selection response carries an unknown status.')
+  }
+  return {
+    gameId: requireString(json['gameId'], 'gameId'),
+    eraNumber: requireNumber(json['eraNumber'], 'eraNumber'),
+    playerId: requireString(json['playerId'], 'playerId'),
+    status: 'SELECTED',
   }
 }
 
@@ -395,6 +419,32 @@ export function submitAction(
   )
 }
 
+/**
+ * Submits exactly five distinct caller-owned cards from the private pending
+ * deal. The server remains authoritative for deal ownership and expiry.
+ */
+export function submitHandSelection(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  keptCardInstanceIds: readonly string[],
+): Promise<SubmitHandSelectionResult> {
+  if (!gameId.trim()) {
+    return Promise.reject(new Error('A game reference is needed to select a hand.'))
+  }
+  if (keptCardInstanceIds.length !== 5 || new Set(keptCardInstanceIds).size !== 5) {
+    return Promise.reject(new Error('Choose exactly five different cards before confirming.'))
+  }
+  return postJson(
+    fetchFn,
+    handSelectionUrl(apiBaseUrl, gameId, eraNumber),
+    { keptCardInstanceIds },
+    parseSubmitHandSelectionResult,
+    'select the hand',
+  )
+}
+
 /** Recovers the caller's own round-submission state; the reload-safe, pollable read. */
 export async function getRoundStatus(
   fetchFn: AuthenticatedFetchFn,
@@ -492,6 +542,10 @@ export function actionErrorMessage(error: unknown): string {
         return 'The round already closed. Reconciling your accepted action.'
       case '409-02':
         return 'You already submitted for this round. Reconciling your accepted action.'
+      case '409-08':
+        return 'The hand-selection window already closed. Reconciling your accepted hand.'
+      case '409-09':
+        return 'Your hand selection is already resolved. Reconciling your accepted hand.'
       case '409-06':
         return 'The paradox-resolution phase already closed. Reconciling your accepted choice.'
       case '409-07':
@@ -514,6 +568,8 @@ export function actionErrorMessage(error: unknown): string {
         return "That target does not belong to the current game's era."
       case '422-10':
         return 'That card is not eligible during this phase.'
+      case '422-11':
+        return 'Choose five different cards from your offered hand.'
       case '422-12':
         return 'That card cannot be played in this specific round.'
       default:

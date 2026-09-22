@@ -5,8 +5,29 @@ import {
   getParadoxResolutionStatus,
   getRoundStatus,
   submitAction,
+  submitHandSelection,
   submitParadoxResolutionCard,
 } from './actionClient'
+
+describe('submitHandSelection', () => {
+  it('posts exactly five private card identities to the hand-selection endpoint', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId: 'game-1', eraNumber: 2, playerId: 'p1', status: 'SELECTED' }))
+
+    await submitHandSelection(fetchFn, 'https://api.example.test', 'game-1', 2, ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'])
+
+    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.example.test/api/v1/games/game-1/eras/2/hand-selection')
+    expect(JSON.parse(init.body as string)).toEqual({ keptCardInstanceIds: ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'] })
+  })
+
+  it('does not submit an incomplete or duplicate selection', async () => {
+    const fetchFn = vi.fn()
+    await expect(submitHandSelection(fetchFn, 'https://api.example.test', 'game-1', 2, ['card-1', 'card-1', 'card-2', 'card-3', 'card-4'])).rejects.toThrow(
+      /exactly five different/i,
+    )
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+})
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -166,6 +187,8 @@ describe('actionErrorMessage', () => {
   it.each([
     ['409-01', /already closed/i],
     ['409-02', /already submitted/i],
+    ['409-08', /hand-selection window/i],
+    ['409-09', /hand selection is already resolved/i],
     ['409-06', /phase already closed/i],
     ['409-07', /already submitted a paradox/i],
     ['409-05', /expose/i],
@@ -177,6 +200,7 @@ describe('actionErrorMessage', () => {
     ['422-05', /does not own/i],
     ['422-06', /current game's era/i],
     ['422-10', /not eligible/i],
+    ['422-11', /five different cards/i],
     ['422-12', /this specific round/i],
   ])('maps code %s to a player-safe message', (code, pattern) => {
     expect(actionErrorMessage(new ActionApiError(422, code, 'raw detail'))).toMatch(pattern)

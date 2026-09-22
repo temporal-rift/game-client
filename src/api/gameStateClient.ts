@@ -17,6 +17,7 @@ import { readJsonSafe, stringField } from './httpJson'
 export type GamePhase =
   | 'LOBBY'
   | 'ERA_START'
+  | 'HAND_SELECTION'
   | 'ACTION_ROUND_1'
   | 'ACTION_ROUND_2'
   | 'ACTION_ROUND_3'
@@ -98,6 +99,7 @@ export class GameStateApiError extends Error {
 const KNOWN_PHASES: readonly GamePhase[] = [
   'LOBBY',
   'ERA_START',
+  'HAND_SELECTION',
   'ACTION_ROUND_1',
   'ACTION_ROUND_2',
   'ACTION_ROUND_3',
