@@ -198,7 +198,7 @@ function App() {
   }
 
   if (connectivity.status === 'checking') {
-    return <p role="status">Checking connection…</p>
+    return <output>Checking connection…</output>
   }
 
   if (connectivity.status === 'failed') {

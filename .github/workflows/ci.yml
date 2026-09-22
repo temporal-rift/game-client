@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: 22.12.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run guard:renderer
@@ -48,7 +48,7 @@ jobs:
         with:
           node-version: 22.12.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master

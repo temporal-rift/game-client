@@ -15,6 +15,16 @@ const STATUS_LABEL: Record<EventBoardEntry['status'], string> = {
   upcoming: 'Upcoming',
 }
 
+function instructionFor(hasSelectedOutcome: boolean, status: EventBoardEntry['status']): string {
+  if (hasSelectedOutcome) {
+    return 'Selected target'
+  }
+  if (status === 'resolved') {
+    return 'Event resolved'
+  }
+  return 'Choose an outcome to target'
+}
+
 export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSelectTarget }: EventBoardProps) {
   return (
     <section className="event-board" aria-labelledby="event-board-heading">
@@ -58,9 +68,7 @@ export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSel
                       )
                     })}
                   </ul>
-                  <p className="event-card-instruction">
-                    {hasSelectedOutcome ? 'Selected target' : event.status === 'resolved' ? 'Event resolved' : 'Choose an outcome to target'}
-                  </p>
+                  <p className="event-card-instruction">{instructionFor(hasSelectedOutcome, event.status)}</p>
                 </div>
               </article>
             </li>
