@@ -10,9 +10,13 @@ Requires Node.js 22.12 or later.
 
 ```bash
 npm install
-cp .env.example .env.local # then fill in a reachable API/OIDC configuration
+cp public/config.js.example public/config.js # then fill in a reachable API/OIDC configuration
 npm run dev
 ```
+
+`public/config.js` is gitignored and read at startup as `window.__APP_CONFIG__` (see
+`src/config/appConfig.ts`) — this is the same mechanism the built image uses in production,
+generated there from environment variables instead of hand-edited.
 
 Other checks, also run in CI:
 
