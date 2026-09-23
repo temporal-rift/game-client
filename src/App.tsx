@@ -168,7 +168,7 @@ function SignedInView({
 }
 
 function App() {
-  const configResult = useMemo(() => resolveAppConfig(import.meta.env), [])
+  const configResult = useMemo(() => resolveAppConfig(window.__APP_CONFIG__ ?? {}), [])
   const config = configResult.ok ? configResult.config : null
   const session = usePlayerSession(config)
   const [connectivity, setConnectivity] = useState<ConnectivityState>({ status: 'checking' })

@@ -18,11 +18,11 @@ vi.mock('oidc-client-ts', () => ({
   WebStorageStateStore: vi.fn(),
 }))
 
-const validEnv = {
-  VITE_API_BASE_URL: 'https://api.example.test',
-  VITE_OIDC_ISSUER_URL: 'https://issuer.example.test',
-  VITE_OIDC_CLIENT_ID: 'game-client',
-  VITE_OIDC_AUDIENCE: 'https://api.example.test',
+const validRuntimeConfig = {
+  apiBaseUrl: 'https://api.example.test',
+  oidcIssuerUrl: 'https://issuer.example.test',
+  oidcClientId: 'game-client',
+  oidcAudience: 'https://api.example.test',
 }
 
 function stubClient(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -39,24 +39,21 @@ function stubClient(overrides: Record<string, unknown> = {}): Record<string, unk
 
 describe('App', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_API_BASE_URL', validEnv.VITE_API_BASE_URL)
-    vi.stubEnv('VITE_OIDC_ISSUER_URL', validEnv.VITE_OIDC_ISSUER_URL)
-    vi.stubEnv('VITE_OIDC_CLIENT_ID', validEnv.VITE_OIDC_CLIENT_ID)
-    vi.stubEnv('VITE_OIDC_AUDIENCE', validEnv.VITE_OIDC_AUDIENCE)
+    window.__APP_CONFIG__ = { ...validRuntimeConfig }
     sessionStorage.clear()
     window.history.replaceState(null, '', '/')
     vi.mocked(UserManager).mockClear()
   })
 
   afterEach(() => {
-    vi.unstubAllEnvs()
+    delete window.__APP_CONFIG__
     vi.unstubAllGlobals()
     sessionStorage.clear()
     window.history.replaceState(null, '', '/')
   })
 
   it('shows a configuration error instead of inventing state when config is missing', async () => {
-    vi.stubEnv('VITE_API_BASE_URL', '')
+    window.__APP_CONFIG__ = { ...validRuntimeConfig, apiBaseUrl: '' }
     sdk.client = stubClient()
 
     render(<App />)
