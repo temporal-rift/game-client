@@ -1,6 +1,6 @@
 window.__APP_CONFIG__ = {
-  apiBaseUrl: "${APP_API_BASE_URL}",
-  oidcIssuerUrl: "${APP_OIDC_ISSUER_URL}",
-  oidcClientId: "${APP_OIDC_CLIENT_ID}",
-  oidcAudience: "${APP_OIDC_AUDIENCE}"
+  apiBaseUrl: "${APP_API_BASE_URL_ESCAPED}",
+  oidcIssuerUrl: "${APP_OIDC_ISSUER_URL_ESCAPED}",
+  oidcClientId: "${APP_OIDC_CLIENT_ID_ESCAPED}",
+  oidcAudience: "${APP_OIDC_AUDIENCE_ESCAPED}"
 };
