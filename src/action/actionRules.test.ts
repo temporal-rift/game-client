@@ -120,6 +120,15 @@ describe('specialActionAvailability', () => {
     expect(result.available).toBe(true)
   })
 
+  it('restricts Obscure to Action Rounds 1 and 2', () => {
+    expect(specialActionAvailability('OBSCURE', { roundNumber: 1, myJammedUntilRound: null, budgets: [] }).available).toBe(true)
+    expect(specialActionAvailability('OBSCURE', { roundNumber: 2, myJammedUntilRound: null, budgets: [] }).available).toBe(true)
+    expect(specialActionAvailability('OBSCURE', { roundNumber: 3, myJammedUntilRound: null, budgets: [] })).toEqual({
+      available: false,
+      reason: 'Obscure is not usable in Action Round 3.',
+    })
+  })
+
   it('restricts Expose to Action Round 2', () => {
     expect(specialActionAvailability('EXPOSE', { roundNumber: 1, myJammedUntilRound: null, budgets: [] }).available).toBe(false)
     expect(specialActionAvailability('EXPOSE', { roundNumber: 3, myJammedUntilRound: null, budgets: [] }).available).toBe(false)
