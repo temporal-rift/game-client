@@ -161,7 +161,7 @@ const SPECIAL_EFFECTS: Readonly<Record<SpecialAction, string>> = {
   FULFILLMENT: 'Declares a target event before resolution for doubled score if it resolves as written.',
   REWRITE: 'Swaps your secret preferred outcome.',
   MIMIC: "Copies another player's card effect played this round.",
-  OBSCURE: 'Hides your faction identity for a round.',
+  OBSCURE: 'Disguises you next round: Intercepts on you show decoy cards and Traces of that round leave you out.',
   THREAD: "Anchors a not-yet-resolved current-era outcome as your chain's next link.",
   TAPESTRY: "Arms protection for your chain's newest link.",
   REWEAVE: 'Discards the newest chain link and re-anchors to a different already-resolved outcome.',
@@ -205,6 +205,9 @@ export function specialActionAvailability(specialAction: SpecialAction, context:
   }
   if (specialAction === 'EXPOSE' && roundNumber !== 2) {
     return { available: false, reason: 'Expose is only usable in Action Round 2.' }
+  }
+  if (specialAction === 'OBSCURE' && roundNumber === 3) {
+    return { available: false, reason: 'Obscure is not usable in Action Round 3.' }
   }
   const budget = budgets.find((entry) => entry.specialAction === specialAction)
   if (budget && budget.remainingUsesThisEra <= 0) {
