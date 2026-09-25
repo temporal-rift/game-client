@@ -39,13 +39,14 @@ export function cardTargetMode(cardType: CardType): TargetMode {
 
 const PLAYER_TARGETING_SPECIALS: ReadonlySet<SpecialAction> = new Set(['CORRUPT', 'EXPOSE'])
 const EVENT_ONLY_SPECIALS: ReadonlySet<SpecialAction> = new Set(['FULFILLMENT'])
-const NO_TARGET_SPECIALS: ReadonlySet<SpecialAction> = new Set(['OBSCURE', 'TAPESTRY', 'REWEAVE'])
+const NO_TARGET_SPECIALS: ReadonlySet<SpecialAction> = new Set(['OBSCURE', 'TAPESTRY'])
 const DECLARATION_ONLY_SPECIALS: ReadonlySet<SpecialAction> = new Set(['RALLY', 'MOMENTUM'])
 
 /**
  * The coordinate shape a special action requires. Thread anchors a
- * not-yet-resolved current-era outcome as its chain's next link — an
- * ordinary `targetEventId`/`targetOutcomeId` pair, exactly like Foresight,
+ * not-yet-resolved current-era outcome as its chain's next link, and Reweave
+ * moves that pending link to another one — each an ordinary
+ * `targetEventId`/`targetOutcomeId` pair, exactly like Foresight,
  * Annihilate, Seal, Rewrite, Mimic and Cascade (verified against
  * game-service's `SpecialActionSubmission.validate()`, which unconditionally
  * rejects `sourceEventId`/`sourceOutcomeId` for every special action).
@@ -164,7 +165,7 @@ const SPECIAL_EFFECTS: Readonly<Record<SpecialAction, string>> = {
   OBSCURE: 'Disguises you next round: Intercepts on you show decoy cards and Traces of that round leave you out.',
   THREAD: "Anchors a not-yet-resolved current-era outcome as your chain's next link.",
   TAPESTRY: "Arms protection for your chain's newest link.",
-  REWEAVE: 'Discards the newest chain link and re-anchors to a different already-resolved outcome.',
+  REWEAVE: 'Moves your pending chain link to a different unresolved current-era outcome; it still has to win.',
   RALLY: 'Declared before Action Round 1, not submitted here.',
   MOMENTUM: 'Declared before Action Round 1, not submitted here.',
   EXPOSE: "Reveals a targeted player's Round 1 probability-shifting signature.",
