@@ -48,14 +48,23 @@ describe('specialTargetMode', () => {
     expect(specialTargetMode('FULFILLMENT')).toBe('EVENT_ONLY')
   })
 
-  it('requires no target for Obscure, Tapestry and Reweave', () => {
-    for (const specialAction of ['OBSCURE', 'TAPESTRY', 'REWEAVE'] as const) {
+  it('requires no target for Obscure and Tapestry', () => {
+    for (const specialAction of ['OBSCURE', 'TAPESTRY'] as const) {
       expect(specialTargetMode(specialAction)).toBe('NONE')
     }
   })
 
-  it('targets an event/outcome pair for Thread, matching the other event-targeting specials', () => {
-    for (const specialAction of ['FORESIGHT', 'ANNIHILATE', 'SEAL', 'REWRITE', 'MIMIC', 'CASCADE', 'THREAD'] as const) {
+  it('targets an event/outcome pair for Thread and Reweave, matching the other event-targeting specials', () => {
+    for (const specialAction of [
+      'FORESIGHT',
+      'ANNIHILATE',
+      'SEAL',
+      'REWRITE',
+      'MIMIC',
+      'CASCADE',
+      'THREAD',
+      'REWEAVE',
+    ] as const) {
       expect(specialTargetMode(specialAction)).toBe('EVENT_OUTCOME')
     }
   })
