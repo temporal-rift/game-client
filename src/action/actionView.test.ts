@@ -132,6 +132,21 @@ describe('selectActionRoundView', () => {
     expect(view.opponents).toEqual([{ playerId: 'them', playerName: 'Them', isConnected: true }])
   })
 
+  it('keeps opponents without a playerName targetable under a seat label', () => {
+    const state = baseState(
+      {},
+      {
+        players: [
+          { playerId: 'me', playerName: null, score: 1, isConnected: true, faction: null },
+          { playerId: 'them', playerName: null, score: 2, isConnected: true, faction: null },
+        ],
+      },
+    )
+    const view = selectActionRoundView(state, 'me')
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.opponents).toEqual([{ playerId: 'them', playerName: 'Player 2', isConnected: true }])
+  })
+
   it('reflects hasSubmitted from an accepted ACTION submission for the current era/round', () => {
     const state = baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, kind: 'ACTION', actionType: 'CARD' }] })
     const view = selectActionRoundView(state)

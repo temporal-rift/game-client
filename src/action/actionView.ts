@@ -187,16 +187,17 @@ function parseOpponents(value: unknown, ownPlayerId: string | null): readonly Op
     return []
   }
   const opponents: OpponentOption[] = []
-  for (const entry of value) {
+  for (const [seat, entry] of value.entries()) {
     if (typeof entry !== 'object' || entry === null) {
       continue
     }
     const source = entry as Record<string, unknown>
     const playerId = stringField(source['playerId'])
-    const playerName = stringField(source['playerName'])
-    if (!playerId || !playerName || playerId === ownPlayerId) {
+    if (!playerId || playerId === ownPlayerId) {
       continue
     }
+    // The contract allows a null playerName; an unnamed opponent must stay targetable.
+    const playerName = stringField(source['playerName']) ?? `Player ${seat + 1}`
     opponents.push({ playerId, playerName, isConnected: source['isConnected'] === true })
   }
   return opponents
