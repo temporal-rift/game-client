@@ -58,6 +58,23 @@ describe('submitAction', () => {
     })
   })
 
+  it('posts a Decoy action with only its disguise category and no target', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ gameId: 'game-1', eraNumber: 2, roundNumber: 1, playerId: 'p1', status: 'SUBMITTED', roundClosed: false }))
+    await submitAction(fetchFn, 'https://api.example.test', 'game-1', 2, 1, {
+      actionType: 'CARD',
+      cardInstanceId: 'card-decoy',
+      coordinates: { disguiseCategory: 'DISRUPTION' },
+    })
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(init.body as string)).toEqual({
+      actionType: 'CARD',
+      cardInstanceId: 'card-decoy',
+      disguiseCategory: 'DISRUPTION',
+    })
+  })
+
   it('omits absent coordinate fields for a no-target special', async () => {
     const fetchFn = vi
       .fn()

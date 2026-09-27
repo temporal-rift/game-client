@@ -8,8 +8,12 @@
  * separately in `actionView.ts` from server-supplied state, not hardcoded.
  */
 
-import type { CardGrade, CardType, Faction, SpecialAction } from '../api/actionClient'
+import { CARD_CATEGORIES } from '../api/actionClient'
+import type { CardCategory, CardGrade, CardType, Faction, SpecialAction } from '../api/actionClient'
 import type { SpecialBudgetView } from '../api/gameStateClient'
+
+export type { CardCategory }
+export { CARD_CATEGORIES }
 
 export type TargetMode =
   | 'EVENT_OUTCOME'
@@ -18,15 +22,20 @@ export type TargetMode =
   | 'PLAYER'
   | 'PLAYER_LIST'
   | 'EVENT_ONLY'
+  | 'DISGUISE'
   | 'NONE'
 
 const PLAYER_TARGETING_CARD_TYPES: ReadonlySet<CardType> = new Set(['REDIRECT', 'AMPLIFY', 'JAM', 'INTERCEPT'])
 const PLAYER_LIST_TARGET_CARD_TYPES: ReadonlySet<CardType> = new Set(['NULLIFY'])
 const TWO_OUTCOME_CARD_TYPES: ReadonlySet<CardType> = new Set(['SWING', 'COLLIDE'])
 const LIST_TARGET_CARD_TYPES: ReadonlySet<CardType> = new Set(['SCAN'])
+const DISGUISE_ONLY_CARD_TYPES: ReadonlySet<CardType> = new Set(['DECOY'])
 
-/** The coordinate shape a card type requires: player, player list, event list, two-outcome, or scalar event+outcome. */
+/** The coordinate shape a card type requires: player, player list, event list, two-outcome, disguise-only, or scalar event+outcome. */
 export function cardTargetMode(cardType: CardType): TargetMode {
+  if (DISGUISE_ONLY_CARD_TYPES.has(cardType)) {
+    return 'DISGUISE'
+  }
   if (PLAYER_TARGETING_CARD_TYPES.has(cardType)) {
     return 'PLAYER'
   }
@@ -129,7 +138,7 @@ const CARD_EFFECTS: Readonly<Record<CardType, string>> = {
   INTERCEPT: "Reveals a targeted player's hand cards; higher grades reveal more.",
   SCAN: 'Reveals exact probabilities for the targeted events; higher grades cover more events.',
   TRACE: "Reveals who influenced an event's probability; higher grades cover more events.",
-  DECOY: 'Plays as a visible action with no probability effect, to mask intent.',
+  DECOY: 'Declares a disguise category with no other effect; the round summary shows the disguise.',
   JAM: "Blocks a targeted player's faction specials for a time.",
   STALL: "Delays an event's resolution.",
   REDIRECT: "Redirects a targeted player's action to a different target.",
@@ -141,6 +150,17 @@ const CARD_EFFECTS: Readonly<Record<CardType, string>> = {
 
 export function cardDisplayName(cardType: CardType): string {
   return CARD_NAMES[cardType]
+}
+
+const CARD_CATEGORY_NAMES: Readonly<Record<CardCategory, string>> = {
+  PROBABILITY_SHIFTER: 'Probability shifter',
+  INFORMATION: 'Information',
+  DISRUPTION: 'Disruption',
+  PARADOX: 'Paradox',
+}
+
+export function cardCategoryDisplayName(category: CardCategory): string {
+  return CARD_CATEGORY_NAMES[category]
 }
 
 export function cardEffectSummary(cardType: CardType): string {

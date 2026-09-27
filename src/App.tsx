@@ -15,6 +15,7 @@ import { useKnowledge } from './knowledge/useKnowledge'
 import { useLobby } from './lobby/useLobby'
 import { useParadoxResolution } from './paradox/useParadoxResolution'
 import { useResults } from './results/useResults'
+import { useRoundSummary } from './round-summary/useRoundSummary'
 import { ActionPanel } from './components/ActionPanel'
 import { AppShell } from './components/AppShell'
 import { AuthErrorNotice } from './components/AuthErrorNotice'
@@ -25,6 +26,7 @@ import { HandSelectionPanel } from './components/HandSelectionPanel'
 import { LobbyPanel } from './components/LobbyPanel'
 import { ParadoxResolutionPanel } from './components/ParadoxResolutionPanel'
 import { ResultsPanel } from './components/ResultsPanel'
+import { RoundSummaryPanel } from './components/RoundSummaryPanel'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
 import { sampleFixturePlayerView } from './fixtures/playerView'
@@ -102,6 +104,7 @@ function SignedInView({
     gameState,
   })
   const knowledge = useKnowledge({ gameState })
+  const roundSummary = useRoundSummary({ gameState })
 
   return (
     <div>
@@ -153,6 +156,7 @@ function SignedInView({
           onRefresh={() => void knowledge.refresh()}
         />
       )}
+      {activeGameId && <RoundSummaryPanel view={roundSummary} />}
       {(activeGameId || results.view.kind !== 'active') && (
         <ResultsPanel
           view={results.view}
