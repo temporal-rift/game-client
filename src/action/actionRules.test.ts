@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { CARD_TYPES, FACTIONS, SPECIAL_ACTIONS } from '../api/actionClient'
 import {
+  cardTargetListSize,
   cardTargetMode,
   FACTION_SPECIALS,
   isDeclarationOnlySpecial,
-  scanEventCountForGrade,
   specialActionAvailability,
   specialTargetMode,
 } from './actionRules'
 
 describe('cardTargetMode', () => {
-  it('targets a single player for the five player-targeting card types', () => {
-    for (const cardType of ['NULLIFY', 'REDIRECT', 'AMPLIFY', 'JAM', 'INTERCEPT'] as const) {
+  it('targets a single player for the four scalar player-targeting card types', () => {
+    for (const cardType of ['REDIRECT', 'AMPLIFY', 'JAM', 'INTERCEPT'] as const) {
       expect(cardTargetMode(cardType)).toBe('PLAYER')
     }
+  })
+
+  it('targets a list of players for Nullify', () => {
+    expect(cardTargetMode('NULLIFY')).toBe('PLAYER_LIST')
   })
 
   it('targets a source/target outcome pair for Swing and Collide', () => {
@@ -33,7 +37,7 @@ describe('cardTargetMode', () => {
 
   it('covers every known card type with exactly one target mode', () => {
     for (const cardType of CARD_TYPES) {
-      expect(['PLAYER', 'EVENT_OUTCOME_PAIR', 'EVENT_LIST', 'EVENT_OUTCOME']).toContain(cardTargetMode(cardType))
+      expect(['PLAYER', 'PLAYER_LIST', 'EVENT_OUTCOME_PAIR', 'EVENT_LIST', 'EVENT_OUTCOME']).toContain(cardTargetMode(cardType))
     }
   })
 })
@@ -104,11 +108,25 @@ describe('FACTION_SPECIALS', () => {
   })
 })
 
-describe('scanEventCountForGrade', () => {
-  it('scales one/two/three events by grade', () => {
-    expect(scanEventCountForGrade('I')).toBe(1)
-    expect(scanEventCountForGrade('II')).toBe(2)
-    expect(scanEventCountForGrade('III')).toBe(3)
+describe('cardTargetListSize', () => {
+  it('scales Scan to one/two/three events by grade', () => {
+    expect(cardTargetListSize('SCAN', 'I')).toBe(1)
+    expect(cardTargetListSize('SCAN', 'II')).toBe(2)
+    expect(cardTargetListSize('SCAN', 'III')).toBe(3)
+  })
+
+  it('sizes Nullify to one player at grade I and two at grade II', () => {
+    expect(cardTargetListSize('NULLIFY', 'I')).toBe(1)
+    expect(cardTargetListSize('NULLIFY', 'II')).toBe(2)
+  })
+
+  it('has no Nullify list size at grade III, which does not exist', () => {
+    expect(cardTargetListSize('NULLIFY', 'III')).toBeNull()
+  })
+
+  it('has no list size for scalar-target cards', () => {
+    expect(cardTargetListSize('PUSH', 'II')).toBeNull()
+    expect(cardTargetListSize('REDIRECT', 'I')).toBeNull()
   })
 })
 

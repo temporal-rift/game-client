@@ -100,6 +100,7 @@ export interface ActionCoordinates {
   readonly sourceOutcomeId?: string
   readonly targetOutcomeId?: string
   readonly targetPlayerId?: string
+  readonly targetPlayerIds?: readonly string[]
 }
 
 export interface SubmitCardActionRequest {
