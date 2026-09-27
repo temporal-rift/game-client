@@ -44,7 +44,8 @@ function selectedNameFor(selected: Selected): string | null {
 
 function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, requiredListSize: number): boolean {
   switch (mode) {
-    case 'EVENT_OUTCOME':      return Boolean(coordinates.targetEventId && coordinates.targetOutcomeId)
+    case 'EVENT_OUTCOME':
+      return Boolean(coordinates.targetEventId && coordinates.targetOutcomeId)
     case 'EVENT_OUTCOME_PAIR':
       return Boolean(
         coordinates.targetEventId &&
@@ -171,6 +172,7 @@ interface PlayerTargetProps {
   readonly coordinates: ActionCoordinates
   readonly onApply: (next: ActionCoordinates) => void
 }
+
 function PlayerTarget({ opponents, coordinates, onApply }: PlayerTargetProps) {
   return (
     <ul aria-label="Players">
@@ -291,6 +293,13 @@ function TargetPicker({
       )}
     </div>
   )
+}
+
+function confirmationStatusText(isComplete: boolean, needsDisguise: boolean): string {
+  if (isComplete) {
+    return needsDisguise ? ' · disguise selected' : ' · target selected'
+  }
+  return needsDisguise ? ' · choose a disguise' : ' · choose a target'
 }
 
 /**
@@ -428,7 +437,7 @@ export function ActionPanel({
         {selectedName ? (
           <p>
             {selectedName}
-            {isComplete ? (needsDisguise ? ' · disguise selected' : ' · target selected') : needsDisguise ? ' · choose a disguise' : ' · choose a target'}
+            {confirmationStatusText(isComplete, needsDisguise)}
           </p>
         ) : (
           <p>Choose an available card or faction special.</p>

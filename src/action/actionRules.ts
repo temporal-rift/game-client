@@ -8,12 +8,11 @@
  * separately in `actionView.ts` from server-supplied state, not hardcoded.
  */
 
-import { CARD_CATEGORIES } from '../api/actionClient'
 import type { CardCategory, CardGrade, CardType, Faction, SpecialAction } from '../api/actionClient'
 import type { SpecialBudgetView } from '../api/gameStateClient'
 
-export type { CardCategory }
-export { CARD_CATEGORIES }
+export type { CardCategory } from '../api/actionClient'
+export { CARD_CATEGORIES } from '../api/actionClient'
 
 export type TargetMode =
   | 'EVENT_OUTCOME'
