@@ -61,6 +61,40 @@ function parseFamily(value: unknown): ActionFamily | null {
   return typeof value === 'string' && KNOWN_FAMILIES.has(value) ? (value as ActionFamily) : null
 }
 
+function isPresent(value: unknown): boolean {
+  return value !== null && value !== undefined
+}
+
+function parseSkippedEntry(source: Record<string, unknown>, playerId: string, playerName: string): RoundSummaryEntry | null {
+  if (isPresent(source['actionFamily']) || isPresent(source['actionCategory'])) {
+    return null
+  }
+  return { kind: 'skipped', playerId, playerName }
+}
+
+function parseSpecialEntry(source: Record<string, unknown>, playerId: string, playerName: string): RoundSummaryEntry | null {
+  if (isPresent(source['actionCategory'])) {
+    return null
+  }
+  return { kind: 'special', playerId, playerName }
+}
+
+function parseCardEntry(source: Record<string, unknown>, playerId: string, playerName: string): RoundSummaryEntry | null {
+  const category = parseCategory(source['actionCategory'])
+  if (!category) {
+    return null
+  }
+  return {
+    kind: 'card',
+    playerId,
+    playerName,
+    actionFamily: 'CARD',
+    familyLabel: 'Card',
+    actionCategory: category,
+    categoryLabel: cardCategoryDisplayName(category),
+  }
+}
+
 function parseEntry(value: unknown, playerLookup: ReadonlyMap<string, string>): RoundSummaryEntry | null {
   if (typeof value !== 'object' || value === null) {
     return null
@@ -72,38 +106,17 @@ function parseEntry(value: unknown, playerLookup: ReadonlyMap<string, string>): 
   }
   const playerName = nameFor(playerId, playerLookup)
   if (source['skipped'] === true) {
-    if (source['actionFamily'] !== null && source['actionFamily'] !== undefined) {
-      return null
-    }
-    if (source['actionCategory'] !== null && source['actionCategory'] !== undefined) {
-      return null
-    }
-    return { kind: 'skipped', playerId, playerName }
+    return parseSkippedEntry(source, playerId, playerName)
   }
   if (source['skipped'] !== false) {
     return null
   }
   const family = parseFamily(source['actionFamily'])
   if (family === 'SPECIAL') {
-    if (source['actionCategory'] !== null && source['actionCategory'] !== undefined) {
-      return null
-    }
-    return { kind: 'special', playerId, playerName }
+    return parseSpecialEntry(source, playerId, playerName)
   }
   if (family === 'CARD') {
-    const category = parseCategory(source['actionCategory'])
-    if (!category) {
-      return null
-    }
-    return {
-      kind: 'card',
-      playerId,
-      playerName,
-      actionFamily: family,
-      familyLabel: 'Card',
-      actionCategory: category,
-      categoryLabel: cardCategoryDisplayName(category),
-    }
+    return parseCardEntry(source, playerId, playerName)
   }
   return null
 }
