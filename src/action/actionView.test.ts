@@ -32,6 +32,7 @@ describe('selectActionRoundView', () => {
         name: 'Push',
         effectSummary: expect.stringContaining('Increases'),
         targetMode: 'EVENT_OUTCOME',
+        targetListSize: null,
         isPlayableThisRound: true,
       },
       {
@@ -41,9 +42,25 @@ describe('selectActionRoundView', () => {
         name: 'Scan',
         effectSummary: expect.stringContaining('Reveals exact probabilities'),
         targetMode: 'EVENT_LIST',
+        targetListSize: 1,
         isPlayableThisRound: false,
       },
     ])
+  })
+
+  it('sizes a Nullify player list by grade and drops a grade that does not exist', () => {
+    const state = baseState(
+      {},
+      {
+        myHand: [
+          { cardInstanceId: 'card-1', cardType: 'NULLIFY', grade: 'II', isPlayableThisRound: true },
+          { cardInstanceId: 'card-2', cardType: 'NULLIFY', grade: 'III', isPlayableThisRound: true },
+        ],
+      },
+    )
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.hand).toEqual([expect.objectContaining({ cardInstanceId: 'card-1', targetMode: 'PLAYER_LIST', targetListSize: 2 })])
   })
 
   it('drops malformed hand entries instead of throwing', () => {

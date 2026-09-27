@@ -13,6 +13,7 @@ import { hasAcceptedSubmission } from '../game/reconciliation'
 import {
   cardDisplayName,
   cardEffectSummary,
+  cardTargetListSize,
   cardTargetMode,
   FACTION_SPECIALS,
   isDeclarationOnlySpecial,
@@ -30,6 +31,8 @@ export interface HandCardOption {
   readonly name: string
   readonly effectSummary: string
   readonly targetMode: TargetMode
+  /** Entries a list target mode names at this card's grade; null for scalar target modes. */
+  readonly targetListSize: number | null
   readonly isPlayableThisRound: boolean
 }
 
@@ -113,13 +116,19 @@ function parseHand(value: unknown): readonly HandCardOption[] {
     if (!cardInstanceId || !cardType || !grade) {
       continue
     }
+    const targetMode = cardTargetMode(cardType)
+    const targetListSize = cardTargetListSize(cardType, grade)
+    if ((targetMode === 'EVENT_LIST' || targetMode === 'PLAYER_LIST') && targetListSize === null) {
+      continue
+    }
     hand.push({
       cardInstanceId,
       cardType,
       grade,
       name: cardDisplayName(cardType),
       effectSummary: cardEffectSummary(cardType),
-      targetMode: cardTargetMode(cardType),
+      targetMode,
+      targetListSize,
       isPlayableThisRound: source['isPlayableThisRound'] === true,
     })
   }

@@ -1,7 +1,7 @@
 import type { ActionCoordinates, SpecialAction } from '../api/actionClient'
 import type { ActionDraft, SubmitPhase } from '../action/useActionSubmission'
 import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption, SpecialActionOption } from '../action/actionView'
-import { scanEventCountForGrade, type TargetMode } from '../action/actionRules'
+import type { TargetMode } from '../action/actionRules'
 
 interface ActionPanelProps {
   readonly view: ActionRoundView
@@ -42,7 +42,7 @@ function selectedNameFor(selected: Selected): string | null {
   return selected.kind === 'card' ? selected.card.name : selected.special.name
 }
 
-function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, requiredEventCount: number): boolean {
+function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, requiredListSize: number): boolean {
   switch (mode) {
     case 'EVENT_OUTCOME':
       return Boolean(coordinates.targetEventId && coordinates.targetOutcomeId)
@@ -54,9 +54,11 @@ function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, r
           coordinates.sourceOutcomeId !== coordinates.targetOutcomeId,
       )
     case 'EVENT_LIST':
-      return (coordinates.targetEventIds?.length ?? 0) === requiredEventCount
+      return (coordinates.targetEventIds?.length ?? 0) === requiredListSize
     case 'PLAYER':
       return Boolean(coordinates.targetPlayerId)
+    case 'PLAYER_LIST':
+      return (coordinates.targetPlayerIds?.length ?? 0) === requiredListSize
     case 'EVENT_ONLY':
       return Boolean(coordinates.targetEventId)
     case 'NONE':
@@ -188,17 +190,59 @@ function PlayerTarget({ opponents, coordinates, onApply }: PlayerTargetProps) {
   )
 }
 
+interface PlayerListTargetProps {
+  readonly opponents: readonly OpponentOption[]
+  readonly requiredPlayerCount: number
+  readonly coordinates: ActionCoordinates
+  readonly onToggle: (playerId: string) => void
+}
+
+function PlayerListTarget({ opponents, requiredPlayerCount, coordinates, onToggle }: PlayerListTargetProps) {
+  const selected = coordinates.targetPlayerIds ?? []
+  return (
+    <>
+      <p>
+        Choose {requiredPlayerCount} player{requiredPlayerCount === 1 ? '' : 's'} ({selected.length}/{requiredPlayerCount} selected)
+      </p>
+      <ul aria-label="Players">
+        {opponents.map((opponent) => (
+          <li key={opponent.playerId}>
+            <button
+              type="button"
+              aria-pressed={selected.includes(opponent.playerId)}
+              disabled={!opponent.isConnected}
+              onClick={() => onToggle(opponent.playerId)}
+            >
+              {opponent.playerName}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
 interface TargetPickerProps {
   readonly targetMode: TargetMode
   readonly activeEvents: readonly ActiveEventOption[]
   readonly opponents: readonly OpponentOption[]
-  readonly requiredEventCount: number
+  readonly requiredListSize: number
   readonly coordinates: ActionCoordinates
   readonly onApply: (next: ActionCoordinates) => void
   readonly onToggleListEvent: (eventId: string) => void
+  readonly onToggleListPlayer: (playerId: string) => void
 }
 
-function TargetPicker({ targetMode, activeEvents, opponents, requiredEventCount, coordinates, onApply, onToggleListEvent }: TargetPickerProps) {
+function TargetPicker({
+  targetMode,
+  activeEvents,
+  opponents,
+  requiredListSize,
+  coordinates,
+  onApply,
+  onToggleListEvent,
+  onToggleListPlayer,
+}: TargetPickerProps) {
   if (targetMode === 'NONE') {
     return null
   }
@@ -209,9 +253,12 @@ function TargetPicker({ targetMode, activeEvents, opponents, requiredEventCount,
         <EventOutcomeTarget targetMode={targetMode} activeEvents={activeEvents} coordinates={coordinates} onApply={onApply} />
       )}
       {targetMode === 'EVENT_LIST' && (
-        <EventListTarget activeEvents={activeEvents} requiredEventCount={requiredEventCount} coordinates={coordinates} onToggle={onToggleListEvent} />
+        <EventListTarget activeEvents={activeEvents} requiredEventCount={requiredListSize} coordinates={coordinates} onToggle={onToggleListEvent} />
       )}
       {targetMode === 'PLAYER' && <PlayerTarget opponents={opponents} coordinates={coordinates} onApply={onApply} />}
+      {targetMode === 'PLAYER_LIST' && (
+        <PlayerListTarget opponents={opponents} requiredPlayerCount={requiredListSize} coordinates={coordinates} onToggle={onToggleListPlayer} />
+      )}
     </div>
   )
 }
@@ -253,7 +300,7 @@ export function ActionPanel({
 
   const selected = selectedOptionFor(view, draft)
   const targetMode = targetModeFor(selected)
-  const requiredEventCount = selected?.kind === 'card' && selected.card.targetMode === 'EVENT_LIST' ? scanEventCountForGrade(selected.card.grade) : 0
+  const requiredListSize = selected?.kind === 'card' ? (selected.card.targetListSize ?? 0) : 0
   const coordinates: ActionCoordinates = draft.kind === 'none' ? {} : draft.coordinates
 
   function applyCoordinates(next: ActionCoordinates): void {
@@ -264,18 +311,22 @@ export function ActionPanel({
     }
   }
 
-  function toggleListEvent(eventId: string): void {
-    const current = coordinates.targetEventIds ?? []
-    if (current.includes(eventId)) {
-      applyCoordinates({ targetEventIds: current.filter((id) => id !== eventId) })
-      return
+  function toggledList(current: readonly string[], id: string): readonly string[] {
+    if (current.includes(id)) {
+      return current.filter((entry) => entry !== id)
     }
-    if (current.length < requiredEventCount) {
-      applyCoordinates({ targetEventIds: [...current, eventId] })
-    }
+    return current.length < requiredListSize ? [...current, id] : current
   }
 
-  const isComplete = selected !== null && targetMode !== null && coordinatesComplete(targetMode, coordinates, requiredEventCount)
+  function toggleListEvent(eventId: string): void {
+    applyCoordinates({ targetEventIds: toggledList(coordinates.targetEventIds ?? [], eventId) })
+  }
+
+  function toggleListPlayer(playerId: string): void {
+    applyCoordinates({ targetPlayerIds: toggledList(coordinates.targetPlayerIds ?? [], playerId) })
+  }
+
+  const isComplete = selected !== null && targetMode !== null && coordinatesComplete(targetMode, coordinates, requiredListSize)
   const selectedName = selectedNameFor(selected)
 
   return (
@@ -333,10 +384,11 @@ export function ActionPanel({
           targetMode={targetMode}
           activeEvents={view.activeEvents}
           opponents={view.opponents}
-          requiredEventCount={requiredEventCount}
+          requiredListSize={requiredListSize}
           coordinates={coordinates}
           onApply={applyCoordinates}
           onToggleListEvent={toggleListEvent}
+          onToggleListPlayer={toggleListPlayer}
         />
       )}
 

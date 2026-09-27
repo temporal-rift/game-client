@@ -19,6 +19,7 @@ const openView: Extract<ActionRoundView, { kind: 'open' }> = {
       name: 'Push',
       effectSummary: "Increases the targeted outcome's probability; higher grades push harder.",
       targetMode: 'EVENT_OUTCOME',
+      targetListSize: null,
       isPlayableThisRound: true,
     },
     {
@@ -28,6 +29,7 @@ const openView: Extract<ActionRoundView, { kind: 'open' }> = {
       name: 'Trace',
       effectSummary: "Reveals who influenced an event's probability; higher grades cover more events.",
       targetMode: 'EVENT_OUTCOME',
+      targetListSize: null,
       isPlayableThisRound: false,
     },
   ],
@@ -160,6 +162,78 @@ describe('ActionPanel', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Succeeds' }))
     expect(onSelectCard).toHaveBeenLastCalledWith('card-1', { targetEventId: 'evt-1', targetOutcomeId: 'out-1' })
+  })
+
+  describe('Nullify player list', () => {
+    const nullifyView: Extract<ActionRoundView, { kind: 'open' }> = {
+      ...openView,
+      hand: [
+        {
+          cardInstanceId: 'card-n',
+          cardType: 'NULLIFY',
+          grade: 'II',
+          name: 'Nullify',
+          effectSummary: "Cancels each named player's eligible action this round; grade II names two players.",
+          targetMode: 'PLAYER_LIST',
+          targetListSize: 2,
+          isPlayableThisRound: true,
+        },
+      ],
+      opponents: [
+        { playerId: 'p-2', playerName: 'Nora', isConnected: true },
+        { playerId: 'p-3', playerName: 'Ivo', isConnected: true },
+        { playerId: 'p-4', playerName: 'Lia', isConnected: true },
+      ],
+    }
+
+    function renderNullify(targetPlayerIds?: readonly string[]) {
+      const onSelectCard = vi.fn()
+      render(
+        <ActionPanel
+          view={nullifyView}
+          draft={{ kind: 'card', cardInstanceId: 'card-n', coordinates: targetPlayerIds ? { targetPlayerIds } : {} }}
+          submitPhase={idlePhase}
+          onSelectCard={onSelectCard}
+          onSelectSpecial={noop}
+          onClearDraft={noop}
+          onConfirm={noop}
+          onDismissRejection={noop}
+        />,
+      )
+      return onSelectCard
+    }
+
+    it('adds a chosen opponent to targetPlayerIds, never a scalar targetPlayerId', async () => {
+      const user = userEvent.setup()
+      const onSelectCard = renderNullify()
+      expect(screen.getByText('Choose 2 players (0/2 selected)')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Nora' }))
+      expect(onSelectCard).toHaveBeenLastCalledWith('card-n', { targetPlayerIds: ['p-2'] })
+    })
+
+    it('keeps a grade II Nullify unconfirmable until two distinct opponents are chosen', () => {
+      renderNullify(['p-2'])
+      expect(screen.getByRole('button', { name: 'Confirm action' })).toBeDisabled()
+    })
+
+    it('enables confirmation once two distinct opponents are chosen', () => {
+      renderNullify(['p-2', 'p-3'])
+      expect(screen.getByRole('button', { name: 'Confirm action' })).toBeEnabled()
+    })
+
+    it('removes an already chosen opponent when chosen again', async () => {
+      const user = userEvent.setup()
+      const onSelectCard = renderNullify(['p-2', 'p-3'])
+      await user.click(screen.getByRole('button', { name: 'Nora' }))
+      expect(onSelectCard).toHaveBeenLastCalledWith('card-n', { targetPlayerIds: ['p-3'] })
+    })
+
+    it('ignores a third opponent once the grade-sized list is full', async () => {
+      const user = userEvent.setup()
+      const onSelectCard = renderNullify(['p-2', 'p-3'])
+      await user.click(screen.getByRole('button', { name: 'Lia' }))
+      expect(onSelectCard).toHaveBeenLastCalledWith('card-n', { targetPlayerIds: ['p-2', 'p-3'] })
+    })
   })
 
   it('shows a rejection message while preserving the current selection', () => {

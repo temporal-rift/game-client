@@ -16,17 +16,22 @@ export type TargetMode =
   | 'EVENT_OUTCOME_PAIR'
   | 'EVENT_LIST'
   | 'PLAYER'
+  | 'PLAYER_LIST'
   | 'EVENT_ONLY'
   | 'NONE'
 
-const PLAYER_TARGETING_CARD_TYPES: ReadonlySet<CardType> = new Set(['NULLIFY', 'REDIRECT', 'AMPLIFY', 'JAM', 'INTERCEPT'])
+const PLAYER_TARGETING_CARD_TYPES: ReadonlySet<CardType> = new Set(['REDIRECT', 'AMPLIFY', 'JAM', 'INTERCEPT'])
+const PLAYER_LIST_TARGET_CARD_TYPES: ReadonlySet<CardType> = new Set(['NULLIFY'])
 const TWO_OUTCOME_CARD_TYPES: ReadonlySet<CardType> = new Set(['SWING', 'COLLIDE'])
 const LIST_TARGET_CARD_TYPES: ReadonlySet<CardType> = new Set(['SCAN'])
 
-/** The coordinate shape a card type requires: player, list, two-outcome, or scalar event+outcome. */
+/** The coordinate shape a card type requires: player, player list, event list, two-outcome, or scalar event+outcome. */
 export function cardTargetMode(cardType: CardType): TargetMode {
   if (PLAYER_TARGETING_CARD_TYPES.has(cardType)) {
     return 'PLAYER'
+  }
+  if (PLAYER_LIST_TARGET_CARD_TYPES.has(cardType)) {
+    return 'PLAYER_LIST'
   }
   if (TWO_OUTCOME_CARD_TYPES.has(cardType)) {
     return 'EVENT_OUTCOME_PAIR'
@@ -77,16 +82,24 @@ export const FACTION_SPECIALS: Readonly<Record<Faction, readonly SpecialAction[]
   ACTIVISTS: ['RALLY', 'EXPOSE', 'MOMENTUM'],
 }
 
-/** Scan's event-count budget scales with grade: I names one, II two, III all three active events. */
-export function scanEventCountForGrade(grade: CardGrade): number {
-  switch (grade) {
-    case 'I':
-      return 1
-    case 'II':
-      return 2
-    case 'III':
-      return 3
+/** Scan names one event per grade step: I one, II two, III all three active events. */
+const SCAN_EVENT_COUNT: Readonly<Record<CardGrade, number>> = { I: 1, II: 2, III: 3 }
+
+/** Nullify names one opponent at grade I and two distinct opponents at grade II; it has no grade III. */
+const NULLIFY_PLAYER_COUNT: Readonly<Partial<Record<CardGrade, number>>> = { I: 1, II: 2 }
+
+/**
+ * How many entries a list-targeting card names at its grade, or null when the
+ * card does not target a list or does not exist at that grade.
+ */
+export function cardTargetListSize(cardType: CardType, grade: CardGrade): number | null {
+  if (LIST_TARGET_CARD_TYPES.has(cardType)) {
+    return SCAN_EVENT_COUNT[grade]
   }
+  if (PLAYER_LIST_TARGET_CARD_TYPES.has(cardType)) {
+    return NULLIFY_PLAYER_COUNT[grade] ?? null
+  }
+  return null
 }
 
 const CARD_NAMES: Readonly<Record<CardType, string>> = {
@@ -120,7 +133,7 @@ const CARD_EFFECTS: Readonly<Record<CardType, string>> = {
   JAM: "Blocks a targeted player's faction specials for a time.",
   STALL: "Delays an event's resolution.",
   REDIRECT: "Redirects a targeted player's action to a different target.",
-  NULLIFY: "Cancels a targeted player's eligible card played this round; higher grades cancel more.",
+  NULLIFY: "Cancels each named player's eligible action this round; grade II names two players.",
   COLLIDE: 'Brings two outcomes on the same event closer together in probability.',
   STABILIZE: 'Reactive paradox-resolution card; stabilizes a contested outcome.',
   DETONATE: 'Reactive paradox-resolution card; forces a contested outcome to resolve.',
