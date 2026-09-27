@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CARD_TYPES, FACTIONS, SPECIAL_ACTIONS } from '../api/actionClient'
 import {
+  CARD_CATEGORIES,
+  cardCategoryDisplayName,
   cardTargetListSize,
   cardTargetMode,
   FACTION_SPECIALS,
@@ -29,15 +31,26 @@ describe('cardTargetMode', () => {
     expect(cardTargetMode('SCAN')).toBe('EVENT_LIST')
   })
 
+  it('targets a disguise category with no target for Decoy', () => {
+    expect(cardTargetMode('DECOY')).toBe('DISGUISE')
+  })
+
   it('targets a scalar event/outcome for every other card type', () => {
-    for (const cardType of ['PUSH', 'SUPPRESS', 'TRACE', 'DECOY', 'STALL', 'STABILIZE', 'DETONATE'] as const) {
+    for (const cardType of ['PUSH', 'SUPPRESS', 'TRACE', 'STALL', 'STABILIZE', 'DETONATE'] as const) {
       expect(cardTargetMode(cardType)).toBe('EVENT_OUTCOME')
     }
   })
 
   it('covers every known card type with exactly one target mode', () => {
     for (const cardType of CARD_TYPES) {
-      expect(['PLAYER', 'PLAYER_LIST', 'EVENT_OUTCOME_PAIR', 'EVENT_LIST', 'EVENT_OUTCOME']).toContain(cardTargetMode(cardType))
+      expect(['PLAYER', 'PLAYER_LIST', 'EVENT_OUTCOME_PAIR', 'EVENT_LIST', 'EVENT_OUTCOME', 'DISGUISE']).toContain(cardTargetMode(cardType))
+    }
+  })
+
+  it('names every disguise category for the Decoy picker', () => {
+    expect(CARD_CATEGORIES).toEqual(['PROBABILITY_SHIFTER', 'INFORMATION', 'DISRUPTION', 'PARADOX'])
+    for (const category of CARD_CATEGORIES) {
+      expect(cardCategoryDisplayName(category).length).toBeGreaterThan(0)
     }
   })
 })

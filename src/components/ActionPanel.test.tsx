@@ -32,6 +32,16 @@ const openView: Extract<ActionRoundView, { kind: 'open' }> = {
       targetListSize: null,
       isPlayableThisRound: false,
     },
+    {
+      cardInstanceId: 'card-decoy',
+      cardType: 'DECOY',
+      grade: 'I',
+      name: 'Decoy',
+      effectSummary: 'Declares a disguise category with no other effect; the round summary shows the disguise.',
+      targetMode: 'DISGUISE',
+      targetListSize: null,
+      isPlayableThisRound: true,
+    },
   ],
   specials: [
     {
@@ -270,5 +280,62 @@ describe('ActionPanel', () => {
     )
     expect(screen.getByText(/Your action is submitted/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Push/ })).not.toBeInTheDocument()
+  })
+
+  it('asks for a disguise category and no target when Decoy is selected', async () => {
+    const user = userEvent.setup()
+    const onSelectCard = vi.fn()
+    const { rerender } = render(
+      <ActionPanel
+        view={openView}
+        draft={idleDraft}
+        submitPhase={idlePhase}
+        onSelectCard={onSelectCard}
+        onSelectSpecial={noop}
+        onClearDraft={noop}
+        onConfirm={noop}
+        onDismissRejection={noop}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /Decoy · Grade I/ }))
+    expect(onSelectCard).toHaveBeenCalledWith('card-decoy', {})
+
+    rerender(
+      <ActionPanel
+        view={openView}
+        draft={{ kind: 'card', cardInstanceId: 'card-decoy', coordinates: {} }}
+        submitPhase={idlePhase}
+        onSelectCard={onSelectCard}
+        onSelectSpecial={noop}
+        onClearDraft={noop}
+        onConfirm={noop}
+        onDismissRejection={noop}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Confirm action' })).toBeDisabled()
+    expect(screen.getByLabelText('Choose a disguise')).toBeInTheDocument()
+    expect(screen.getAllByText(/choose a disguise/i)).toHaveLength(3)
+    expect(screen.queryByLabelText('Choose a target')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Disruption' }))
+    expect(onSelectCard).toHaveBeenLastCalledWith('card-decoy', { disguiseCategory: 'DISRUPTION' })
+  })
+
+  it('enables confirm once a Decoy disguise is chosen', () => {
+    render(
+      <ActionPanel
+        view={openView}
+        draft={{ kind: 'card', cardInstanceId: 'card-decoy', coordinates: { disguiseCategory: 'PARADOX' } }}
+        submitPhase={idlePhase}
+        onSelectCard={noop}
+        onSelectSpecial={noop}
+        onClearDraft={noop}
+        onConfirm={noop}
+        onDismissRejection={noop}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Confirm action' })).toBeEnabled()
+    expect(screen.getByText(/disguise selected/i)).toBeInTheDocument()
   })
 })

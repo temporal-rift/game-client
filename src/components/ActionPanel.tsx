@@ -1,7 +1,7 @@
-import type { ActionCoordinates, SpecialAction } from '../api/actionClient'
+import type { ActionCoordinates, CardCategory, SpecialAction } from '../api/actionClient'
 import type { ActionDraft, SubmitPhase } from '../action/useActionSubmission'
 import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption, SpecialActionOption } from '../action/actionView'
-import type { TargetMode } from '../action/actionRules'
+import { CARD_CATEGORIES, cardCategoryDisplayName, type TargetMode } from '../action/actionRules'
 
 interface ActionPanelProps {
   readonly view: ActionRoundView
@@ -44,8 +44,7 @@ function selectedNameFor(selected: Selected): string | null {
 
 function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, requiredListSize: number): boolean {
   switch (mode) {
-    case 'EVENT_OUTCOME':
-      return Boolean(coordinates.targetEventId && coordinates.targetOutcomeId)
+    case 'EVENT_OUTCOME':      return Boolean(coordinates.targetEventId && coordinates.targetOutcomeId)
     case 'EVENT_OUTCOME_PAIR':
       return Boolean(
         coordinates.targetEventId &&
@@ -61,6 +60,8 @@ function coordinatesComplete(mode: TargetMode, coordinates: ActionCoordinates, r
       return (coordinates.targetPlayerIds?.length ?? 0) === requiredListSize
     case 'EVENT_ONLY':
       return Boolean(coordinates.targetEventId)
+    case 'DISGUISE':
+      return coordinates.disguiseCategory !== undefined && (CARD_CATEGORIES as readonly string[]).includes(coordinates.disguiseCategory)
     case 'NONE':
       return true
   }
@@ -170,7 +171,6 @@ interface PlayerTargetProps {
   readonly coordinates: ActionCoordinates
   readonly onApply: (next: ActionCoordinates) => void
 }
-
 function PlayerTarget({ opponents, coordinates, onApply }: PlayerTargetProps) {
   return (
     <ul aria-label="Players">
@@ -222,6 +222,28 @@ function PlayerListTarget({ opponents, requiredPlayerCount, coordinates, onToggl
   )
 }
 
+interface DisguiseCategoryTargetProps {
+  readonly coordinates: ActionCoordinates
+  readonly onApply: (next: ActionCoordinates) => void
+}
+
+function DisguiseCategoryTarget({ coordinates, onApply }: DisguiseCategoryTargetProps) {
+  return (
+    <>
+      <p>Choose a disguise category shown in the round summary instead of this card.</p>
+      <ul aria-label="Disguise categories">
+        {CARD_CATEGORIES.map((category: CardCategory) => (
+          <li key={category}>
+            <button type="button" aria-pressed={coordinates.disguiseCategory === category} onClick={() => onApply({ disguiseCategory: category })}>
+              {cardCategoryDisplayName(category)}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
 interface TargetPickerProps {
   readonly targetMode: TargetMode
   readonly activeEvents: readonly ActiveEventOption[]
@@ -245,6 +267,14 @@ function TargetPicker({
 }: TargetPickerProps) {
   if (targetMode === 'NONE') {
     return null
+  }
+  if (targetMode === 'DISGUISE') {
+    return (
+      <div aria-label="Choose a disguise">
+        <h3>Choose a disguise</h3>
+        <DisguiseCategoryTarget coordinates={coordinates} onApply={onApply} />
+      </div>
+    )
   }
   return (
     <div aria-label="Choose a target">
@@ -328,6 +358,7 @@ export function ActionPanel({
 
   const isComplete = selected !== null && targetMode !== null && coordinatesComplete(targetMode, coordinates, requiredListSize)
   const selectedName = selectedNameFor(selected)
+  const needsDisguise = targetMode === 'DISGUISE'
 
   return (
     <section aria-label="Your action">
@@ -397,7 +428,7 @@ export function ActionPanel({
         {selectedName ? (
           <p>
             {selectedName}
-            {isComplete ? ' · target selected' : ' · choose a target'}
+            {isComplete ? (needsDisguise ? ' · disguise selected' : ' · target selected') : needsDisguise ? ' · choose a disguise' : ' · choose a target'}
           </p>
         ) : (
           <p>Choose an available card or faction special.</p>

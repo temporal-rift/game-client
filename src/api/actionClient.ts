@@ -30,6 +30,10 @@ export type CardType =
 
 export type CardGrade = 'I' | 'II' | 'III'
 
+export type CardCategory = 'PROBABILITY_SHIFTER' | 'INFORMATION' | 'DISRUPTION' | 'PARADOX'
+
+export const CARD_CATEGORIES: readonly CardCategory[] = ['PROBABILITY_SHIFTER', 'INFORMATION', 'DISRUPTION', 'PARADOX']
+
 export type SpecialAction =
   | 'ANNIHILATE'
   | 'CORRUPT'
@@ -101,6 +105,7 @@ export interface ActionCoordinates {
   readonly targetOutcomeId?: string
   readonly targetPlayerId?: string
   readonly targetPlayerIds?: readonly string[]
+  readonly disguiseCategory?: CardCategory
 }
 
 export interface SubmitCardActionRequest {
