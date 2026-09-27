@@ -61,6 +61,18 @@ describe('selectRoundSummaryView', () => {
     ])
   })
 
+  it('drops a skipped entry carrying category or family as malformed', () => {
+    const view = selectRoundSummaryView(
+      summaryState([
+        { playerId: 'p-1', actionCategory: 'INFORMATION', actionFamily: 'CARD', skipped: true },
+        { playerId: 'p-2', actionCategory: null, actionFamily: 'SPECIAL', skipped: true },
+        { playerId: 'p-3', actionCategory: null, actionFamily: null, skipped: true },
+      ]),
+    )
+    if (view.kind !== 'ready') throw new Error('expected ready view')
+    expect(view.entries.map((entry) => entry.playerId)).toEqual(['p-3'])
+  })
+
   it('drops malformed entries instead of throwing', () => {
     const view = selectRoundSummaryView(
       summaryState([

@@ -62,6 +62,30 @@ describe('useActionSubmission', () => {
     })
   })
 
+  it('submits a Decoy draft with only its disguise category and no target', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ gameId: 'game-1', eraNumber: 2, roundNumber: 1, playerId: 'me', status: 'SUBMITTED', roundClosed: false }),
+    )
+    const fetchFn = fetchMock as unknown as AuthenticatedFetchFn
+    const gameState = createGameStateSession({ state: stateBody() })
+
+    const { result } = renderHook(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+
+    act(() => result.current.selectCard('card-1', { disguiseCategory: 'DISRUPTION' }))
+
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    expect(result.current.submitPhase).toEqual({ kind: 'submitted' })
+    const postCall = fetchMock.mock.calls[0]
+    expect(JSON.parse((postCall[1] as RequestInit).body as string)).toEqual({
+      actionType: 'CARD',
+      cardInstanceId: 'card-1',
+      disguiseCategory: 'DISRUPTION',
+    })
+  })
+
   it('recovers acceptance after a lost response instead of reporting failure', async () => {
     const fetchFn = vi.fn(async () => {
       throw new TypeError('network down')

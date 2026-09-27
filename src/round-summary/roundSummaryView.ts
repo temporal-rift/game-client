@@ -14,6 +14,7 @@
 import { cardCategoryDisplayName } from '../action/actionRules'
 import type { CardCategory } from '../api/actionClient'
 import type { GameStateView } from '../api/gameStateClient'
+import { nameFor, playerNameLookup } from '../game/playerNames'
 import { stringField } from '../api/httpJson'
 
 export type ActionFamily = 'CARD' | 'SPECIAL'
@@ -60,30 +61,6 @@ function parseFamily(value: unknown): ActionFamily | null {
   return typeof value === 'string' && KNOWN_FAMILIES.has(value) ? (value as ActionFamily) : null
 }
 
-function playerNameLookup(raw: Record<string, unknown>): ReadonlyMap<string, string> {
-  const lookup = new Map<string, string>()
-  const value = raw['players']
-  if (!Array.isArray(value)) {
-    return lookup
-  }
-  for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
-    }
-    const source = entry as Record<string, unknown>
-    const playerId = stringField(source['playerId'])
-    const playerName = stringField(source['playerName'])
-    if (playerId && playerName) {
-      lookup.set(playerId, playerName)
-    }
-  }
-  return lookup
-}
-
-function nameFor(playerId: string, lookup: ReadonlyMap<string, string>): string {
-  return lookup.get(playerId) ?? `Player ${playerId.slice(0, 8)}`
-}
-
 function parseEntry(value: unknown, playerLookup: ReadonlyMap<string, string>): RoundSummaryEntry | null {
   if (typeof value !== 'object' || value === null) {
     return null
@@ -95,6 +72,12 @@ function parseEntry(value: unknown, playerLookup: ReadonlyMap<string, string>): 
   }
   const playerName = nameFor(playerId, playerLookup)
   if (source['skipped'] === true) {
+    if (source['actionFamily'] !== null && source['actionFamily'] !== undefined) {
+      return null
+    }
+    if (source['actionCategory'] !== null && source['actionCategory'] !== undefined) {
+      return null
+    }
     return { kind: 'skipped', playerId, playerName }
   }
   if (source['skipped'] !== false) {
