@@ -109,6 +109,58 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in to play' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Temporal Rift' })).not.toBeInTheDocument()
   })
+
+  it('keeps the lobby on its own page while no game is active', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
+    sdk.client = stubClient({
+      getUser: async () => ({ profile: { sub: 'one', preferred_username: 'player-one' }, access_token: 'token' }),
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Game lobby' })).toBeInTheDocument()
+    expect(screen.queryByText('Sample board · actions are disabled')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Return to game' })).not.toBeInTheDocument()
+  })
+
+  it('opens the game on its own page once the lobby has started, with the lobby one click away', async () => {
+    window.history.replaceState(null, '', '/?game=lobby-1')
+    sessionStorage.setItem('temporal-rift.private.playerId', 'p1')
+    const startedLobby = {
+      lobbyId: 'lobby-1',
+      gameId: 'game-1',
+      hostPlayerId: 'p1',
+      currentPlayerId: 'p1',
+      status: 'STARTED',
+      members: [{ playerId: 'p1', playerName: 'player-one', isHost: true }],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).includes('/api/v1/lobbies/lobby-1')
+          ? new Response(JSON.stringify(startedLobby), { status: 200, headers: { 'Content-Type': 'application/json' } })
+          : new Response(null, { status: 200 }),
+      ),
+    )
+    sdk.client = stubClient({
+      getUser: async () => ({ profile: { sub: 'one', preferred_username: 'player-one' }, access_token: 'token' }),
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: 'Back to lobby' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Game lobby' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back to lobby' }))
+
+    expect(screen.getByRole('heading', { name: 'Game lobby' })).toBeInTheDocument()
+    expect(screen.queryByText('Sample board · actions are disabled')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Return to game' }))
+
+    expect(screen.getByRole('button', { name: 'Back to lobby' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Game lobby' })).not.toBeInTheDocument()
+  })
 })
 
 describe('player session components', () => {

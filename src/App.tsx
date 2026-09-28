@@ -29,6 +29,7 @@ import { ResultsPanel } from './components/ResultsPanel'
 import { RoundSummaryPanel } from './components/RoundSummaryPanel'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
+import { RiftMark } from './components/icons'
 import { sampleFixturePlayerView } from './fixtures/playerView'
 
 type ConnectivityState =
@@ -106,14 +107,51 @@ function SignedInView({
   const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
 
+  // The lobby and the game board are separate pages: the board takes over once a
+  // game exists, and the lobby stays one click away without sitting on top of it.
+  const hasGame = activeGameId !== null || results.view.kind !== 'active'
+  const gameKey = effectiveGameId ?? ''
+  const [lobbyOpenedFor, setLobbyOpenedFor] = useState<string | null>(null)
+  const sessionBar = (
+    <SessionBar
+      identity={authSession.identity}
+      faction={gameState.state?.myFaction ?? null}
+      onSignOut={() => void playerSession.signOut()}
+    />
+  )
+
+  if (!hasGame || lobbyOpenedFor === gameKey) {
+    return (
+      <div className="lobby-page">
+        <header className="page-bar">
+          <div className="brand-lockup">
+            <RiftMark />
+            <h1>Temporal Rift</h1>
+          </div>
+          <div className="page-bar-actions">
+            {hasGame && (
+              <button type="button" onClick={() => setLobbyOpenedFor(null)}>
+                Return to game
+              </button>
+            )}
+            {sessionBar}
+          </div>
+        </header>
+        <main className="lobby-card">
+          <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
+        </main>
+      </div>
+    )
+  }
+
   return (
-    <div>
-      <SessionBar
-        identity={authSession.identity}
-        faction={gameState.state?.myFaction ?? null}
-        onSignOut={() => void playerSession.signOut()}
-      />
-      <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
+    <div className="game-page">
+      <nav className="page-bar game-page-bar" aria-label="Game navigation">
+        <button type="button" onClick={() => setLobbyOpenedFor(gameKey)}>
+          Back to lobby
+        </button>
+        {sessionBar}
+      </nav>
       {effectiveGameId && (
         <HandSelectionPanel
           view={handSelection.view}
@@ -157,15 +195,13 @@ function SignedInView({
         />
       )}
       {activeGameId && <RoundSummaryPanel view={roundSummary} />}
-      {(activeGameId || results.view.kind !== 'active') && (
-        <ResultsPanel
-          view={results.view}
-          ownPlayerId={lobby.state.ownPlayerId}
-          error={results.message}
-          isRefreshing={results.isRefreshing}
-          onRefresh={() => void results.refresh()}
-        />
-      )}
+      <ResultsPanel
+        view={results.view}
+        ownPlayerId={lobby.state.ownPlayerId}
+        error={results.message}
+        isRefreshing={results.isRefreshing}
+        onRefresh={() => void results.refresh()}
+      />
       <AppShell key={authSession.identity.subject} playerView={sampleFixturePlayerView} isSampleData />
     </div>
   )
