@@ -73,11 +73,12 @@ describe('usePlayerSession with the generic OIDC SDK', () => {
     window.history.replaceState(null, '', '/')
   })
 
-  it('completes a callback, restores the invitation and cleans the URL', async () => {
+  it('completes the callback and returns to the page sign-in started from', async () => {
     sdk.client = stubClient({
-      signinRedirectCallback: async () => stubUser({ state: { gameId: 'game-9' }, profile: { sub: 'fresh', preferred_username: 'fresh' } }),
+      signinRedirectCallback: async () =>
+        stubUser({ state: { returnTo: '/games/game-9' }, profile: { sub: 'fresh', preferred_username: 'fresh' } }),
     })
-    window.history.replaceState(null, '', '/?code=code-a&state=state-a')
+    window.history.replaceState(null, '', '/auth/callback?code=code-a&state=state-a')
 
     const { result } = renderHook(() => usePlayerSession(config))
 
@@ -86,8 +87,21 @@ describe('usePlayerSession with the generic OIDC SDK', () => {
     if (status.state === 'signed-in') {
       expect(status.session.identity.subject).toBe('fresh')
     }
-    expect(window.location.search).toContain('game=game-9')
+    expect(window.location.pathname).toBe('/games/game-9')
     expect(window.location.search).not.toContain('code=')
+  })
+
+  it('returns home instead of following an unsafe return path', async () => {
+    sdk.client = stubClient({
+      signinRedirectCallback: async () => stubUser({ state: { returnTo: '//evil.example/steal' } }),
+    })
+    window.history.replaceState(null, '', '/auth/callback?code=code-c&state=state-c')
+
+    const { result } = renderHook(() => usePlayerSession(config))
+
+    await waitFor(() => expect(result.current.status.state).toBe('signed-in'))
+    expect(window.location.pathname).toBe('/')
+    expect(window.location.search).toBe('')
   })
 
   it('reports a denied login without fabricating a player', async () => {
@@ -96,7 +110,7 @@ describe('usePlayerSession with the generic OIDC SDK', () => {
         throw { error: 'access_denied' }
       },
     })
-    window.history.replaceState(null, '', '/?error=access_denied&state=state-b')
+    window.history.replaceState(null, '', '/auth/callback?error=access_denied&state=state-b')
 
     const { result } = renderHook(() => usePlayerSession(config))
 
@@ -105,7 +119,42 @@ describe('usePlayerSession with the generic OIDC SDK', () => {
     if (status.state === 'error') {
       expect(status.message).toMatch(/denied/i)
     }
+    expect(window.location.pathname).toBe('/')
     expect(window.location.search).not.toContain('error=')
+  })
+
+  it('only completes callbacks on the callback page', async () => {
+    const signinRedirectCallback = vi.fn(async () => stubUser())
+    sdk.client = stubClient({ signinRedirectCallback })
+    window.history.replaceState(null, '', '/games/game-1?code=code-d&state=state-d')
+
+    const { result } = renderHook(() => usePlayerSession(config))
+
+    await waitFor(() => expect(result.current.status.state).toBe('signed-out'))
+    expect(signinRedirectCallback).not.toHaveBeenCalled()
+  })
+
+  it('leaves a stray visit to the callback page for home', async () => {
+    sdk.client = stubClient({ getUser: async () => stubUser({ profile: { sub: 'one' } }) })
+    window.history.replaceState(null, '', '/auth/callback')
+
+    const { result } = renderHook(() => usePlayerSession(config))
+
+    await waitFor(() => expect(result.current.status.state).toBe('signed-in'))
+    expect(window.location.pathname).toBe('/')
+  })
+
+  it('signs in carrying the current page as the return path', async () => {
+    const signinRedirect = vi.fn(async () => {})
+    sdk.client = stubClient({ signinRedirect })
+    window.history.replaceState(null, '', '/lobbies/lobby-4')
+
+    const { result } = renderHook(() => usePlayerSession(config))
+    await waitFor(() => expect(result.current.status.state).toBe('signed-out'))
+
+    await result.current.signIn()
+
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { returnTo: '/lobbies/lobby-4' } })
   })
 
   it('stays signed out when the SDK has no user', async () => {

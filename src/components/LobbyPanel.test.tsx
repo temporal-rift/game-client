@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { LobbyPanel } from './LobbyPanel'
 import type { LobbySession } from '../lobby/useLobby'
@@ -42,7 +43,7 @@ function session(overrides: Partial<LobbySession['state']> = {}, actions: Partia
 
 describe('LobbyPanel', () => {
   it('shows a shareable invitation with membership and host state after create', () => {
-    render(<LobbyPanel lobby={session()} defaultPlayerName="host-one" />)
+    render(<LobbyPanel lobby={session()} defaultPlayerName="host-one" invitedLobbyId={null} />)
 
     expect(screen.getByRole('region', { name: 'Game lobby' })).toBeInTheDocument()
     expect(screen.getAllByText(/lobby-1/).length).toBeGreaterThan(0)
@@ -58,7 +59,7 @@ describe('LobbyPanel', () => {
       { lobby: lobbyView(), ownPlayerId: 'player-2', isHost: false, canStart: false },
       { start },
     )
-    const { rerender } = render(<LobbyPanel lobby={guest} defaultPlayerName="guest-two" />)
+    const { rerender } = render(<LobbyPanel lobby={guest} defaultPlayerName="guest-two" invitedLobbyId={null} />)
 
     expect(screen.getByText(/only the .*host can start/i)).toBeInTheDocument()
 
@@ -77,7 +78,7 @@ describe('LobbyPanel', () => {
       },
       { start },
     )
-    rerender(<LobbyPanel lobby={hostReady} defaultPlayerName="host-one" />)
+    rerender(<LobbyPanel lobby={hostReady} defaultPlayerName="host-one" invitedLobbyId={null} />)
 
     await userEvent.click(screen.getByRole('button', { name: /start game/i }))
     expect(start).toHaveBeenCalledTimes(1)
@@ -93,7 +94,7 @@ describe('LobbyPanel', () => {
       },
       { start },
     )
-    render(<LobbyPanel lobby={hostTooFew} defaultPlayerName="host-one" />)
+    render(<LobbyPanel lobby={hostTooFew} defaultPlayerName="host-one" invitedLobbyId={null} />)
 
     expect(screen.getByRole('button', { name: /start game/i })).toBeDisabled()
   })
@@ -103,7 +104,7 @@ describe('LobbyPanel', () => {
       phase: { kind: 'failed', message: 'This lobby is full (5 players maximum).', code: '422-01' },
       lobby: lobbyView(),
     })
-    render(<LobbyPanel lobby={failed} defaultPlayerName="guest" />)
+    render(<LobbyPanel lobby={failed} defaultPlayerName="guest" invitedLobbyId={null} />)
 
     expect(screen.getByRole('alert')).toHaveTextContent(/full.*5 players/i)
     expect(screen.getByText('host-one')).toBeInTheDocument()
@@ -121,8 +122,7 @@ describe('LobbyPanel', () => {
       refresh: vi.fn(),
       dismissError: vi.fn(),
     }
-    window.history.replaceState(null, '', '/?game=lobby-9')
-    render(<LobbyPanel lobby={idle} defaultPlayerName="player-one" />)
+    render(<LobbyPanel lobby={idle} defaultPlayerName="player-one" invitedLobbyId="lobby-9" />)
 
     expect(screen.getByText(/invited to lobby lobby-9/i)).toBeInTheDocument()
 
@@ -132,17 +132,35 @@ describe('LobbyPanel', () => {
     await userEvent.type(screen.getByLabelText(/invitation link or lobby reference/i), 'lobby-9')
     await userEvent.click(screen.getByRole('button', { name: /join game/i }))
     expect(join).toHaveBeenCalledWith('lobby-9', 'player-one')
-    window.history.replaceState(null, '', '/')
   })
 
-  it('announces the started game identity', () => {
+  it('announces the started game and links to its page', () => {
     const started = session({
       lobby: lobbyView({ status: 'STARTED' }),
       lastGameId: 'game-1',
     })
-    render(<LobbyPanel lobby={started} defaultPlayerName="host-one" />)
+    render(
+      <MemoryRouter>
+        <LobbyPanel lobby={started} defaultPlayerName="host-one" invitedLobbyId={null} />
+      </MemoryRouter>,
+    )
 
     expect(screen.getByRole('status')).toHaveTextContent(/game started/i)
     expect(screen.getAllByText(/game-1/).length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: 'Open game' })).toHaveAttribute('href', '/games/game-1')
+  })
+
+  it('joins the lobby named by a pasted invitation link', async () => {
+    const join = vi.fn()
+    const idle = session({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, isHost: false }, { join })
+    render(<LobbyPanel lobby={idle} defaultPlayerName="player-one" invitedLobbyId={null} />)
+
+    await userEvent.type(
+      screen.getByLabelText(/invitation link or lobby reference/i),
+      'https://app.example.test/lobbies/lobby-7',
+    )
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }))
+
+    expect(join).toHaveBeenCalledWith('lobby-7', 'player-one')
   })
 })

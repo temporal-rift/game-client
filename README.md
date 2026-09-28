@@ -30,6 +30,24 @@ cross-origin API call:
 | `/api/v1/games/{id}/chains` | timeline-service | `http://localhost:8081` (`TIMELINE_SERVICE_URL`) |
 | `/actuator/health`, every other `/api/` path | game-service | `http://localhost:8080` (`GAME_SERVICE_URL`) |
 
+### Pages and sign-in redirects
+
+Each page has its own URL, so reloads, bookmarks and shared links land on the same page:
+
+| Path | Page |
+|---|---|
+| `/` | Redirects to your started game, your lobby, or `/lobby` |
+| `/lobby` | Create or join a game |
+| `/lobbies/{lobbyId}` | One lobby; this is also the invitation link (legacy `/?game={lobbyId}` links still work) |
+| `/games/{gameId}` | One game's board, action rounds and results |
+| `/auth/callback` | OIDC redirect URI |
+
+The OIDC client always uses the fixed redirect URI `{origin}/auth/callback` and post-logout URI `{origin}/`;
+the page to return to after sign-in travels in the sign-in `state`, validated as an app-relative path. Register
+exactly those two URIs with a real issuer. The local and E2E test issuers accept any redirect URI. Any server in
+front of the built client must answer unknown paths with `index.html` (SPA fallback), as the `infrastructure`
+edge configurations do; the Vite dev server does this by default.
+
 Other checks, also run in CI:
 
 ```bash

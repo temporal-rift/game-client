@@ -112,56 +112,123 @@ describe('App', () => {
 
   it('keeps the lobby on its own page while no game is active', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
-    sdk.client = stubClient({
-      getUser: async () => ({ profile: { sub: 'one', preferred_username: 'player-one' }, access_token: 'token' }),
-    })
+    sdk.client = signedInClient()
 
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Game lobby' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/lobby')
     expect(screen.queryByText('Sample board · actions are disabled')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Return to game' })).not.toBeInTheDocument()
   })
 
-  it('opens the game on its own page once the lobby has started, with the lobby one click away', async () => {
-    window.history.replaceState(null, '', '/?game=lobby-1')
-    sessionStorage.setItem('temporal-rift.private.playerId', 'p1')
-    const startedLobby = {
-      lobbyId: 'lobby-1',
-      gameId: 'game-1',
-      hostPlayerId: 'p1',
-      currentPlayerId: 'p1',
-      status: 'STARTED',
-      members: [{ playerId: 'p1', playerName: 'player-one', isHost: true }],
-    }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) =>
-        String(input).includes('/api/v1/lobbies/lobby-1')
-          ? new Response(JSON.stringify(startedLobby), { status: 200, headers: { 'Content-Type': 'application/json' } })
-          : new Response(null, { status: 200 }),
-      ),
-    )
-    sdk.client = stubClient({
-      getUser: async () => ({ profile: { sub: 'one', preferred_username: 'player-one' }, access_token: 'token' }),
-    })
+  it('opens a started game on its own page, with the lobby one link away', async () => {
+    rememberLobbyMembership()
+    window.history.replaceState(null, '', '/lobbies/lobby-1')
+    vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED')))
+    sdk.client = signedInClient()
 
     render(<App />)
 
-    expect(await screen.findByRole('button', { name: 'Back to lobby' })).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('link', { name: 'Open game' }))
+
+    expect(window.location.pathname).toBe('/games/game-1')
     expect(screen.queryByRole('heading', { name: 'Game lobby' })).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Back to lobby' }))
+    await userEvent.click(screen.getByRole('link', { name: 'Back to lobby' }))
 
+    expect(window.location.pathname).toBe('/lobbies/lobby-1')
     expect(screen.getByRole('heading', { name: 'Game lobby' })).toBeInTheDocument()
     expect(screen.queryByText('Sample board · actions are disabled')).not.toBeInTheDocument()
+  })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Return to game' }))
+  it('follows the start from the lobby page into the game page', async () => {
+    rememberLobbyMembership()
+    window.history.replaceState(null, '', '/lobbies/lobby-1')
+    let status: 'WAITING' | 'STARTED' = 'WAITING'
+    vi.stubGlobal(
+      'fetch',
+      lobbyServer(() => lobbyView(status, 3), (url) => {
+        if (url.endsWith('/api/v1/lobbies/lobby-1/start')) {
+          status = 'STARTED'
+          return { gameId: 'game-1' }
+        }
+        return null
+      }),
+    )
+    sdk.client = signedInClient()
 
-    expect(screen.getByRole('button', { name: 'Back to lobby' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Game lobby' })).not.toBeInTheDocument()
+    render(<App />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start game' }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/games/game-1'))
+    expect(await screen.findByRole('link', { name: 'Back to lobby' })).toHaveAttribute('href', '/lobbies/lobby-1')
+  })
+
+  it('sends the home page to the started game once lobby recovery settles', async () => {
+    rememberLobbyMembership()
+    sessionStorage.setItem('temporal-rift.private.lobbyId', 'lobby-1')
+    vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED')))
+    sdk.client = signedInClient()
+
+    render(<App />)
+
+    await waitFor(() => expect(window.location.pathname).toBe('/games/game-1'))
+  })
+
+  it('lands legacy ?game= invitations on the lobby page', async () => {
+    window.history.replaceState(null, '', '/?game=lobby-1')
+    vi.stubGlobal('fetch', lobbyServer(() => ({ ...lobbyView('WAITING'), currentPlayerId: undefined })))
+    sdk.client = signedInClient()
+
+    render(<App />)
+
+    await waitFor(() => expect(window.location.pathname).toBe('/lobbies/lobby-1'))
+    expect(await screen.findByText(/invited to lobby lobby-1/i)).toBeInTheDocument()
   })
 })
+
+function signedInClient(): Record<string, unknown> {
+  return stubClient({
+    getUser: async () => ({ profile: { sub: 'one', preferred_username: 'player-one' }, access_token: 'token' }),
+  })
+}
+
+function rememberLobbyMembership(): void {
+  sessionStorage.setItem('temporal-rift.private.playerId', 'p1')
+}
+
+function lobbyView(status: 'WAITING' | 'STARTED', memberCount = 1): Record<string, unknown> {
+  return {
+    lobbyId: 'lobby-1',
+    gameId: 'game-1',
+    hostPlayerId: 'p1',
+    currentPlayerId: 'p1',
+    status,
+    members: Array.from({ length: memberCount }, (_, index) => ({
+      playerId: `p${index + 1}`,
+      playerName: `player-${index + 1}`,
+      isHost: index === 0,
+    })),
+  }
+}
+
+/** Serves the lobby read (and optional commands) as JSON; every other call answers an empty 200. */
+function lobbyServer(
+  readLobby: () => Record<string, unknown>,
+  command: (url: string) => Record<string, unknown> | null = () => null,
+) {
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    const commandResult = command(url)
+    if (commandResult) {
+      return json(commandResult)
+    }
+    return url.endsWith('/api/v1/lobbies/lobby-1') ? json(readLobby()) : new Response(null, { status: 200 })
+  })
+}
 
 describe('player session components', () => {
   it('explains private sessions without exposing tokens', () => {

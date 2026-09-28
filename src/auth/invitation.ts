@@ -1,48 +1,69 @@
 /**
  * Invitation and callback URL helpers with a credential-safety guarantee:
- * player identity never comes from URL parameters and tokens/codes never
- * enter invitation URLs or application logs.
+ * player identity never comes from URLs and tokens/codes never enter
+ * invitation URLs or application logs.
  */
+import { isResourceReference, lobbyPath } from '../routing/paths'
 
-export interface GameInvitation {
-  readonly gameId: string
+export interface LobbyInvitation {
+  readonly lobbyId: string;
 }
 
-const INVITATION_PARAM = 'game'
+// Before lobbies had their own route, invitations carried the lobby reference
+// in this query parameter on the root path. Links already shared still work.
+const LEGACY_INVITATION_PARAM = 'game'
 
-// Server-issued game references are URL-safe slugs (uuids); anything else
-// in the query string is ignored rather than stored or acted on.
-const GAME_REFERENCE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const LOBBY_PATH_PATTERN = /^\/lobbies\/([^/]+)$/
 
-/** Builds a shareable invitation carrying only the game reference. */
-export function buildGameInvitationUrl(origin: string, gameId: string): string {
-  if (!GAME_REFERENCE_PATTERN.test(gameId)) {
-    throw new Error('Cannot share an invitation with an invalid game reference.')
-  }
+/** Builds a shareable invitation: the lobby's own page, carrying nothing else. */
+export function buildLobbyInvitationUrl(origin: string, lobbyId: string): string {
   let normalized = origin
   while (normalized.endsWith('/')) {
     normalized = normalized.slice(0, -1)
   }
-  return `${normalized}/?${INVITATION_PARAM}=${encodeURIComponent(gameId)}`
+  return `${normalized}${lobbyPath(lobbyId)}`
 }
 
 /**
- * Reads only the game reference from a URL query string. Identity-like
- * parameters (player, token, code, state, …) are deliberately ignored so a
- * crafted invitation can never fabricate or steal a player session.
- * Malformed game references are rejected rather than stored.
- *
- * Lobby invitations reuse the same `game` parameter carrying the lobbyId:
- * the lobby's pre-assigned game identity correlates later game reads, and
- * the existing sign-in flow already preserves this parameter through login.
+ * Reads a legacy `?game=<lobbyId>` invitation. Identity-like parameters
+ * (player, token, code, state, …) are deliberately ignored so a crafted
+ * invitation can never fabricate or steal a player session, and malformed
+ * references are rejected rather than stored.
  */
-export function parseGameInvitation(search: string): GameInvitation | null {
+export function parseLegacyLobbyInvitation(search: string): LobbyInvitation | null {
   const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`)
-  const gameId = params.get(INVITATION_PARAM)?.trim()
-  if (!gameId || !GAME_REFERENCE_PATTERN.test(gameId)) {
-    return null
+  const lobbyId = params.get(LEGACY_INVITATION_PARAM)?.trim()
+  return isResourceReference(lobbyId) ? { lobbyId } : null
+}
+
+/**
+ * Accepts either an exact lobby reference or one complete, unambiguous
+ * invitation URL (`/lobbies/<lobbyId>`, or the legacy `/?game=<lobbyId>`).
+ * Bare query-like text is never treated as another lobby.
+ */
+export function parseLobbyReference(value: string): LobbyInvitation | null {
+  const reference = value.trim();
+  if (isResourceReference(reference)) {
+    return { lobbyId: reference };
   }
-  return { gameId }
+  let invitationUrl: URL;
+  try {
+    invitationUrl = new URL(reference);
+  } catch {
+    return null;
+  }
+  if ((invitationUrl.protocol !== 'https:' && invitationUrl.protocol !== 'http:') || invitationUrl.hash) {
+    return null;
+  }
+  const pathMatch = LOBBY_PATH_PATTERN.exec(invitationUrl.pathname);
+  if (pathMatch) {
+    return invitationUrl.search === '' && isResourceReference(pathMatch[1]) ? { lobbyId: pathMatch[1] } : null;
+  }
+  if (invitationUrl.pathname !== '/' || invitationUrl.searchParams.size !== 1) {
+    return null;
+  }
+  const lobbyId = invitationUrl.searchParams.get(LEGACY_INVITATION_PARAM);
+  return isResourceReference(lobbyId) ? { lobbyId } : null;
 }
 
 export interface AuthCallbackParams {
@@ -63,20 +84,6 @@ export function parseAuthCallback(search: string): AuthCallbackParams {
   }
 }
 
-/**
- * Removes OAuth callback fields from a URL while preserving the game
- * invitation reference, so codes never linger in history or shared links.
- */
-export function cleanAuthCallbackUrl(href: string): string {
-  const url = new URL(href)
-  url.searchParams.delete('code')
-  url.searchParams.delete('state')
-  url.searchParams.delete('session_state')
-  url.searchParams.delete('error')
-  url.searchParams.delete('error_description')
-  return url.toString()
-}
-
 /** True when a URL visibly carries credential material (for tests/guards). */
 export function urlCarriesCredentials(href: string): boolean {
   const lowered = href.toLowerCase()
@@ -86,58 +93,4 @@ export function urlCarriesCredentials(href: string): boolean {
     lowered.includes('code_verifier') ||
     lowered.includes('client_secret')
   )
-}
-
-export interface LobbyInvitation {
-  readonly lobbyId: string;
-}
-
-/**
- * Builds a shareable lobby invitation. The lobbyId travels in the same
- * `game` parameter so sign-in preserves it and reload recovers from it.
- */
-export function buildLobbyInvitationUrl(origin: string, lobbyId: string): string {
-  return buildGameInvitationUrl(origin, lobbyId);
-}
-
-/** Reads a lobby invitation from the URL without touching identity. */
-export function parseLobbyInvitation(search: string): LobbyInvitation | null {
-  const invitation = parseGameInvitation(search);
-  return invitation ? { lobbyId: invitation.gameId } : null;
-}
-
-/**
- * Accepts either an exact lobby reference or one complete, unambiguous
- * invitation URL. Bare query-like text is never treated as another lobby.
- */
-export function parseLobbyReference(value: string): LobbyInvitation | null {
-  const reference = value.trim();
-  if (GAME_REFERENCE_PATTERN.test(reference)) {
-    return { lobbyId: reference };
-  }
-  try {
-    const invitationUrl = new URL(reference);
-    if (
-      (invitationUrl.protocol !== 'https:' && invitationUrl.protocol !== 'http:') ||
-      invitationUrl.hash ||
-      invitationUrl.searchParams.size !== 1
-    ) {
-      return null;
-    }
-    const lobbyId = invitationUrl.searchParams.get(INVITATION_PARAM);
-    return lobbyId && GAME_REFERENCE_PATTERN.test(lobbyId) ? { lobbyId } : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Persists the active lobby reference in the address bar for reload recovery. */
-export function writeLobbyInvitationToUrl(lobbyId: string | null): void {
-  const url = new URL(window.location.href);
-  if (lobbyId) {
-    url.searchParams.set(INVITATION_PARAM, lobbyId);
-  } else {
-    url.searchParams.delete(INVITATION_PARAM);
-  }
-  window.history.replaceState(null, '', url.toString());
 }
