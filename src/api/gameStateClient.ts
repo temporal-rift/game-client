@@ -55,7 +55,12 @@ export interface PhaseContextView {
 
 export interface GameResultView {
   readonly endReason: string
-  readonly winners: readonly { readonly playerId: string; readonly faction: string | null }[]
+  readonly winners: readonly {
+    readonly playerId: string
+    readonly faction: string | null
+    /** How a WIN_CONDITION_MET winner won; null for every other ending. */
+    readonly winType: string | null
+  }[]
   readonly finalScores: readonly { readonly playerId: string; readonly score: number }[]
   readonly revealBoundary: string
 }
@@ -232,7 +237,9 @@ function parseGameResult(value: unknown): GameResultView | null {
         }
         const winner = entry as Record<string, unknown>
         const playerId = stringField(winner['playerId'])
-        return playerId ? [{ playerId, faction: nullableString(winner['faction']) }] : []
+        return playerId
+          ? [{ playerId, faction: nullableString(winner['faction']), winType: nullableString(winner['winType']) }]
+          : []
       })
     : []
   const finalScores = Array.isArray(source['finalScores'])

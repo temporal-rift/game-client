@@ -17,10 +17,10 @@ function terminalStateBody(overrides: Record<string, unknown> = {}): GameStateVi
       { playerId: 'p-2', playerName: 'Eli', score: 20, faction: 'ERASERS' },
     ],
     result: {
-      endReason: 'SCORE_THRESHOLD',
+      endReason: 'WIN_CONDITION_MET',
       winners: [
-        { playerId: 'p-1', faction: 'PROPHETS' },
-        { playerId: 'p-2', faction: 'ERASERS' },
+        { playerId: 'p-1', faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
+        { playerId: 'p-2', faction: 'ERASERS', winType: 'SCORE_THRESHOLD' },
       ],
       finalScores: [
         { playerId: 'p-1', score: 20 },

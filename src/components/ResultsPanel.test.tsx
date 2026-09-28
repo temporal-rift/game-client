@@ -7,16 +7,16 @@ import type { ResultsView } from '../results/resultsView'
 const complete: Extract<ResultsView, { kind: 'complete' }> = {
   kind: 'complete',
   gameId: 'game-1',
-  endReason: 'SCORE_THRESHOLD',
-  endReasonRaw: 'SCORE_THRESHOLD',
+  endReason: 'WIN_CONDITION_MET',
+  endReasonRaw: 'WIN_CONDITION_MET',
   winners: [
-    { playerId: 'p-1', playerName: 'Nora', score: 20, isWinner: true, faction: 'PROPHETS' },
-    { playerId: 'p-2', playerName: 'Eli', score: 20, isWinner: true, faction: 'ERASERS' },
+    { playerId: 'p-1', playerName: 'Nora', score: 20, isWinner: true, faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
+    { playerId: 'p-2', playerName: 'Eli', score: 14, isWinner: true, faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' },
   ],
   scores: [
-    { playerId: 'p-1', playerName: 'Nora', score: 20, isWinner: true, faction: 'PROPHETS' },
-    { playerId: 'p-2', playerName: 'Eli', score: 20, isWinner: true, faction: 'ERASERS' },
-    { playerId: 'p-3', playerName: 'You', score: 12, isWinner: false, faction: 'WEAVERS' },
+    { playerId: 'p-1', playerName: 'Nora', score: 20, isWinner: true, faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
+    { playerId: 'p-2', playerName: 'Eli', score: 14, isWinner: true, faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' },
+    { playerId: 'p-3', playerName: 'You', score: 12, isWinner: false, faction: 'WEAVERS', winType: null },
   ],
   isRevealed: true,
   explanations: [
@@ -30,10 +30,12 @@ describe('ResultsPanel', () => {
     render(<ResultsPanel view={complete} ownPlayerId="p-3" error={null} isRefreshing={false} onRefresh={() => {}} />)
 
     expect(screen.getByRole('heading', { name: 'Final results' })).toBeInTheDocument()
-    expect(screen.getByText('Score threshold reached')).toBeInTheDocument()
+    expect(screen.getByText('Victory')).toBeInTheDocument()
     const winners = screen.getByRole('list', { name: 'Winners' })
     expect(winners.textContent).toContain('Nora')
+    expect(winners.textContent).toContain('reached the score threshold')
     expect(winners.textContent).toContain('Eli')
+    expect(winners.textContent).toContain('completed their faction objective')
     expect(screen.getByRole('list', { name: 'Final scores' }).textContent).toContain('12 points')
   })
 
@@ -42,7 +44,7 @@ describe('ResultsPanel', () => {
       ...complete,
       endReason: 'TIMELINE_COLLAPSED',
       endReasonRaw: 'TIMELINE_COLLAPSED',
-      winners: [{ playerId: 'p-3', playerName: 'You', score: 6, isWinner: true, faction: 'ACTIVISTS' }],
+      winners: [{ playerId: 'p-3', playerName: 'You', score: 6, isWinner: true, faction: 'ACTIVISTS', winType: null }],
     }
     render(<ResultsPanel view={collapsed} ownPlayerId="p-3" error={null} isRefreshing={false} onRefresh={() => {}} />)
 
@@ -96,5 +98,15 @@ describe('ResultsPanel', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(/could not reach/i)
     expect(screen.queryByRole('list', { name: 'Winners' })).not.toBeInTheDocument()
+  })
+
+  it('explains a last-player-standing win', () => {
+    const view: Extract<ResultsView, { kind: 'complete' }> = {
+      ...complete,
+      winners: [{ playerId: 'p-3', playerName: 'You', score: 7, isWinner: true, faction: 'WEAVERS', winType: 'LAST_PLAYER_STANDING' }],
+    }
+    render(<ResultsPanel view={view} ownPlayerId="p-3" error={null} isRefreshing={false} onRefresh={() => {}} />)
+
+    expect(screen.getByRole('list', { name: 'Winners' }).textContent).toContain('last player standing — everyone else left')
   })
 })

@@ -2,20 +2,18 @@ import type { GameResultView, GameStateView } from '../api/gameStateClient'
 import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
 
 export type EndReason =
-  | 'SCORE_THRESHOLD'
+  | 'WIN_CONDITION_MET'
   | 'TIMELINE_COLLAPSED'
   | 'TIMELINE_STABILIZED'
   | 'DECK_EXHAUSTED'
   | 'RESOLUTION_FAILED'
-  | 'ALL_PLAYERS_ABANDONED'
 
 const KNOWN_END_REASONS: readonly string[] = [
-  'SCORE_THRESHOLD',
+  'WIN_CONDITION_MET',
   'TIMELINE_COLLAPSED',
   'TIMELINE_STABILIZED',
   'DECK_EXHAUSTED',
   'RESOLUTION_FAILED',
-  'ALL_PLAYERS_ABANDONED',
 ]
 
 export function isKnownEndReason(value: string): value is EndReason {
@@ -24,8 +22,8 @@ export function isKnownEndReason(value: string): value is EndReason {
 
 export function endReasonLabel(endReason: string): string {
   switch (endReason) {
-    case 'SCORE_THRESHOLD':
-      return 'Score threshold reached'
+    case 'WIN_CONDITION_MET':
+      return 'Victory'
     case 'TIMELINE_COLLAPSED':
       return 'Timeline collapsed'
     case 'TIMELINE_STABILIZED':
@@ -34,10 +32,24 @@ export function endReasonLabel(endReason: string): string {
       return 'Card supply exhausted'
     case 'RESOLUTION_FAILED':
       return 'Final resolution could not complete'
-    case 'ALL_PLAYERS_ABANDONED':
-      return 'All players left the game'
     default:
       return endReason
+  }
+}
+
+/** How a winner of a WIN_CONDITION_MET ending won; null when the ending carries no win type. */
+export function winTypeLabel(winType: string | null): string | null {
+  switch (winType) {
+    case null:
+      return null
+    case 'SCORE_THRESHOLD':
+      return 'reached the score threshold'
+    case 'FACTION_OBJECTIVE':
+      return 'completed their faction objective'
+    case 'LAST_PLAYER_STANDING':
+      return 'last player standing — everyone else left'
+    default:
+      return winType
   }
 }
 
@@ -48,6 +60,8 @@ export interface ResultsPlayerEntry {
   readonly isWinner: boolean
   /** Permitted final faction; null while withheld before the recorded reveal boundary. */
   readonly faction: string | null
+  /** How this winner won a WIN_CONDITION_MET ending; null otherwise. */
+  readonly winType: string | null
 }
 
 export interface ResultsExplanationEntry {
@@ -145,7 +159,7 @@ function orderedPlayersFrom(
   scores: ScoresView | null,
   isRevealed: boolean,
 ): readonly ResultsPlayerEntry[] {
-  const winnerIds = new Set(result.winners.map((winner) => winner.playerId))
+  const winTypeByWinner = new Map(result.winners.map((winner) => [winner.playerId, winner.winType] as const))
   const scoreByPlayer = new Map(result.finalScores.map((entry) => [entry.playerId, entry.score] as const))
   const playerIds = Array.from(
     new Set([
@@ -158,8 +172,9 @@ function orderedPlayersFrom(
     playerId,
     playerName: playerNameFor(playerId, rawPlayers, scores),
     score: scoreByPlayer.get(playerId) ?? rawPlayers.find((player) => player.playerId === playerId)?.score ?? 0,
-    isWinner: winnerIds.has(playerId),
+    isWinner: winTypeByWinner.has(playerId),
     faction: factionForPlayer(playerId, isRevealed, result, scores, rawPlayers),
+    winType: winTypeByWinner.get(playerId) ?? null,
   }))
 }
 
