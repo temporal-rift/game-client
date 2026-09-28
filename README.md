@@ -18,6 +18,18 @@ npm run dev
 `src/config/appConfig.ts`) — this is the same mechanism the built image uses in production,
 generated there from environment variables instead of hand-edited.
 
+The example targets the local stack started from the sibling `infrastructure` checkout
+(`docker compose up -d`): the API is the dev server's own origin, and sign-in goes through that stack's
+interactive test issuer at `http://localhost:9000/default`, which accepts any username. The dev server forwards
+each API path to its owning service with the same routing as the deployed edge, so the browser never makes a
+cross-origin API call:
+
+| Path | Service | Default target (override) |
+|---|---|---|
+| `/api/v1/games/{id}/state`, `/api/v1/games/{id}/history`, `/ws/` | read-service | `http://localhost:8082` (`READ_SERVICE_URL`) |
+| `/api/v1/games/{id}/chains` | timeline-service | `http://localhost:8081` (`TIMELINE_SERVICE_URL`) |
+| `/actuator/health`, every other `/api/` path | game-service | `http://localhost:8080` (`GAME_SERVICE_URL`) |
+
 Other checks, also run in CI:
 
 ```bash
