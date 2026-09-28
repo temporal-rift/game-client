@@ -18,10 +18,10 @@ function terminalState(overrides: Record<string, unknown> = {}): GameStateView {
     mySubmissions: [],
     mySpecialBudgets: [],
     result: {
-      endReason: 'SCORE_THRESHOLD',
+      endReason: 'WIN_CONDITION_MET',
       winners: [
-        { playerId: 'p-1', faction: 'PROPHETS' },
-        { playerId: 'p-2', faction: 'ERASERS' },
+        { playerId: 'p-1', faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
+        { playerId: 'p-2', faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' },
       ],
       finalScores: [
         { playerId: 'p-1', score: 20 },
@@ -72,8 +72,10 @@ describe('selectResultsView', () => {
     if (view.kind !== 'complete') {
       return
     }
-    expect(view.endReason).toBe('SCORE_THRESHOLD')
+    expect(view.endReason).toBe('WIN_CONDITION_MET')
     expect(view.winners.map((winner) => winner.playerId)).toEqual(['p-1', 'p-2'])
+    expect(view.winners.map((winner) => winner.winType)).toEqual(['SCORE_THRESHOLD', 'FACTION_OBJECTIVE'])
+    expect(view.scores.find((entry) => entry.playerId === 'p-3')?.winType).toBeNull()
     expect(view.scores).toHaveLength(3)
     expect(view.scores.find((entry) => entry.playerId === 'p-1')?.score).toBe(20)
   })
@@ -82,7 +84,7 @@ describe('selectResultsView', () => {
     const collapsed = terminalState({
       result: {
         endReason: 'TIMELINE_COLLAPSED',
-        winners: [{ playerId: 'p-3', faction: 'ACTIVISTS' }],
+        winners: [{ playerId: 'p-3', faction: 'ACTIVISTS', winType: null }],
         finalScores: [
           { playerId: 'p-1', score: 18 },
           { playerId: 'p-3', score: 6 },
@@ -101,6 +103,34 @@ describe('selectResultsView', () => {
     expect(view.winners.map((winner) => winner.playerId)).toEqual(['p-3'])
   })
 
+  it('falls back to an unknown terminal view for a retired or unrecognized end reason', () => {
+    const retired = terminalState({
+      result: { endReason: 'SCORE_THRESHOLD', winners: [], finalScores: [], revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC' },
+    })
+    const view = selectResultsView(retired, null, null, 'p-3')
+
+    expect(view).toEqual({ kind: 'unknown-terminal', gameId: 'game-1', endReasonRaw: 'SCORE_THRESHOLD' })
+  })
+
+  it('shows an abnormal ending without winners', () => {
+    const abnormal = terminalState({
+      result: {
+        endReason: 'DECK_EXHAUSTED',
+        winners: [],
+        finalScores: [{ playerId: 'p-3', score: 12 }],
+        revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
+      },
+    })
+    const view = selectResultsView(abnormal, null, null, 'p-3')
+
+    expect(view.kind).toBe('complete')
+    if (view.kind !== 'complete') {
+      return
+    }
+    expect(view.endReason).toBe('DECK_EXHAUSTED')
+    expect(view.winners).toEqual([])
+  })
+
   it('waits with readiness while the terminal result is not yet complete', () => {
     const pending = terminalState({ result: null })
     const view = selectResultsView(pending, null, null, 'p-3')
@@ -111,10 +141,10 @@ describe('selectResultsView', () => {
   it('withholds factions and opponent reasons before the recorded reveal boundary', () => {
     const unrevealed = terminalState({
       result: {
-        endReason: 'SCORE_THRESHOLD',
+        endReason: 'WIN_CONDITION_MET',
         winners: [
-          { playerId: 'p-1', faction: null },
-          { playerId: 'p-2', faction: null },
+          { playerId: 'p-1', faction: null, winType: 'SCORE_THRESHOLD' },
+          { playerId: 'p-2', faction: null, winType: 'SCORE_THRESHOLD' },
         ],
         finalScores: [
           { playerId: 'p-1', score: 20 },

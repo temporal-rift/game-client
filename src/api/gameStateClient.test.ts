@@ -87,16 +87,16 @@ describe('getGameState', () => {
       ...minimalPayload,
       phase: 'GAME_ENDED',
       result: {
-        endReason: 'SCORE_THRESHOLD',
-        winners: [{ playerId: 'player-1', faction: 'PROPHETS' }],
+        endReason: 'WIN_CONDITION_MET',
+        winners: [{ playerId: 'player-1', faction: 'PROPHETS', winType: 'FACTION_OBJECTIVE' }],
         finalScores: [{ playerId: 'player-1', score: 12 }],
         revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
       },
     }
     const view = await getGameState(vi.fn().mockResolvedValue(jsonResponse(payload)), 'https://api.example.test', 'game-1')
     expect(view.result).toEqual({
-      endReason: 'SCORE_THRESHOLD',
-      winners: [{ playerId: 'player-1', faction: 'PROPHETS' }],
+      endReason: 'WIN_CONDITION_MET',
+      winners: [{ playerId: 'player-1', faction: 'PROPHETS', winType: 'FACTION_OBJECTIVE' }],
       finalScores: [{ playerId: 'player-1', score: 12 }],
       revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
     })

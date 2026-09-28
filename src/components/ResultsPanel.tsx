@@ -1,4 +1,4 @@
-import { endReasonLabel, type ResultsView } from '../results/resultsView'
+import { endReasonLabel, type ResultsView, winTypeLabel } from '../results/resultsView'
 
 interface ResultsPanelProps {
   readonly view: ResultsView
@@ -33,6 +33,7 @@ function WinnerList({ view, ownPlayerId }: { readonly view: Extract<ResultsView,
           <strong>{displayName(winner.playerId, winner.playerName, ownPlayerId)}</strong>
           {winner.faction ? <span> · {winner.faction}</span> : <span> · faction withheld</span>}
           <span> · {winner.score} points</span>
+          {winTypeLabel(winner.winType) && <span> · {winTypeLabel(winner.winType)}</span>}
         </li>
       ))}
     </ul>
