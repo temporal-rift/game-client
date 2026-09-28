@@ -57,6 +57,118 @@ button:focus-visible {
   outline-offset: 3px;
 }
 
+.page-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.page-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-bar button,
+.lobby-card button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text);
+  background: var(--panel-strong);
+  cursor: pointer;
+}
+
+.page-bar button:hover:not(:disabled),
+.lobby-card button:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+}
+
+.lobby-card button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.game-page-bar {
+  width: min(100%, 105rem);
+  margin-inline: auto;
+  padding-inline: 2.25rem;
+}
+
+.lobby-page {
+  width: min(100%, 44rem);
+  min-height: 100vh;
+  margin-inline: auto;
+  padding: 0 1rem 2rem;
+}
+
+.lobby-card {
+  margin-top: 2rem;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--panel);
+}
+
+.lobby-card h2 {
+  margin: 0 0 1rem;
+  font: 400 1.5rem/1.2 var(--serif);
+  letter-spacing: 0.08em;
+}
+
+.lobby-card h3 {
+  margin: 1.5rem 0 0.75rem;
+  color: var(--gold);
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lobby-card label {
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+.lobby-card input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text);
+  background: var(--panel-soft);
+  font: inherit;
+}
+
+.lobby-card dl > div {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.lobby-card dt {
+  min-width: 5rem;
+  color: var(--muted);
+}
+
+.lobby-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lobby-card code {
+  overflow-wrap: anywhere;
+}
+
+.lobby-card button + button {
+  margin-left: 0.5rem;
+}
+
 .app-shell {
   width: min(100%, 105rem);
   min-height: 100vh;
