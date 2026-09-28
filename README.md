@@ -9,10 +9,13 @@ The first milestone is a complete human-playable game for three to five authenti
 Requires Node.js 22.12 or later.
 
 ```bash
-npm install
 cp public/config.js.example public/config.js # then fill in a reachable API/OIDC configuration
 npm run dev
 ```
+
+`npm run dev` first runs `npm ci` whenever `package-lock.json` differs from the one `node_modules` was installed
+from (fresh clone, or a pull that changed dependencies), so the dev server never starts against stale packages. On
+Windows, stop a running dev server before pulling such a change: it keeps `node_modules` files locked.
 
 `public/config.js` is gitignored and read at startup as `window.__APP_CONFIG__` (see
 `src/config/appConfig.ts`) — this is the same mechanism the built image uses in production,
