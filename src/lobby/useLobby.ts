@@ -66,14 +66,16 @@ function writeStored(key: string, value: string | null): void {
  */
 export function useLobby(options: UseLobbyOptions) {
   const { apiBaseUrl, fetchFn, initialLobbyId, pollWhileWaitingMs = 5000, onLobbyIdChange } = options;
-  const [state, setState] = useState<LobbySessionState>({
-    phase: initialLobbyId ? { kind: 'working', action: 'loading' } : { kind: 'idle' },
+  // Recovery reads the lobby before anything can be shown for it, so a stored
+  // reference (reload on a game page) reports loading just like an invitation.
+  const [state, setState] = useState<LobbySessionState>(() => ({
+    phase: initialLobbyId || readStored(LOBBY_STORAGE_KEY) ? { kind: 'working', action: 'loading' } : { kind: 'idle' },
     lobby: null,
     ownPlayerId: readStored(OWN_PLAYER_STORAGE_KEY),
     lastGameId: null,
     isHost: false,
     canStart: false,
-  });
+  }));
   const stateRef = useRef(state);
   const fetchRef = useRef(fetchFn);
   const lobbyIdRef = useRef<string | null>(initialLobbyId ?? readStored(LOBBY_STORAGE_KEY));

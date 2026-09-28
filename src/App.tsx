@@ -1,36 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, matchPath, useLocation, useNavigate } from 'react-router'
 import { checkApiConnectivity } from './api/connectivity'
 import { createAuthenticatedFetch } from './auth/authenticatedFetch'
-import { parseLobbyInvitation, writeLobbyInvitationToUrl } from './auth/invitation'
+import { parseLegacyLobbyInvitation } from './auth/invitation'
 import type { PlayerSession } from './auth/usePlayerSession'
 import { usePlayerSession } from './auth/usePlayerSession'
 import type { AuthSession } from './auth/session'
 import { resolveAppConfig } from './config/appConfig'
 import type { AppConfig } from './config/appConfig'
-import { useActionSubmission } from './action/useActionSubmission'
-import { useHandSelection } from './hand/useHandSelection'
-import { useEffectiveGameId } from './game/effectiveGameId'
-import { useGameState } from './game/useGameState'
-import { useKnowledge } from './knowledge/useKnowledge'
 import { useLobby } from './lobby/useLobby'
-import { useParadoxResolution } from './paradox/useParadoxResolution'
-import { useResults } from './results/useResults'
-import { useRoundSummary } from './round-summary/useRoundSummary'
-import { ActionPanel } from './components/ActionPanel'
-import { AppShell } from './components/AppShell'
 import { AuthErrorNotice } from './components/AuthErrorNotice'
 import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
-import { KnowledgePanel } from './components/KnowledgePanel'
-import { HandSelectionPanel } from './components/HandSelectionPanel'
-import { LobbyPanel } from './components/LobbyPanel'
-import { ParadoxResolutionPanel } from './components/ParadoxResolutionPanel'
-import { ResultsPanel } from './components/ResultsPanel'
-import { RoundSummaryPanel } from './components/RoundSummaryPanel'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
-import { RiftMark } from './components/icons'
-import { sampleFixturePlayerView } from './fixtures/playerView'
+import { GameRoute } from './pages/GamePage'
+import { HomeRedirect } from './pages/HomeRedirect'
+import { LobbyPage } from './pages/LobbyPage'
+import { GAME_ROUTE, HOME_PATH, LOBBY_PATH, LOBBY_ROUTE, isResourceReference } from './routing/paths'
 
 type ConnectivityState =
   | { readonly status: 'checking' }
@@ -44,15 +31,27 @@ function defaultPlayerNameFor(identity: AuthSession['identity']): string {
   return identity.subject.length > 12 ? `player-${identity.subject.slice(-4)}` : 'player'
 }
 
-function SignedInView({
-  config,
-  playerSession,
-  authSession,
-}: {
+interface SignedInViewProps {
   readonly config: AppConfig
   readonly playerSession: PlayerSession
   readonly authSession: AuthSession
-}) {
+}
+
+/**
+ * The router mounts only under a signed-in session. Sign-in completes on
+ * `/auth/callback` and leaves it (history.replaceState) for the page the
+ * player started from before any route renders, so the router always starts
+ * on an app page.
+ */
+function SignedInView(props: SignedInViewProps) {
+  return (
+    <BrowserRouter>
+      <SignedInRoutes {...props} />
+    </BrowserRouter>
+  )
+}
+
+function SignedInRoutes({ config, playerSession, authSession }: SignedInViewProps) {
   const authenticatedFetch = useMemo(
     () => createAuthenticatedFetch(playerSession.getAccessToken),
     [playerSession],
@@ -66,144 +65,66 @@ function SignedInView({
       ) => Promise<Response>,
     [authenticatedFetch, playerSession],
   )
-  const initialLobbyId = useMemo(() => parseLobbyInvitation(window.location.search)?.lobbyId ?? null, [])
+  const location = useLocation()
+  const navigate = useNavigate()
+  // The lobby named by the page the player opened (its own page or a legacy
+  // invitation) wins over a lobby remembered from an earlier visit.
+  const [initialLobbyId] = useState(() => {
+    const routeLobbyId = matchPath(LOBBY_ROUTE, location.pathname)?.params.lobbyId
+    if (isResourceReference(routeLobbyId)) {
+      return routeLobbyId
+    }
+    return location.pathname === HOME_PATH ? (parseLegacyLobbyInvitation(location.search)?.lobbyId ?? null) : null
+  })
+  const pathnameRef = useRef(location.pathname)
+  useEffect(() => {
+    pathnameRef.current = location.pathname
+  }, [location.pathname])
+  const handleLobbyIdChange = useCallback(
+    (lobbyId: string | null) => {
+      // Leaving (or losing) the lobby this page shows returns to create/join.
+      if (lobbyId === null && matchPath(LOBBY_ROUTE, pathnameRef.current)) {
+        navigate(LOBBY_PATH, { replace: true })
+      }
+    },
+    [navigate],
+  )
   const lobby = useLobby({
     apiBaseUrl: config.apiBaseUrl,
     fetchFn: fetchWithUnauthorized,
     initialLobbyId,
-    onLobbyIdChange: writeLobbyInvitationToUrl,
+    onLobbyIdChange: handleLobbyIdChange,
   })
-  const activeGameId = lobby.state.lastGameId ?? lobby.state.lobby?.gameId ?? null
-  const effectiveGameId = useEffectiveGameId(activeGameId, authSession.identity.subject)
-  const gameState = useGameState({
-    apiBaseUrl: config.apiBaseUrl,
-    fetchFn: fetchWithUnauthorized,
-    gameId: effectiveGameId,
-    perspectiveKey: authSession.identity.subject,
-  })
-  const results = useResults({
-    apiBaseUrl: config.apiBaseUrl,
-    fetchFn: fetchWithUnauthorized,
-    gameState,
-    ownPlayerId: lobby.state.ownPlayerId,
-    perspectiveKey: authSession.identity.subject,
-  })
-  const action = useActionSubmission({
-    apiBaseUrl: config.apiBaseUrl,
-    fetchFn: fetchWithUnauthorized,
-    gameState,
-    ownPlayerId: lobby.state.ownPlayerId,
-  })
-  const handSelection = useHandSelection({
-    apiBaseUrl: config.apiBaseUrl,
-    fetchFn: fetchWithUnauthorized,
-    gameState,
-  })
-  const paradox = useParadoxResolution({
-    apiBaseUrl: config.apiBaseUrl,
-    fetchFn: fetchWithUnauthorized,
-    gameState,
-  })
-  const knowledge = useKnowledge({ gameState })
-  const roundSummary = useRoundSummary({ gameState })
-
-  // The lobby and the game board are separate pages: the board takes over once a
-  // game exists, and the lobby stays one click away without sitting on top of it.
-  const hasGame = activeGameId !== null || results.view.kind !== 'active'
-  const gameKey = effectiveGameId ?? ''
-  const [lobbyOpenedFor, setLobbyOpenedFor] = useState<string | null>(null)
-  const sessionBar = (
-    <SessionBar
-      identity={authSession.identity}
-      faction={gameState.state?.myFaction ?? null}
-      onSignOut={() => void playerSession.signOut()}
+  const renderSessionBar = (faction: string | null) => (
+    <SessionBar identity={authSession.identity} faction={faction} onSignOut={() => void playerSession.signOut()} />
+  )
+  const lobbyPage = (
+    <LobbyPage
+      lobby={lobby}
+      defaultPlayerName={defaultPlayerNameFor(authSession.identity)}
+      sessionBar={renderSessionBar(null)}
     />
   )
 
-  if (!hasGame || lobbyOpenedFor === gameKey) {
-    return (
-      <div className="lobby-page">
-        <header className="page-bar">
-          <div className="brand-lockup">
-            <RiftMark />
-            <h1>Temporal Rift</h1>
-          </div>
-          <div className="page-bar-actions">
-            {hasGame && (
-              <button type="button" onClick={() => setLobbyOpenedFor(null)}>
-                Return to game
-              </button>
-            )}
-            {sessionBar}
-          </div>
-        </header>
-        <main className="lobby-card">
-          <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerNameFor(authSession.identity)} />
-        </main>
-      </div>
-    )
-  }
-
   return (
-    <div className="game-page">
-      <nav className="page-bar game-page-bar" aria-label="Game navigation">
-        <button type="button" onClick={() => setLobbyOpenedFor(gameKey)}>
-          Back to lobby
-        </button>
-        {sessionBar}
-      </nav>
-      {effectiveGameId && (
-        <HandSelectionPanel
-          view={handSelection.view}
-          selectedCardInstanceIds={handSelection.selectedCardInstanceIds}
-          submitPhase={handSelection.submitPhase}
-          onToggleCard={handSelection.toggleCard}
-          onConfirm={() => void handSelection.confirm()}
-          onDismissRejection={handSelection.dismissRejection}
-        />
-      )}
-      {activeGameId && (
-        <ActionPanel
-          view={action.view}
-          draft={action.draft}
-          submitPhase={action.submitPhase}
-          onSelectCard={action.selectCard}
-          onSelectSpecial={action.selectSpecial}
-          onClearDraft={action.clearDraft}
-          onConfirm={() => void action.confirm()}
-          onDismissRejection={action.dismissRejection}
-        />
-      )}
-      {activeGameId && (
-        <ParadoxResolutionPanel
-          view={paradox.view}
-          draft={paradox.draft}
-          submitPhase={paradox.submitPhase}
-          onSelectCard={paradox.selectCard}
-          onSelectTarget={paradox.selectTarget}
-          onClearDraft={paradox.clearDraft}
-          onConfirm={() => void paradox.confirm()}
-          onDismissRejection={paradox.dismissRejection}
-        />
-      )}
-      {activeGameId && (
-        <KnowledgePanel
-          view={knowledge.view}
-          error={knowledge.message}
-          isRefreshing={knowledge.isRefreshing}
-          onRefresh={() => void knowledge.refresh()}
-        />
-      )}
-      {activeGameId && <RoundSummaryPanel view={roundSummary} />}
-      <ResultsPanel
-        view={results.view}
-        ownPlayerId={lobby.state.ownPlayerId}
-        error={results.message}
-        isRefreshing={results.isRefreshing}
-        onRefresh={() => void results.refresh()}
+    <Routes>
+      <Route path={HOME_PATH} element={<HomeRedirect lobby={lobby} />} />
+      <Route path={LOBBY_PATH} element={lobbyPage} />
+      <Route path={LOBBY_ROUTE} element={lobbyPage} />
+      <Route
+        path={GAME_ROUTE}
+        element={
+          <GameRoute
+            apiBaseUrl={config.apiBaseUrl}
+            fetchFn={fetchWithUnauthorized}
+            authSession={authSession}
+            lobby={lobby}
+            renderSessionBar={renderSessionBar}
+          />
+        }
       />
-      <AppShell key={authSession.identity.subject} playerView={sampleFixturePlayerView} isSampleData />
-    </div>
+      <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
+    </Routes>
   )
 }
 

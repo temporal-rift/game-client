@@ -35,7 +35,9 @@ describe('createGameOidcClient', () => {
       automaticSilentRenew: false,
     })
     expect(seen.options?.['scope']).toContain('openid')
-    expect(typeof seen.options?.['redirect_uri']).toBe('string')
+    // Fixed, exact-match redirect URIs: the page to return to rides in the sign-in state instead.
+    expect(seen.options?.['redirect_uri']).toBe(`${window.location.origin}/auth/callback`)
+    expect(seen.options?.['post_logout_redirect_uri']).toBe(`${window.location.origin}/`)
     expect(seen.options?.['userStore']).toBeInstanceOf(Object)
     const extraParams = seen.options?.['extraQueryParams'] as Record<string, unknown>
     expect(extraParams['audience']).toBe('https://api.example.test')

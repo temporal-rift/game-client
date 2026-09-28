@@ -1,33 +1,18 @@
 import { useMemo, useState } from 'react'
-import { buildLobbyInvitationUrl, parseLobbyInvitation } from '../auth/invitation'
+import { Link } from 'react-router'
+import { buildLobbyInvitationUrl, parseLobbyReference } from '../auth/invitation'
 import type { LobbyView } from '../api/lobbyClient'
 import type { LobbyPhase, LobbySession } from '../lobby/useLobby'
+import { gamePath } from '../routing/paths'
 
 interface LobbyPanelProps {
   readonly lobby: LobbySession;
   readonly defaultPlayerName: string;
+  /** The lobby this page's invitation link names, when the player is not a member yet. */
+  readonly invitedLobbyId: string | null;
 }
 
 type FailedPhase = Extract<LobbyPhase, { kind: 'failed' }>
-
-function invitationFromInput(value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-  // Accept a pasted invitation URL or a bare lobby reference.
-  try {
-    const url = new URL(trimmed)
-    const parsed = parseLobbyInvitation(url.search)
-    if (parsed) {
-      return parsed.lobbyId
-    }
-  } catch {
-    // Not a URL; fall through to bare-reference handling below.
-  }
-  const parsed = parseLobbyInvitation(`?game=${trimmed}`)
-  return parsed?.lobbyId ?? null
-}
 
 function actionLabel(
   phase: LobbyPhase,
@@ -52,17 +37,16 @@ function FailureNotice({ failure, onDismiss }: { readonly failure: FailedPhase; 
 interface LobbyJoinViewProps {
   readonly lobby: LobbySession;
   readonly defaultPlayerName: string;
+  readonly invitedLobbyId: string | null;
   readonly isWorking: boolean;
   readonly failure: FailedPhase | null;
 }
 
-function LobbyJoinView({ lobby, defaultPlayerName, isWorking, failure }: LobbyJoinViewProps) {
+function LobbyJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorking, failure }: LobbyJoinViewProps) {
   const { state } = lobby
   const [createName, setCreateName] = useState(defaultPlayerName)
   const [joinName, setJoinName] = useState(defaultPlayerName)
   const [joinInput, setJoinInput] = useState('')
-
-  const invitedLobbyId = useMemo(() => parseLobbyInvitation(window.location.search)?.lobbyId ?? null, [])
 
   return (
     <section aria-label="Game lobby">
@@ -108,7 +92,9 @@ function LobbyJoinView({ lobby, defaultPlayerName, isWorking, failure }: LobbyJo
           type="button"
           disabled={isWorking || !joinName.trim()}
           onClick={() => {
-            const target = joinInput.trim() ? (invitationFromInput(joinInput) ?? joinInput.trim()) : invitedLobbyId
+            // Accept a pasted invitation URL or a bare lobby reference; the join
+            // itself rejects anything that is neither.
+            const target = joinInput.trim() ? (parseLobbyReference(joinInput)?.lobbyId ?? joinInput.trim()) : invitedLobbyId
             if (target) {
               void lobby.join(target, joinName)
             }
@@ -229,7 +215,8 @@ function LobbyMemberView({ lobby, view, isWorking, failure }: LobbyMemberViewPro
       {view.status === 'WAITING' && <WaitingControls lobby={lobby} view={view} isWorking={isWorking} />}
       {view.status === 'STARTED' && (
         <div>
-          <output>Game started. Game identity: {state.lastGameId ?? view.gameId}</output>
+          <output>Game started. Game identity: {state.lastGameId ?? view.gameId}</output>{' '}
+          <Link to={gamePath(state.lastGameId ?? view.gameId)}>Open game</Link>
           <button type="button" disabled={isWorking} onClick={() => void lobby.refresh()}>
             Refresh membership
           </button>
@@ -250,13 +237,21 @@ function LobbyMemberView({ lobby, view, isWorking, failure }: LobbyMemberViewPro
   )
 }
 
-export function LobbyPanel({ lobby, defaultPlayerName }: LobbyPanelProps) {
+export function LobbyPanel({ lobby, defaultPlayerName, invitedLobbyId }: LobbyPanelProps) {
   const { state } = lobby
   const isWorking = state.phase.kind === 'working'
   const failure = state.phase.kind === 'failed' ? state.phase : null
 
   if (!state.lobby) {
-    return <LobbyJoinView lobby={lobby} defaultPlayerName={defaultPlayerName} isWorking={isWorking} failure={failure} />
+    return (
+      <LobbyJoinView
+        lobby={lobby}
+        defaultPlayerName={defaultPlayerName}
+        invitedLobbyId={invitedLobbyId}
+        isWorking={isWorking}
+        failure={failure}
+      />
+    )
   }
 
   return <LobbyMemberView lobby={lobby} view={state.lobby} isWorking={isWorking} failure={failure} />

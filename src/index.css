@@ -52,7 +52,8 @@ button {
   margin: 1em 0;
 }
 
-button:focus-visible {
+button:focus-visible,
+a:focus-visible {
   outline: 3px solid #f2e5bd;
   outline-offset: 3px;
 }
@@ -75,7 +76,11 @@ button:focus-visible {
 }
 
 .page-bar button,
-.lobby-card button {
+.page-link,
+.lobby-card button,
+.lobby-card a {
+  display: inline-block;
+  text-decoration: none;
   padding: 0.4rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 0.4rem;
@@ -85,7 +90,9 @@ button:focus-visible {
 }
 
 .page-bar button:hover:not(:disabled),
-.lobby-card button:hover:not(:disabled) {
+.page-link:hover,
+.lobby-card button:hover:not(:disabled),
+.lobby-card a:hover {
   border-color: var(--accent-strong);
 }
 
@@ -165,7 +172,8 @@ button:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.lobby-card button + button {
+.lobby-card button + button,
+.lobby-card output + a {
   margin-left: 0.5rem;
 }
 

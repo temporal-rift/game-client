@@ -3,8 +3,9 @@ import type { User, UserManager } from 'oidc-client-ts'
 import { createGameOidcClient } from './oidcClient'
 import { clearPrivateCaches, identityFromUser, sameIdentity } from './session'
 import type { AuthSession, PlayerIdentity } from './session'
-import { cleanAuthCallbackUrl, parseAuthCallback, parseGameInvitation } from './invitation'
+import { parseAuthCallback } from './invitation'
 import type { AppConfig } from '../config/appConfig'
+import { AUTH_CALLBACK_PATH, HOME_PATH, safeReturnTo } from '../routing/paths'
 
 export type PlayerSessionStatus =
   | { readonly state: 'restoring' }
@@ -23,20 +24,14 @@ export interface PlayerSession {
 }
 
 export interface SignInAppState {
-  readonly gameId: string | null
+  readonly returnTo: string
 }
 
 const EXPIRED_REASON = 'Your session expired. Sign in again to continue.'
 
-/** Removes OAuth fields from the address bar; parsed values stay in memory. */
-function stripCallbackFromUrl(): void {
-  window.history.replaceState(null, '', cleanAuthCallbackUrl(window.location.href))
-}
-
-function returnUrlPreservingGame(): string {
-  const base = `${window.location.origin}${window.location.pathname}`
-  const invitation = parseGameInvitation(window.location.search)
-  return invitation ? `${base}?game=${encodeURIComponent(invitation.gameId)}` : base
+/** Leaves the callback page for an app page, so OAuth fields never linger in history. */
+function leaveCallbackFor(path: string): void {
+  window.history.replaceState(null, '', path)
 }
 
 function authErrorCode(error: unknown): string | null {
@@ -66,28 +61,20 @@ function friendlyAuthError(error: unknown): string {
 
 /**
  * Completes one authorization callback through the SDK, which owns code
- * validation, the token exchange and ID-token validation. The invitation
- * reference round-trips in the SDK's own `state`, never as identity.
+ * validation, the token exchange and ID-token validation. The page the
+ * player signed in from round-trips in the SDK's own `state`, never as
+ * identity, and only as a validated app-relative path.
  */
 async function handleCallback(client: UserManager): Promise<PlayerSessionStatus> {
-  let appState: SignInAppState | undefined
   let user: User
   try {
     user = await client.signinRedirectCallback()
-    const candidate = (user.state ?? undefined) as Partial<SignInAppState> | undefined
-    appState = { gameId: typeof candidate?.gameId === 'string' ? candidate.gameId : null }
   } catch (error) {
-    stripCallbackFromUrl()
+    leaveCallbackFor(HOME_PATH)
     return { state: 'error', message: friendlyAuthError(error) }
   }
-  stripCallbackFromUrl()
-  const restoredGameId =
-    appState?.gameId != null ? parseGameInvitation(`?game=${encodeURIComponent(appState.gameId)}`)?.gameId : undefined
-  if (restoredGameId) {
-    const url = new URL(window.location.href)
-    url.searchParams.set('game', restoredGameId)
-    window.history.replaceState(null, '', url.toString())
-  }
+  const appState = (user.state ?? undefined) as Partial<SignInAppState> | undefined
+  leaveCallbackFor(safeReturnTo(appState?.returnTo) ?? HOME_PATH)
   const identity = identityFromUser(user.profile)
   if (!identity) {
     return { state: 'error', message: 'Sign-in did not complete. Try signing in again.' }
@@ -119,9 +106,14 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
 
     async function restore(activeClient: UserManager): Promise<void> {
       const search = window.location.search
+      const onCallbackPage = window.location.pathname === AUTH_CALLBACK_PATH
       const callback = parseAuthCallback(search)
-      const isCallback = Boolean((callback.code && callback.state) || callback.error)
+      const isCallback = onCallbackPage && Boolean((callback.code && callback.state) || callback.error)
       if (!isCallback) {
+        if (onCallbackPage) {
+          // A stray visit (bookmark, back button) with nothing to complete.
+          leaveCallbackFor(HOME_PATH)
+        }
         const user = await activeClient.getUser().catch(() => null)
         const identity = user ? identityFromUser(user.profile) : null
         if (identity) {
@@ -162,8 +154,8 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
     }
     setStatus({ state: 'signing-in' })
     try {
-      const invitation = parseGameInvitation(window.location.search)
-      const appState: SignInAppState = { gameId: invitation?.gameId ?? null }
+      const currentPage = `${window.location.pathname}${window.location.search}`
+      const appState: SignInAppState = { returnTo: safeReturnTo(currentPage) ?? HOME_PATH }
       await client.signinRedirect({ state: appState })
     } catch (error) {
       setStatus({ state: 'error', message: friendlyAuthError(error) })
@@ -178,7 +170,7 @@ export function usePlayerSession(config: AppConfig | null): PlayerSession {
       // signoutRedirect() itself loads the stored user for id_token_hint, then removes it —
       // removing it first would send the logout request without that hint, which some issuers
       // reject or ignore.
-      await client?.signoutRedirect({ post_logout_redirect_uri: returnUrlPreservingGame() })
+      await client?.signoutRedirect()
     } catch {
       // Local sign-out is already applied; the issuer's own logout redirect is best-effort.
     }
