@@ -1,21 +1,18 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { GameStateView } from '../api/gameStateClient'
+import type { GameStateView } from '../api/projection'
+import { baseGameState } from '../game/gameStateFixtures'
 import { createGameStateSession } from '../game/gameStateTestSupport'
 import { useKnowledge } from './useKnowledge'
 
 function stateBodyFor(playerName: string): GameStateView {
-  const body = {
-    gameId: 'game-1',
-    eraNumber: 2,
-    revision: 5,
-    phase: 'ACTION_ROUND_2',
-    roundNumber: 2,
-    myScore: 4,
-    players: [{ playerId: 'p-1', playerName, score: 8, isConnected: true, faction: null }],
-    myRevealedIntel: [{ kind: 'INFLUENCE', observedInRound: 2, eventId: 'event-1', influencerPlayerIds: ['p-1'] }],
-  }
-  return { ...body, raw: body } as unknown as GameStateView
+  return baseGameState(
+    {},
+    {
+      players: [{ playerId: 'p-1', playerName, score: 8, isConnected: true, faction: null }],
+      myRevealedIntel: [{ kind: 'INFLUENCE', observedInRound: 2, eventId: 'event-1', influencerPlayerIds: ['p-1'] }],
+    },
+  )
 }
 
 describe('useKnowledge', () => {

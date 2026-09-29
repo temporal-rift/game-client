@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import type { ActionSummary, PlayerInGame } from '../api/projection'
 import { baseGameState as baseState } from '../game/gameStateFixtures'
 import { selectRoundSummaryView } from './roundSummaryView'
 
-const PLAYERS = [
+const PLAYERS: PlayerInGame[] = [
   { playerId: 'p-1', playerName: 'Nora', score: 8, isConnected: true, faction: null },
   { playerId: 'p-2', playerName: 'Eli', score: 6, isConnected: true, faction: null },
   { playerId: 'p-3', playerName: 'Mara', score: 5, isConnected: true, faction: null },
 ]
 
-function summaryState(summaries: unknown, players: unknown = PLAYERS) {
+function summaryState(summaries: ActionSummary[] | null, players: PlayerInGame[] = PLAYERS) {
   return baseState(
     {},
     {
@@ -73,12 +74,12 @@ describe('selectRoundSummaryView', () => {
     expect(view.entries.map((entry) => entry.playerId)).toEqual(['p-3'])
   })
 
-  it('drops malformed entries instead of throwing', () => {
+  it('drops entries that reveal more or less than their family allows', () => {
     const view = selectRoundSummaryView(
       summaryState([
-        { playerId: 'p-1', actionCategory: 'NOT_A_CATEGORY', actionFamily: 'CARD', skipped: false },
+        { playerId: 'p-1', actionCategory: null, actionFamily: 'CARD', skipped: false },
         { playerId: 'p-2', actionCategory: 'INFORMATION', actionFamily: 'SPECIAL', skipped: false },
-        { actionCategory: 'PARADOX', actionFamily: 'CARD', skipped: false },
+        { playerId: 'p-4', actionCategory: 'PARADOX', actionFamily: null, skipped: false },
         { playerId: 'p-3', actionCategory: 'PARADOX', actionFamily: 'CARD', skipped: false },
       ]),
     )

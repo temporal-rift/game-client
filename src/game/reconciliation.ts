@@ -5,7 +5,7 @@
  * for a coordinate was already accepted (lost-response recovery).
  */
 
-import type { GameStateView, SubmissionKind } from '../api/gameStateClient'
+import type { GameStateView, SubmissionKind } from '../api/projection'
 
 /**
  * A response without a revision cannot be confirmed current (the owner
@@ -16,7 +16,7 @@ import type { GameStateView, SubmissionKind } from '../api/gameStateClient'
  * decisions or entitled knowledge.
  */
 export function shouldApplyGameState(current: GameStateView | null, next: GameStateView): boolean {
-  if (next.revision === null) {
+  if (next.revision === undefined) {
     return current === null
   }
   if (current?.revision == null) {
@@ -54,7 +54,7 @@ export function hasAcceptedSubmission(state: GameStateView | null, query: Submis
   if (!state) {
     return false
   }
-  return state.mySubmissions.some((submission) => {
+  return (state.mySubmissions ?? []).some((submission) => {
     if (submission.kind !== query.kind || submission.eraNumber !== query.eraNumber) {
       return false
     }

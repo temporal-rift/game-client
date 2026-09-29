@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { uuid } from '../test/uuid'
 import { useLobby } from './useLobby'
-import type { LobbyView } from '../api/lobbyClient'
+import type { LobbyResponse } from '../api/session'
 
 interface FakeMember {
   playerId: string;
@@ -18,7 +19,7 @@ interface FakeLobby {
 }
 
 function lobbyResponse(lobby: FakeLobby): Response {
-  const view: LobbyView = {
+  const view: LobbyResponse = {
     lobbyId: lobby.lobbyId,
     gameId: lobby.gameId,
     hostPlayerId: lobby.hostPlayerId,
@@ -48,11 +49,11 @@ function createFakeServer() {
       if (method === 'POST' && url.pathname === '/api/v1/lobbies') {
         counter += 1
         const lobby: FakeLobby = {
-          lobbyId: `lobby-${counter}`,
-          gameId: `game-${counter}`,
-          hostPlayerId: `player-${counter}-host`,
+          lobbyId: uuid(`lobby-${counter}`),
+          gameId: uuid(`game-${counter}`),
+          hostPlayerId: uuid(`player-${counter}-host`),
           status: 'WAITING',
-          members: [{ playerId: `player-${counter}-host`, playerName: body.playerName ?? 'host', isHost: true }],
+          members: [{ playerId: uuid(`player-${counter}-host`), playerName: body.playerName ?? 'host', isHost: true }],
         }
         lobbies.set(lobby.lobbyId, lobby)
         return new Response(
@@ -78,7 +79,7 @@ function createFakeServer() {
           if (lobby.members.length >= 5) {
             return problem(422, '422-01', 'full')
           }
-          const playerId = `player-${lobbyId}-${lobby.members.length + 1}`
+          const playerId = uuid(`player-${lobbyId}-${lobby.members.length + 1}`)
           const existingByName = lobby.members.find((member) => member.playerName === body.playerName)
           if (existingByName) {
             return problem(409, '409-02', 'already in lobby')
@@ -231,8 +232,8 @@ describe('useLobby', () => {
 
     // Grow to a valid roster directly on the fake.
     const lobby = server.lobbies.get(lobbyId)
-    lobby?.members.push({ playerId: 'p2', playerName: 'two', isHost: false })
-    lobby?.members.push({ playerId: 'p3', playerName: 'three', isHost: false })
+    lobby?.members.push({ playerId: uuid('p2'), playerName: 'two', isHost: false })
+    lobby?.members.push({ playerId: uuid('p3'), playerName: 'three', isHost: false })
 
     await act(async () => {
       await hook.result.current.refresh()
@@ -298,7 +299,7 @@ describe('useLobby', () => {
   })
 
   it('forgets a remembered lobby the server now hides from the player', async () => {
-    sessionStorage.setItem('temporal-rift.private.lobbyId', 'lobby-gone')
+    sessionStorage.setItem('temporal-rift.private.lobbyId', uuid('lobby-gone'))
     const fetchFn = () => Promise.resolve(problem(403, '403-01', 'not a member'))
 
     const onLobbyIdChange = vi.fn()
@@ -390,7 +391,7 @@ describe('useLobby', () => {
       useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
     )
     await act(async () => {
-      await hook.result.current.join('missing', 'guest')
+      await hook.result.current.join(uuid('missing'), 'guest')
     })
     expect(hook.result.current.state.phase).toMatchObject({ kind: 'failed' })
     expect(hook.result.current.state.lobby).toBeNull()

@@ -2,20 +2,24 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useActionSubmission } from '../action/useActionSubmission'
 import { useKnowledge } from '../knowledge/useKnowledge'
+import type { GameStateView } from '../api/projection'
+import { gameStatePayload } from '../test/gameStatePayload'
+import { uuid } from '../test/uuid'
 import { useGameState } from './useGameState'
 
-function gameStateResponse(overrides: Record<string, unknown> = {}): Response {
-  const body = {
-    gameId: 'game-1',
+const GAME = uuid('game-1')
+
+function gameStateResponse(overrides: Partial<GameStateView> = {}): Response {
+  const body = gameStatePayload({
+    gameId: GAME,
     eraNumber: 1,
     phase: 'ACTION_ROUND_1',
     roundNumber: 1,
     myScore: 0,
-    myHand: [],
     mySpecialActions: [],
     mySubmissions: [],
     ...overrides,
-  }
+  })
   return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
@@ -36,9 +40,9 @@ const BASE_OPTIONS = { apiBaseUrl: 'https://api.example.test', pollIntervalMs: 1
  * merely coincidental.
  */
 function useSharedConsumers(perspectiveKey: string, fetchFn: ReturnType<typeof vi.fn>) {
-  const gameState = useGameState({ ...BASE_OPTIONS, fetchFn: fetchFn as never, gameId: 'game-1', perspectiveKey })
+  const gameState = useGameState({ ...BASE_OPTIONS, fetchFn: fetchFn as never, gameId: GAME, perspectiveKey })
   const knowledge = useKnowledge({ gameState })
-  const action = useActionSubmission({ apiBaseUrl: BASE_OPTIONS.apiBaseUrl, fetchFn: fetchFn as never, gameState, ownPlayerId: 'p-1' })
+  const action = useActionSubmission({ apiBaseUrl: BASE_OPTIONS.apiBaseUrl, fetchFn: fetchFn as never, gameState, ownPlayerId: uuid('p-1') })
   return { gameState, knowledge, action }
 }
 

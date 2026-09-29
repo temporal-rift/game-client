@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AuthenticatedFetchFn, GameStateView } from '../api/gameStateClient'
-import { GameStateApiError, gameStateErrorMessage, getGameState } from '../api/gameStateClient'
+import { ApiProblemError, isAbortError } from '../api/client'
+import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
+import { gameStateErrorMessage, getGameState } from '../api/projection'
 import type { SubmissionQuery } from './reconciliation'
 import { hasAcceptedSubmission as checkAcceptedSubmission, nextPollDelayMs, shouldApplyGameState } from './reconciliation'
 
@@ -54,10 +55,10 @@ type PollErrorOutcome =
 
 /** An aborted request is intentional cancellation, never a reported failure. */
 function classifyPollError(error: unknown): PollErrorOutcome {
-  if (error instanceof DOMException && error.name === 'AbortError') {
+  if (isAbortError(error)) {
     return { ignore: true }
   }
-  return { ignore: false, message: gameStateErrorMessage(error), code: error instanceof GameStateApiError ? error.code : null }
+  return { ignore: false, message: gameStateErrorMessage(error), code: error instanceof ApiProblemError ? error.code : null }
 }
 
 /**

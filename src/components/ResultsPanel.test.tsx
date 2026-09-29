@@ -8,7 +8,6 @@ const complete: Extract<ResultsView, { kind: 'complete' }> = {
   kind: 'complete',
   gameId: 'game-1',
   endReason: 'WIN_CONDITION_MET',
-  endReasonRaw: 'WIN_CONDITION_MET',
   winners: [
     { playerId: 'p-1', playerName: 'Nora', score: 20, isWinner: true, faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
     { playerId: 'p-2', playerName: 'Eli', score: 14, isWinner: true, faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' },
@@ -43,7 +42,6 @@ describe('ResultsPanel', () => {
     const collapsed: ResultsView = {
       ...complete,
       endReason: 'TIMELINE_COLLAPSED',
-      endReasonRaw: 'TIMELINE_COLLAPSED',
       winners: [{ playerId: 'p-3', playerName: 'You', score: 6, isWinner: true, faction: 'ACTIVISTS', winType: null }],
     }
     render(<ResultsPanel view={collapsed} ownPlayerId="p-3" error={null} isRefreshing={false} onRefresh={() => {}} />)

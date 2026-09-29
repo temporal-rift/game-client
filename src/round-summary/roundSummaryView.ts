@@ -1,9 +1,5 @@
 /**
  * Builds the public round-summary display view from authoritative game state.
- * `raw` carries `lastRoundSummary`/`players` unparsed (the shared game-state
- * client only validates the reconciliation envelope), so this module parses
- * its own slice — mirroring how `actionView.ts` and `knowledgeView.ts` read
- * their own `raw` fields.
  *
  * The summary deliberately reveals only an action's typed category and
  * family, never a card type, grade, special name, faction, or target. A
@@ -12,12 +8,11 @@
  */
 
 import { cardCategoryDisplayName } from '../action/actionRules'
-import type { CardCategory } from '../api/actionClient'
-import type { GameStateView } from '../api/gameStateClient'
+import type { CardCategory } from '../api/action'
+import type { ActionFamily, ActionSummary, GameStateView } from '../api/projection'
 import { nameFor, playerNameLookup } from '../game/playerNames'
-import { stringField } from '../api/httpJson'
 
-export type ActionFamily = 'CARD' | 'SPECIAL'
+export type { ActionFamily }
 
 export type RoundSummaryEntry =
   | {
@@ -50,73 +45,34 @@ export type RoundSummaryView =
       readonly entries: readonly RoundSummaryEntry[]
     }
 
-const KNOWN_CATEGORIES: ReadonlySet<string> = new Set(['PROBABILITY_SHIFTER', 'INFORMATION', 'DISRUPTION', 'PARADOX'])
-const KNOWN_FAMILIES: ReadonlySet<string> = new Set(['CARD', 'SPECIAL'])
-
-function parseCategory(value: unknown): CardCategory | null {
-  return typeof value === 'string' && KNOWN_CATEGORIES.has(value) ? (value as CardCategory) : null
-}
-
-function parseFamily(value: unknown): ActionFamily | null {
-  return typeof value === 'string' && KNOWN_FAMILIES.has(value) ? (value as ActionFamily) : null
-}
-
 function isPresent(value: unknown): boolean {
   return value !== null && value !== undefined
 }
 
-function parseSkippedEntry(source: Record<string, unknown>, playerId: string, playerName: string): RoundSummaryEntry | null {
-  if (isPresent(source['actionFamily']) || isPresent(source['actionCategory'])) {
-    return null
-  }
-  return { kind: 'skipped', playerId, playerName }
-}
-
-function parseSpecialEntry(source: Record<string, unknown>, playerId: string, playerName: string): RoundSummaryEntry | null {
-  if (isPresent(source['actionCategory'])) {
-    return null
-  }
-  return { kind: 'special', playerId, playerName }
-}
-
-function parseCardEntry(source: Record<string, unknown>, playerId: string, playerName: string): RoundSummaryEntry | null {
-  const category = parseCategory(source['actionCategory'])
-  if (!category) {
-    return null
-  }
-  return {
-    kind: 'card',
-    playerId,
-    playerName,
-    actionFamily: 'CARD',
-    familyLabel: 'Card',
-    actionCategory: category,
-    categoryLabel: cardCategoryDisplayName(category),
-  }
-}
-
-function parseEntry(value: unknown, playerLookup: ReadonlyMap<string, string>): RoundSummaryEntry | null {
-  if (typeof value !== 'object' || value === null) {
-    return null
-  }
-  const source = value as Record<string, unknown>
-  const playerId = stringField(source['playerId'])
-  if (!playerId) {
-    return null
-  }
+/**
+ * The contract types each field; these rules keep an entry consistent with
+ * what its family may reveal. An entry that breaks them is left out rather
+ * than shown with more (or less) than its family allows.
+ */
+function summaryEntry(summary: ActionSummary, playerLookup: ReadonlyMap<string, string>): RoundSummaryEntry | null {
+  const { playerId, skipped, actionFamily, actionCategory } = summary
   const playerName = nameFor(playerId, playerLookup)
-  if (source['skipped'] === true) {
-    return parseSkippedEntry(source, playerId, playerName)
+  if (skipped) {
+    return isPresent(actionFamily) || isPresent(actionCategory) ? null : { kind: 'skipped', playerId, playerName }
   }
-  if (source['skipped'] !== false) {
-    return null
+  if (actionFamily === 'SPECIAL') {
+    return isPresent(actionCategory) ? null : { kind: 'special', playerId, playerName }
   }
-  const family = parseFamily(source['actionFamily'])
-  if (family === 'SPECIAL') {
-    return parseSpecialEntry(source, playerId, playerName)
-  }
-  if (family === 'CARD') {
-    return parseCardEntry(source, playerId, playerName)
+  if (actionFamily === 'CARD' && actionCategory) {
+    return {
+      kind: 'card',
+      playerId,
+      playerName,
+      actionFamily: 'CARD',
+      familyLabel: 'Card',
+      actionCategory,
+      categoryLabel: cardCategoryDisplayName(actionCategory),
+    }
   }
   return null
 }
@@ -130,24 +86,14 @@ export function selectRoundSummaryView(state: GameStateView | null): RoundSummar
   if (!state) {
     return { kind: 'unavailable', reason: 'Game state is not loaded yet.' }
   }
-  const raw = state.raw
-  const summary = raw['lastRoundSummary']
-  if (summary === null || summary === undefined) {
+  const summary = state.lastRoundSummary
+  if (!summary) {
     return { kind: 'unavailable', reason: 'No round has closed yet.' }
   }
-  if (typeof summary !== 'object' || Array.isArray(summary)) {
-    return { kind: 'unavailable', reason: 'No round has closed yet.' }
-  }
-  const source = summary as Record<string, unknown>
-  const roundNumber = typeof source['roundNumber'] === 'number' ? source['roundNumber'] : null
-  const actionSummaries = source['actionSummaries']
-  if (roundNumber === null || !Array.isArray(actionSummaries)) {
-    return { kind: 'unavailable', reason: 'No round has closed yet.' }
-  }
-  const playerLookup = playerNameLookup(raw)
-  const entries = actionSummaries.flatMap((entry) => {
-    const parsed = parseEntry(entry, playerLookup)
+  const playerLookup = playerNameLookup(state)
+  const entries = summary.actionSummaries.flatMap((entry) => {
+    const parsed = summaryEntry(entry, playerLookup)
     return parsed ? [parsed] : []
   })
-  return { kind: 'ready', gameId: state.gameId, eraNumber: state.eraNumber, roundNumber, entries }
+  return { kind: 'ready', gameId: state.gameId, eraNumber: state.eraNumber, roundNumber: summary.roundNumber, entries }
 }

@@ -1,21 +1,22 @@
 import { describe, expect, it } from 'vitest'
+import type { ActiveEvent, GameStateView, PlayerInGame } from '../api/projection'
 import { baseGameState as baseState } from '../game/gameStateFixtures'
 import { selectKnowledgeView } from './knowledgeView'
 
-const ACTIVE_EVENTS = [
+const ACTIVE_EVENTS: ActiveEvent[] = [
   {
     eventId: 'event-1',
     title: 'The Delegate Arrives',
     carryOverState: 'FRESH',
     outcomes: [
-      { outcomeId: 'outcome-1', description: 'Accepted' },
-      { outcomeId: 'outcome-2', description: 'Rejected' },
-      { outcomeId: 'outcome-3', description: 'Delayed' },
+      { outcomeId: 'outcome-1', description: 'Accepted', initialProbability: 50 },
+      { outcomeId: 'outcome-2', description: 'Rejected', initialProbability: 30 },
+      { outcomeId: 'outcome-3', description: 'Delayed', initialProbability: 20 },
     ],
   },
 ]
 
-const PLAYERS = [
+const PLAYERS: PlayerInGame[] = [
   { playerId: 'p-1', playerName: 'Nora', score: 8, isConnected: true, faction: null },
   { playerId: 'p-2', playerName: 'Eli', score: 6, isConnected: true, faction: null },
 ]
@@ -25,7 +26,7 @@ describe('selectKnowledgeView', () => {
     expect(selectKnowledgeView(null)).toEqual({ kind: 'unavailable', reason: 'Game state is not loaded yet.' })
   })
 
-  it('parses public bands with event/outcome titles and never invents an unrecognized band', () => {
+  it('parses public bands with event/outcome titles', () => {
     const state = baseState(
       {},
       {
@@ -37,7 +38,7 @@ describe('selectKnowledgeView', () => {
             outcomes: [
               { outcomeId: 'outcome-1', band: 'HIGH' },
               { outcomeId: 'outcome-2', band: 'LOW' },
-              { outcomeId: 'outcome-3', band: 'JAMMED-GARBAGE' },
+              { outcomeId: 'outcome-3', band: 'MEDIUM' },
             ],
           },
         ],
@@ -53,17 +54,10 @@ describe('selectKnowledgeView', () => {
         outcomes: [
           { outcomeId: 'outcome-1', outcomeDescription: 'Accepted', band: 'high' },
           { outcomeId: 'outcome-2', outcomeDescription: 'Rejected', band: 'low' },
-          { outcomeId: 'outcome-3', outcomeDescription: 'Delayed', band: 'unknown' },
+          { outcomeId: 'outcome-3', outcomeDescription: 'Delayed', band: 'medium' },
         ],
       },
     ])
-  })
-
-  it('drops malformed band entries instead of throwing', () => {
-    const state = baseState({}, { publicBands: [{ observedInRound: 2, outcomes: [] }, { eventId: 'event-1' }] })
-    const view = selectKnowledgeView(state)
-    if (view.kind !== 'ready') throw new Error('expected ready view')
-    expect(view.bands).toEqual([])
   })
 
   it('parses own earned probability knowledge with exact weights and era-end expiry', () => {
@@ -129,6 +123,7 @@ describe('selectKnowledgeView', () => {
           {
             kind: 'HAND_CARD',
             observedInRound: 1,
+            eventId: 'event-1',
             targetPlayerId: 'p-2',
             revealedCards: [{ cardInstanceId: 'card-1', cardType: 'SWING', grade: 'III' }],
           },
@@ -181,13 +176,6 @@ describe('selectKnowledgeView', () => {
     ])
   })
 
-  it('drops a declaration with an unrecognized mode instead of guessing it', () => {
-    const state = baseState({}, { declarations: [{ playerId: 'p-1', mode: 'RUMOR', targetEventId: 'event-1', targetOutcomeId: 'outcome-1', eraNumber: 2 }] })
-    const view = selectKnowledgeView(state)
-    if (view.kind !== 'ready') throw new Error('expected ready view')
-    expect(view.declarations).toEqual([])
-  })
-
   it('parses already-broadcast Expose facts, including a behavior-unchanged result', () => {
     const state = baseState(
       {},
@@ -222,9 +210,8 @@ describe('selectKnowledgeView', () => {
   })
 
   it('never surfaces an unrecognized field, even one placed directly on a knowledge/band/declaration entry', () => {
-    const state = baseState(
-      {},
-      {
+    // Schemas validate the contract's fields but pass the served body through, extra keys included.
+    const slices = {
         activeEvents: ACTIVE_EVENTS,
         players: PLAYERS,
         publicBands: [{ eventId: 'event-1', observedInRound: 2, outcomes: [{ outcomeId: 'outcome-1', band: 'HIGH', secretOpponentHand: 'LEAK-MARKER' }] }],
@@ -244,9 +231,8 @@ describe('selectKnowledgeView', () => {
             secretOpponentHand: 'LEAK-MARKER',
           },
         ],
-      },
-    )
-    const view = selectKnowledgeView(state)
+      }
+    const view = selectKnowledgeView(baseState({}, slices as unknown as Partial<GameStateView>))
     expect(JSON.stringify(view)).not.toContain('LEAK-MARKER')
   })
 })

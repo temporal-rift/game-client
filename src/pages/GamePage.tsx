@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
-import type { AuthenticatedFetchFn } from '../api/lobbyClient'
+import type { AuthenticatedFetchFn } from '../api/session'
 import type { AuthSession } from '../auth/session'
 import { useActionSubmission } from '../action/useActionSubmission'
 import { ActionPanel } from '../components/ActionPanel'

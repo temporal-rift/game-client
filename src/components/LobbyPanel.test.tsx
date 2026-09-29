@@ -4,9 +4,9 @@ import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { LobbyPanel } from './LobbyPanel'
 import type { LobbySession } from '../lobby/useLobby'
-import type { LobbyView } from '../api/lobbyClient'
+import type { LobbyResponse } from '../api/session'
 
-function lobbyView(overrides: Partial<LobbyView> = {}): LobbyView {
+function lobbyView(overrides: Partial<LobbyResponse> = {}): LobbyResponse {
   return {
     lobbyId: 'lobby-1',
     gameId: 'game-1',

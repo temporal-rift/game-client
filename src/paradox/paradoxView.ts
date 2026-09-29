@@ -1,10 +1,10 @@
-import type { EligibleParadoxCardView, ParadoxResolutionStatusView } from '../api/actionClient'
-import type { GameStateView } from '../api/gameStateClient'
-import { parseActiveEvents, type ActiveEventOption } from '../action/actionView'
+import type { EligibleResolutionCard, ParadoxResolutionStatusResponse } from '../api/action'
+import type { GameStateView } from '../api/projection'
+import { activeEventOptions, type ActiveEventOption } from '../action/actionView'
 import { cardDisplayName, cardEffectSummary } from '../action/actionRules'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 
-export interface ParadoxCardOption extends EligibleParadoxCardView {
+export interface ParadoxCardOption extends EligibleResolutionCard {
   readonly name: string
   readonly effectSummary: string
 }
@@ -31,7 +31,7 @@ export type ParadoxResolutionView =
     }
 
 function isParadoxPhase(state: GameStateView): boolean {
-  return state.phase === 'PARADOX_RESOLUTION' && state.phaseContext.paradoxOpen
+  return state.phase === 'PARADOX_RESOLUTION' && state.phaseContext?.paradoxOpen === true
 }
 
 /**
@@ -41,7 +41,7 @@ function isParadoxPhase(state: GameStateView): boolean {
  */
 export function selectParadoxResolutionView(
   state: GameStateView | null,
-  status: ParadoxResolutionStatusView | null,
+  status: ParadoxResolutionStatusResponse | null,
 ): ParadoxResolutionView {
   if (!state || !isParadoxPhase(state)) {
     return { kind: 'unavailable', reason: 'No paradox-resolution phase is currently open.' }
@@ -60,16 +60,16 @@ export function selectParadoxResolutionView(
       totalPlayers: status.totalPlayers,
     }
   }
-  const affectedEventIds = new Set(status.affectedEventIds)
+  const affectedEventIds = new Set(status.affectedEventIds ?? [])
   return {
     kind: 'open',
     gameId: state.gameId,
     eraNumber: state.eraNumber,
-    timerRemainingSeconds: status.timerRemainingSeconds,
+    timerRemainingSeconds: status.timerRemainingSeconds ?? null,
     submittedCount: status.submittedCount,
     totalPlayers: status.totalPlayers,
-    affectedEvents: parseActiveEvents(state.raw['activeEvents']).filter((event) => affectedEventIds.has(event.eventId)),
-    cards: status.eligibleCards.map((card) => ({
+    affectedEvents: activeEventOptions(state.activeEvents).filter((event) => affectedEventIds.has(event.eventId)),
+    cards: (status.eligibleResolutionCards ?? []).map((card) => ({
       ...card,
       name: cardDisplayName(card.cardType),
       effectSummary: cardEffectSummary(card.cardType),

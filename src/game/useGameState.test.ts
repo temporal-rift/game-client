@@ -1,15 +1,14 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { GameStateView } from '../api/projection'
+import { gameStatePayload } from '../test/gameStatePayload'
+import { uuid } from '../test/uuid'
 import { useGameState } from './useGameState'
 
-function gameStateResponse(overrides: Record<string, unknown> = {}): Response {
-  const body = {
-    gameId: 'game-1',
-    eraNumber: 1,
-    phase: 'ACTION_ROUND_1',
-    myScore: 0,
-    ...overrides,
-  }
+const GAME = uuid('game-1')
+
+function gameStateResponse(overrides: Partial<GameStateView> = {}): Response {
+  const body = gameStatePayload({ gameId: GAME, eraNumber: 1, phase: 'ACTION_ROUND_1', myScore: 0, ...overrides })
   return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
@@ -66,16 +65,16 @@ describe('useGameState', () => {
     expect(fetchFn).not.toHaveBeenCalled()
 
     const { result: withGame } = renderHook(() =>
-      useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }),
+      useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }),
     )
     await flush()
     expect(withGame.current.status.kind).toBe('ready')
-    expect(withGame.current.state?.gameId).toBe('game-1')
+    expect(withGame.current.state?.gameId).toBe(GAME)
   })
 
   it('polls again after the configured interval', async () => {
     const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 1 }))
-    renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -88,7 +87,7 @@ describe('useGameState', () => {
     const second = deferred<Response>()
     const fetchFn = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
 
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -119,7 +118,7 @@ describe('useGameState', () => {
 
     const { result, rerender } = renderHook(
       (props: { perspectiveKey: string }) =>
-        useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: props.perspectiveKey }),
+        useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: props.perspectiveKey }),
       { initialProps: { perspectiveKey: 'alice' } },
     )
     await flush()
@@ -147,7 +146,7 @@ describe('useGameState', () => {
       .mockRejectedValueOnce(new TypeError('network down'))
       .mockResolvedValue(gameStateResponse({ revision: 1 }))
 
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
     expect(result.current.status.kind).toBe('failed')
@@ -176,7 +175,7 @@ describe('useGameState', () => {
       .mockResolvedValueOnce(gameStateResponse({ revision: 1 }))
       .mockRejectedValueOnce(new TypeError('network down'))
 
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(result.current.status.kind).toBe('ready')
 
@@ -187,7 +186,7 @@ describe('useGameState', () => {
 
   it('pauses polling while offline or backgrounded and resumes immediately once connectivity/visibility return', async () => {
     const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 1 }))
-    renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -218,7 +217,7 @@ describe('useGameState', () => {
     const inFlight = deferred<Response>()
     const fetchFn = vi.fn().mockReturnValueOnce(inFlight.promise).mockResolvedValue(gameStateResponse({ revision: 1 }))
 
-    const { unmount } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    const { unmount } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -240,7 +239,7 @@ describe('useGameState', () => {
         mySubmissions: [{ eraNumber: 1, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }],
       }),
     )
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: 'game-1', perspectiveKey: 'alice' }))
+    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(result.current.status.kind).toBe('ready')
 

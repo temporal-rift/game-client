@@ -1,4 +1,4 @@
-import type { ActionCoordinates, CardCategory, SpecialAction } from '../api/actionClient'
+import type { ActionCoordinates, CardCategory, SpecialAction } from '../api/action'
 import type { ActionDraft, SubmitPhase } from '../action/useActionSubmission'
 import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption, SpecialActionOption } from '../action/actionView'
 import { CARD_CATEGORIES, cardCategoryDisplayName, type TargetMode } from '../action/actionRules'
@@ -350,11 +350,11 @@ export function ActionPanel({
     }
   }
 
-  function toggledList(current: readonly string[], id: string): readonly string[] {
+  function toggledList(current: readonly string[], id: string): string[] {
     if (current.includes(id)) {
       return current.filter((entry) => entry !== id)
     }
-    return current.length < requiredListSize ? [...current, id] : current
+    return current.length < requiredListSize ? [...current, id] : [...current]
   }
 
   function toggleListEvent(eventId: string): void {

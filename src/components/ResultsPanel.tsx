@@ -76,19 +76,6 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
     )
   }
 
-  if (view.kind === 'unknown-terminal') {
-    return (
-      <section aria-label="Final results">
-        <h2>Final results</h2>
-        <p role="alert">The game ended with an unrecognized ending ({view.endReasonRaw}). Refresh for the authoritative result.</p>
-        <button type="button" onClick={onRefresh} disabled={isRefreshing}>
-          {isRefreshing ? 'Refreshing…' : 'Refresh results'}
-        </button>
-        {error && <p role="alert">{error}</p>}
-      </section>
-    )
-  }
-
   return (
     <section aria-label="Final results">
       <h2>Final results</h2>

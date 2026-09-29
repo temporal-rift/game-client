@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ApiProblemError } from '../api/client'
 import {
-  LobbyApiError,
   createLobby as apiCreateLobby,
   getLobby as apiGetLobby,
   joinLobby as apiJoinLobby,
   leaveLobby as apiLeaveLobby,
   lobbyErrorMessage,
   startGame as apiStartGame,
-} from '../api/lobbyClient'
-import type { AuthenticatedFetchFn, LobbyView } from '../api/lobbyClient'
+} from '../api/session'
+import type { AuthenticatedFetchFn, LobbyResponse } from '../api/session'
 import { parseLobbyReference } from '../auth/invitation'
 
 export type LobbyPhase =
@@ -19,7 +19,7 @@ export type LobbyPhase =
 
 export interface LobbySessionState {
   readonly phase: LobbyPhase;
-  readonly lobby: LobbyView | null;
+  readonly lobby: LobbyResponse | null;
   readonly ownPlayerId: string | null;
   readonly lastGameId: string | null;
   readonly isHost: boolean;
@@ -101,13 +101,13 @@ export function useLobby(options: UseLobbyOptions) {
     onLobbyIdChangeRef.current?.(lobbyId);
   }, []);
 
-  const confirmedOwnPlayerId = useCallback((view: LobbyView, knownOwnPlayerId: string | null): string | null => {
+  const confirmedOwnPlayerId = useCallback((view: LobbyResponse, knownOwnPlayerId: string | null): string | null => {
     const candidate = view.currentPlayerId ?? knownOwnPlayerId;
     return candidate && view.members.some((member) => member.playerId === candidate) ? candidate : null;
   }, []);
 
   const applyLobby = useCallback(
-    (lobby: LobbyView, ownPlayerId: string | null, lastGameId: string | null = null) => {
+    (lobby: LobbyResponse, ownPlayerId: string | null, lastGameId: string | null = null) => {
       const isHost = ownPlayerId !== null && lobby.hostPlayerId === ownPlayerId;
       const memberCount = lobby.members.length;
       setState({
@@ -122,7 +122,7 @@ export function useLobby(options: UseLobbyOptions) {
     [],
   );
 
-  const refresh = useCallback(async (background = false): Promise<LobbyView | null> => {
+  const refresh = useCallback(async (background = false): Promise<LobbyResponse | null> => {
     const lobbyId = lobbyIdRef.current;
     if (!lobbyId) {
       return null;
@@ -146,7 +146,7 @@ export function useLobby(options: UseLobbyOptions) {
       applyLobby(view, knownOwn);
       return view;
     } catch (error) {
-      const code = error instanceof LobbyApiError ? error.code : null;
+      const code = error instanceof ApiProblemError ? error.code : null;
       // A deleted/unknown lobby must not pin the client to a dead reference.
       if (code === '404-01') {
         setLobbyId(null);
@@ -204,7 +204,7 @@ export function useLobby(options: UseLobbyOptions) {
         if (cancelled || generation !== generationRef.current || commandInFlightRef.current || lobbyId !== lobbyIdRef.current) {
           return;
         }
-        const code = error instanceof LobbyApiError ? error.code : null;
+        const code = error instanceof ApiProblemError ? error.code : null;
         // The server hides a lobby from non-members, which is exactly an
         // invitee's state: keep the routed lobby as the join target.
         if (code === '403-01' && lobbyId === initialLobbyIdRef.current) {
@@ -304,7 +304,7 @@ export function useLobby(options: UseLobbyOptions) {
             phase: {
               kind: 'failed',
               message: lobbyErrorMessage(error),
-              code: error instanceof LobbyApiError ? error.code : null,
+              code: error instanceof ApiProblemError ? error.code : null,
             },
           }));
         }
@@ -372,11 +372,11 @@ export function useLobby(options: UseLobbyOptions) {
         // A 409-02 (already joined) or a lost response for the lobby being
         // targeted may both mean the join actually landed: reconcile
         // against `target` itself rather than a stale prior reference.
-        const shouldReconcile = (error instanceof LobbyApiError && error.code === '409-02') || !(error instanceof LobbyApiError);
+        const shouldReconcile = (error instanceof ApiProblemError && error.code === '409-02') || !(error instanceof ApiProblemError);
         if (shouldReconcile && (await reconcileJoin(target))) {
           return;
         }
-        const cannotConfirmExistingMembership = error instanceof LobbyApiError && error.code === '409-02';
+        const cannotConfirmExistingMembership = error instanceof ApiProblemError && error.code === '409-02';
         setState((previous) => ({
           ...previous,
           phase: {
@@ -384,7 +384,7 @@ export function useLobby(options: UseLobbyOptions) {
             message: cannotConfirmExistingMembership
               ? 'The server reports that you already joined, but membership could not be confirmed. Reopen a valid invitation after the connection recovers.'
               : lobbyErrorMessage(error),
-            code: error instanceof LobbyApiError ? error.code : null,
+            code: error instanceof ApiProblemError ? error.code : null,
           },
         }));
       } finally {
@@ -408,13 +408,13 @@ export function useLobby(options: UseLobbyOptions) {
       await apiLeaveLobby(fetchRef.current, apiBaseUrl, lobbyId);
     } catch (error) {
       // Leaving a missing lobby still clears the local reference.
-      if (!(error instanceof LobbyApiError && error.code === '404-01')) {
+      if (!(error instanceof ApiProblemError && error.code === '404-01')) {
         setState((previous) => ({
           ...previous,
           phase: {
             kind: 'failed',
             message: lobbyErrorMessage(error),
-            code: error instanceof LobbyApiError ? error.code : null,
+            code: error instanceof ApiProblemError ? error.code : null,
           },
         }));
         commandInFlightRef.current = false;
@@ -446,7 +446,7 @@ export function useLobby(options: UseLobbyOptions) {
       }
       applyLobby(view, stateRef.current.ownPlayerId, started.gameId);
     } catch (error) {
-      if (!(error instanceof LobbyApiError)) {
+      if (!(error instanceof ApiProblemError)) {
         // A lost start response may still have started the lobby.
         commandInFlightRef.current = false;
         const reconciled = await refresh();
@@ -460,7 +460,7 @@ export function useLobby(options: UseLobbyOptions) {
         phase: {
           kind: 'failed',
           message: lobbyErrorMessage(error),
-          code: error instanceof LobbyApiError ? error.code : null,
+          code: error instanceof ApiProblemError ? error.code : null,
         },
       }));
     } finally {

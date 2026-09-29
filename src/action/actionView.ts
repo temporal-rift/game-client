@@ -1,14 +1,12 @@
 /**
- * Builds the action-round display view from authoritative game state. `raw`
- * carries `myHand`/`activeEvents`/`mySpecialActions`/`myJammedUntilRound`/
- * `players` unparsed (the shared game-state client only validates the
- * reconciliation envelope), so this module parses its own slice — mirroring
- * how `resultsView.ts` reads `state.raw['players']` for its own feature.
+ * Builds the action-round display view from authoritative, contract-validated
+ * game state: the caller's hand, owned specials with their availability, the
+ * current era's active events, and opponents to target.
  */
 
-import { CARD_GRADES, CARD_TYPES, SPECIAL_ACTIONS } from '../api/actionClient'
-import type { CardGrade, CardType, Faction, SpecialAction } from '../api/actionClient'
-import type { GameStateView } from '../api/gameStateClient'
+import { isCardType, isFaction, isSpecialAction } from '../api/action'
+import type { CardGrade, CardType, Faction, SpecialAction } from '../api/action'
+import type { ActiveEvent, GameStateView, PlayerInGame, SpecialBudget } from '../api/projection'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import {
   cardDisplayName,
@@ -79,137 +77,47 @@ export type ActionRoundView =
       readonly opponents: readonly OpponentOption[]
     }
 
-const KNOWN_CARD_TYPES: ReadonlySet<string> = new Set(CARD_TYPES)
-const KNOWN_GRADES: ReadonlySet<string> = new Set(CARD_GRADES)
-const KNOWN_SPECIAL_ACTIONS: ReadonlySet<string> = new Set(SPECIAL_ACTIONS)
-const KNOWN_CARRY_OVER_STATES: ReadonlySet<string> = new Set(['FRESH', 'CASCADED', 'STALLED'])
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function parseCardType(value: unknown): CardType | null {
-  return typeof value === 'string' && KNOWN_CARD_TYPES.has(value) ? (value as CardType) : null
-}
-
-function parseGrade(value: unknown): CardGrade | null {
-  return typeof value === 'string' && KNOWN_GRADES.has(value) ? (value as CardGrade) : null
-}
-
-function parseSpecialAction(value: unknown): SpecialAction | null {
-  return typeof value === 'string' && KNOWN_SPECIAL_ACTIONS.has(value) ? (value as SpecialAction) : null
-}
-
-function parseHand(value: unknown): readonly HandCardOption[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const hand: HandCardOption[] = []
-  for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
-    }
-    const source = entry as Record<string, unknown>
-    const cardInstanceId = stringField(source['cardInstanceId'])
-    const cardType = parseCardType(source['cardType'])
-    const grade = parseGrade(source['grade'])
-    if (!cardInstanceId || !cardType || !grade) {
-      continue
+function handOptions(hand: GameStateView['myHand']): readonly HandCardOption[] {
+  return hand.flatMap(({ cardInstanceId, cardType, grade, isPlayableThisRound }) => {
+    if (!isCardType(cardType)) {
+      return []
     }
     const targetMode = cardTargetMode(cardType)
     const targetListSize = cardTargetListSize(cardType, grade)
     if ((targetMode === 'EVENT_LIST' || targetMode === 'PLAYER_LIST') && targetListSize === null) {
-      continue
+      return []
     }
-    hand.push({
-      cardInstanceId,
-      cardType,
-      grade,
-      name: cardDisplayName(cardType),
-      effectSummary: cardEffectSummary(cardType),
-      targetMode,
-      targetListSize,
-      isPlayableThisRound: source['isPlayableThisRound'] === true,
-    })
-  }
-  return hand
-}
-
-function parseOutcomes(value: unknown): readonly EventOutcomeOption[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const outcomes: EventOutcomeOption[] = []
-  for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
-    }
-    const source = entry as Record<string, unknown>
-    const outcomeId = stringField(source['outcomeId'])
-    const description = stringField(source['description'])
-    if (!outcomeId || !description) {
-      continue
-    }
-    outcomes.push({ outcomeId, description })
-  }
-  return outcomes
-}
-
-export function parseActiveEvents(value: unknown): readonly ActiveEventOption[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const events: ActiveEventOption[] = []
-  for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
-    }
-    const source = entry as Record<string, unknown>
-    const eventId = stringField(source['eventId'])
-    const title = stringField(source['title'])
-    const carryOverState = source['carryOverState']
-    if (!eventId || !title || typeof carryOverState !== 'string' || !KNOWN_CARRY_OVER_STATES.has(carryOverState)) {
-      continue
-    }
-    events.push({
-      eventId,
-      title,
-      carryOverState: carryOverState as ActiveEventOption['carryOverState'],
-      outcomes: parseOutcomes(source['outcomes']),
-    })
-  }
-  return events
-}
-
-function parseMySpecialActions(value: unknown): readonly SpecialAction[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  return value.flatMap((entry) => {
-    const parsed = parseSpecialAction(entry)
-    return parsed ? [parsed] : []
+    return [
+      {
+        cardInstanceId,
+        cardType,
+        grade,
+        name: cardDisplayName(cardType),
+        effectSummary: cardEffectSummary(cardType),
+        targetMode,
+        targetListSize,
+        isPlayableThisRound,
+      },
+    ]
   })
 }
 
-function parseOpponents(value: unknown, ownPlayerId: string | null): readonly OpponentOption[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const opponents: OpponentOption[] = []
-  for (const [seat, entry] of value.entries()) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue
-    }
-    const source = entry as Record<string, unknown>
-    const playerId = stringField(source['playerId'])
-    if (!playerId || playerId === ownPlayerId) {
-      continue
-    }
-    // The contract allows a null playerName; an unnamed opponent must stay targetable.
-    const playerName = stringField(source['playerName']) ?? `Player ${seat + 1}`
-    opponents.push({ playerId, playerName, isConnected: source['isConnected'] === true })
-  }
-  return opponents
+export function activeEventOptions(events: readonly ActiveEvent[]): readonly ActiveEventOption[] {
+  return events.map(({ eventId, title, carryOverState, outcomes }) => ({
+    eventId,
+    title,
+    carryOverState,
+    outcomes: outcomes.map(({ outcomeId, description }) => ({ outcomeId, description })),
+  }))
+}
+
+function opponentOptions(players: readonly PlayerInGame[], ownPlayerId: string | null): readonly OpponentOption[] {
+  return players.flatMap(({ playerId, playerName, isConnected }, seat) =>
+    playerId === ownPlayerId
+      ? []
+      : // The contract allows a null playerName; an unnamed opponent must stay targetable.
+        [{ playerId, playerName: playerName || `Player ${seat + 1}`, isConnected }],
+  )
 }
 
 function specialOptionsFor(
@@ -217,7 +125,7 @@ function specialOptionsFor(
   mySpecialActions: readonly SpecialAction[],
   roundNumber: number | null,
   myJammedUntilRound: number | null,
-  budgets: GameStateView['mySpecialBudgets'],
+  budgets: readonly SpecialBudget[],
 ): readonly SpecialActionOption[] {
   if (!faction) {
     return []
@@ -255,13 +163,12 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
   if (state.phase !== 'ACTION_ROUND_1' && state.phase !== 'ACTION_ROUND_2' && state.phase !== 'ACTION_ROUND_3') {
     return { kind: 'unavailable', reason: 'No action round is currently open.' }
   }
-  if (state.roundNumber === null) {
+  if (state.roundNumber === null || state.roundNumber === undefined) {
     return { kind: 'unavailable', reason: 'No action round is currently open.' }
   }
 
-  const raw = state.raw
-  const faction = typeof state.myFaction === 'string' && (state.myFaction as string).length > 0 ? (state.myFaction as Faction) : null
-  const myJammedUntilRound = typeof raw['myJammedUntilRound'] === 'number' ? (raw['myJammedUntilRound'] as number) : null
+  const faction = isFaction(state.myFaction) ? state.myFaction : null
+  const mySpecialActions = (state.mySpecialActions ?? []).filter(isSpecialAction)
 
   return {
     kind: 'open',
@@ -269,9 +176,9 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
     eraNumber: state.eraNumber,
     roundNumber: state.roundNumber,
     hasSubmitted: hasAcceptedSubmission(state, { eraNumber: state.eraNumber, kind: 'ACTION', roundNumber: state.roundNumber }),
-    hand: parseHand(raw['myHand']),
-    specials: specialOptionsFor(faction, parseMySpecialActions(raw['mySpecialActions']), state.roundNumber, myJammedUntilRound, state.mySpecialBudgets),
-    activeEvents: parseActiveEvents(raw['activeEvents']),
-    opponents: parseOpponents(raw['players'], ownPlayerId),
+    hand: handOptions(state.myHand),
+    specials: specialOptionsFor(faction, mySpecialActions, state.roundNumber, state.myJammedUntilRound ?? null, state.mySpecialBudgets ?? []),
+    activeEvents: activeEventOptions(state.activeEvents),
+    opponents: opponentOptions(state.players, ownPlayerId),
   }
 }

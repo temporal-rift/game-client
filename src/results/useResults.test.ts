@@ -1,36 +1,41 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AuthenticatedFetchFn, GameStateView } from '../api/gameStateClient'
+import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
 import { createGameStateSession } from '../game/gameStateTestSupport'
+import { gameStatePayload } from '../test/gameStatePayload'
+import { uuid } from '../test/uuid'
 import { useResults } from './useResults'
 
-function terminalStateBody(overrides: Record<string, unknown> = {}): GameStateView {
-  const body = {
-    gameId: 'game-1',
+const GAME = uuid('game-1')
+const P1 = uuid('p-1')
+const P2 = uuid('p-2')
+
+function terminalStateBody(overrides: Partial<GameStateView> = {}): GameStateView {
+  return gameStatePayload({
+    gameId: GAME,
     eraNumber: 3,
     revision: 41,
     phase: 'GAME_ENDED',
     myScore: 12,
     myFaction: 'WEAVERS',
     players: [
-      { playerId: 'p-1', playerName: 'Nora', score: 20, faction: 'PROPHETS' },
-      { playerId: 'p-2', playerName: 'Eli', score: 20, faction: 'ERASERS' },
+      { playerId: P1, playerName: 'Nora', score: 20, isConnected: true, faction: 'PROPHETS' },
+      { playerId: P2, playerName: 'Eli', score: 20, isConnected: true, faction: 'ERASERS' },
     ],
     result: {
       endReason: 'WIN_CONDITION_MET',
       winners: [
-        { playerId: 'p-1', faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
-        { playerId: 'p-2', faction: 'ERASERS', winType: 'SCORE_THRESHOLD' },
+        { playerId: P1, faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
+        { playerId: P2, faction: 'ERASERS', winType: 'SCORE_THRESHOLD' },
       ],
       finalScores: [
-        { playerId: 'p-1', score: 20 },
-        { playerId: 'p-2', score: 20 },
+        { playerId: P1, score: 20 },
+        { playerId: P2, score: 20 },
       ],
       revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
     },
     ...overrides,
-  }
-  return { ...body, raw: body } as unknown as GameStateView
+  })
 }
 
 function jsonResponse(body: unknown): Response {
@@ -39,19 +44,19 @@ function jsonResponse(body: unknown): Response {
 
 function scoresBody(): Record<string, unknown> {
   return {
-    gameId: 'game-1',
+    gameId: GAME,
     eraNumber: 3,
     scores: [
-      { playerId: 'p-1', playerName: 'Nora', score: 20, faction: 'PROPHETS' },
-      { playerId: 'p-2', playerName: 'Eli', score: 20, faction: 'ERASERS' },
+      { playerId: P1, playerName: 'Nora', score: 20, faction: 'PROPHETS' },
+      { playerId: P2, playerName: 'Eli', score: 20, faction: 'ERASERS' },
     ],
   }
 }
 
 function historyBody(): Record<string, unknown> {
   return {
-    gameId: 'game-1',
-    history: [{ eraNumber: 1, deltas: [{ playerId: 'p-1', pointsDelta: 4, reason: 'EVENT_RESOLVED_AS_WRITTEN' }] }],
+    gameId: GAME,
+    history: [{ eraNumber: 1, deltas: [{ playerId: P1, pointsDelta: 4, reason: 'EVENT_RESOLVED_AS_WRITTEN' }] }],
   }
 }
 
@@ -81,8 +86,8 @@ async function flush(): Promise<void> {
 describe('useResults', () => {
   it('shows readiness while terminal awards are not yet complete', () => {
     const fetchFn = vi.fn() as unknown as AuthenticatedFetchFn
-    const gameState = createGameStateSession({ state: terminalStateBody({ result: null }) })
-    const { result } = renderHook(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: 'p-1', perspectiveKey: 'alice' }))
+    const gameState = createGameStateSession({ state: terminalStateBody({ result: undefined }) })
+    const { result } = renderHook(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
 
     expect(result.current.view.kind).toBe('waiting')
     expect(fetchFn).not.toHaveBeenCalled()
@@ -91,15 +96,15 @@ describe('useResults', () => {
   it('shows every authoritative winner with final scores once complete', async () => {
     const fetchFn = fetchForTerminal()
     const gameState = createGameStateSession({ state: terminalStateBody() })
-    const { result } = renderHook(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: 'p-1', perspectiveKey: 'alice' }))
+    const { result } = renderHook(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
     await flush()
 
     expect(result.current.view.kind).toBe('complete')
     if (result.current.view.kind !== 'complete') {
       return
     }
-    expect(result.current.view.winners.map((winner) => winner.playerId)).toEqual(['p-1', 'p-2'])
-    expect(result.current.view.scores.find((entry) => entry.playerId === 'p-1')?.score).toBe(20)
+    expect(result.current.view.winners.map((winner) => winner.playerId)).toEqual([P1, P2])
+    expect(result.current.view.scores.find((entry) => entry.playerId === P1)?.score).toBe(20)
   })
 
   it('does not expose the previous participant’s entitled data after a perspective switch', async () => {
@@ -121,7 +126,7 @@ describe('useResults', () => {
     const { result, rerender } = renderHook(
       ({ perspectiveKey, ownPlayerId }: { perspectiveKey: string; ownPlayerId: string }) =>
         useResults({ ...BASE, fetchFn, gameState, ownPlayerId, perspectiveKey }),
-      { initialProps: { perspectiveKey: 'alice', ownPlayerId: 'p-1' } },
+      { initialProps: { perspectiveKey: 'alice', ownPlayerId: P1 } },
     )
     await flush()
     expect(result.current.view.kind).toBe('complete')
@@ -129,7 +134,7 @@ describe('useResults', () => {
       expect(result.current.view.explanations).not.toHaveLength(0)
     }
 
-    rerender({ perspectiveKey: 'bob', ownPlayerId: 'p-2' })
+    rerender({ perspectiveKey: 'bob', ownPlayerId: P2 })
     await flush()
 
     // Bob's own entitled reads never landed: Alice's reasons must not carry over.
@@ -144,7 +149,7 @@ describe('useResults', () => {
     const { result, rerender } = renderHook(
       ({ perspectiveKey, ownPlayerId }: { perspectiveKey: string; ownPlayerId: string }) =>
         useResults({ ...BASE, fetchFn: hangingFetch, gameState, ownPlayerId, perspectiveKey }),
-      { initialProps: { perspectiveKey: 'alice', ownPlayerId: 'p-1' } },
+      { initialProps: { perspectiveKey: 'alice', ownPlayerId: P1 } },
     )
     await flush()
 
@@ -154,7 +159,7 @@ describe('useResults', () => {
     await flush()
     expect(result.current.isRefreshing).toBe(true)
 
-    rerender({ perspectiveKey: 'bob', ownPlayerId: 'p-2' })
+    rerender({ perspectiveKey: 'bob', ownPlayerId: P2 })
     await flush()
 
     expect(result.current.isRefreshing).toBe(false)

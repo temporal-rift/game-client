@@ -1,47 +1,45 @@
 import { describe, expect, it } from 'vitest'
-import type { GameStateView } from '../api/gameStateClient'
-import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
+import type { GameStateView } from '../api/projection'
+import type { ScoresHistoryResponse, ScoresResponse } from '../api/scoring'
+import { baseGameState } from '../game/gameStateFixtures'
 import { selectResultsView } from './resultsView'
 
-function terminalState(overrides: Record<string, unknown> = {}): GameStateView {
-  return {
-    gameId: 'game-1',
-    eraNumber: 3,
-    revision: 41,
-    lastUpdatedAt: '2026-09-16T00:00:00Z',
-    phase: 'GAME_ENDED',
-    roundNumber: null,
-    myFaction: 'PROPHETS',
-    myScore: 12,
-    deadlines: { handSelectionExpiresAt: null, actionRoundExpiresAt: null, paradoxResolutionExpiresAt: null },
-    phaseContext: { declarationOpen: false, paradoxOpen: false, paradoxIds: [] },
-    mySubmissions: [],
-    mySpecialBudgets: [],
-    result: {
-      endReason: 'WIN_CONDITION_MET',
-      winners: [
-        { playerId: 'p-1', faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
-        { playerId: 'p-2', faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' },
-      ],
-      finalScores: [
-        { playerId: 'p-1', score: 20 },
-        { playerId: 'p-2', score: 20 },
-        { playerId: 'p-3', score: 12 },
-      ],
-      revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
+function terminalState(overrides: Partial<GameStateView> = {}): GameStateView {
+  return baseGameState(
+    {
+      eraNumber: 3,
+      revision: 41,
+      lastUpdatedAt: '2026-09-16T00:00:00Z',
+      phase: 'GAME_ENDED',
+      roundNumber: null,
+      myFaction: 'PROPHETS',
+      myScore: 12,
+      result: {
+        endReason: 'WIN_CONDITION_MET',
+        winners: [
+          { playerId: 'p-1', faction: 'PROPHETS', winType: 'SCORE_THRESHOLD' },
+          { playerId: 'p-2', faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' },
+        ],
+        finalScores: [
+          { playerId: 'p-1', score: 20 },
+          { playerId: 'p-2', score: 20 },
+          { playerId: 'p-3', score: 12 },
+        ],
+        revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
+      },
+      ...overrides,
     },
-    raw: {
+    {
       players: [
-        { playerId: 'p-1', playerName: 'Nora', score: 20, faction: 'PROPHETS' },
-        { playerId: 'p-2', playerName: 'Eli', score: 20, faction: 'ERASERS' },
-        { playerId: 'p-3', playerName: 'You', score: 12, faction: 'WEAVERS' },
+        { playerId: 'p-1', playerName: 'Nora', score: 20, isConnected: true, faction: 'PROPHETS' },
+        { playerId: 'p-2', playerName: 'Eli', score: 20, isConnected: true, faction: 'ERASERS' },
+        { playerId: 'p-3', playerName: 'You', score: 12, isConnected: true, faction: 'WEAVERS' },
       ],
     },
-    ...overrides,
-  } as GameStateView
+  )
 }
 
-const scores: ScoresView = {
+const scores: ScoresResponse = {
   gameId: 'game-1',
   eraNumber: 3,
   scores: [
@@ -51,14 +49,14 @@ const scores: ScoresView = {
   ],
 }
 
-const history: ScoresHistoryView = {
+const history: ScoresHistoryResponse = {
   gameId: 'game-1',
   history: [
     {
       eraNumber: 1,
       deltas: [
         { playerId: 'p-3', pointsDelta: 4, reason: 'EVENT_RESOLVED_AS_WRITTEN' },
-        { playerId: 'p-1', pointsDelta: 2, reason: null },
+        { playerId: 'p-1', pointsDelta: 2 },
       ],
     },
   ],
@@ -84,7 +82,7 @@ describe('selectResultsView', () => {
     const collapsed = terminalState({
       result: {
         endReason: 'TIMELINE_COLLAPSED',
-        winners: [{ playerId: 'p-3', faction: 'ACTIVISTS', winType: null }],
+        winners: [{ playerId: 'p-3', faction: 'ACTIVISTS' }],
         finalScores: [
           { playerId: 'p-1', score: 18 },
           { playerId: 'p-3', score: 6 },
@@ -103,13 +101,21 @@ describe('selectResultsView', () => {
     expect(view.winners.map((winner) => winner.playerId)).toEqual(['p-3'])
   })
 
-  it('falls back to an unknown terminal view for a retired or unrecognized end reason', () => {
-    const retired = terminalState({
-      result: { endReason: 'SCORE_THRESHOLD', winners: [], finalScores: [], revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC' },
+  it('shows that every player left, keeping their final scores', () => {
+    const abandoned = terminalState({
+      result: {
+        endReason: 'ALL_PLAYERS_ABANDONED',
+        winners: [],
+        finalScores: [{ playerId: 'p-3', score: 12 }],
+        revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
+      },
     })
-    const view = selectResultsView(retired, null, null, 'p-3')
+    const view = selectResultsView(abandoned, null, null, 'p-3')
 
-    expect(view).toEqual({ kind: 'unknown-terminal', gameId: 'game-1', endReasonRaw: 'SCORE_THRESHOLD' })
+    expect(view).toMatchObject({ kind: 'complete', endReason: 'ALL_PLAYERS_ABANDONED', winners: [] })
+    if (view.kind === 'complete') {
+      expect(view.scores.find((entry) => entry.playerId === 'p-3')?.score).toBe(12)
+    }
   })
 
   it('shows an abnormal ending without winners', () => {
@@ -132,7 +138,7 @@ describe('selectResultsView', () => {
   })
 
   it('waits with readiness while the terminal result is not yet complete', () => {
-    const pending = terminalState({ result: null })
+    const pending = terminalState({ result: undefined })
     const view = selectResultsView(pending, null, null, 'p-3')
 
     expect(view).toMatchObject({ kind: 'waiting', gameId: 'game-1' })
@@ -150,7 +156,8 @@ describe('selectResultsView', () => {
           { playerId: 'p-1', score: 20 },
           { playerId: 'p-2', score: 20 },
         ],
-        revealBoundary: 'WITHHELD',
+        // The contract publishes only the public boundary today; any other one must withhold.
+        revealBoundary: 'WITHHELD' as never,
       },
     })
     const view = selectResultsView(unrevealed, null, history, 'p-3')
@@ -179,7 +186,7 @@ describe('selectResultsView', () => {
   })
 
   it('stays in the active state while the game has not ended', () => {
-    const active = terminalState({ phase: 'ACTION_ROUND_2', result: null })
+    const active = terminalState({ phase: 'ACTION_ROUND_2', result: undefined })
     expect(selectResultsView(active, null, null, 'p-3')).toMatchObject({ kind: 'active' })
     expect(selectResultsView(null, null, null, null)).toMatchObject({ kind: 'active' })
   })

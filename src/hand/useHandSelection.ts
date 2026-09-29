@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { AuthenticatedFetchFn } from '../api/gameStateClient'
-import { ActionApiError, actionErrorMessage, submitHandSelection } from '../api/actionClient'
+import { ApiProblemError } from '../api/client'
+import type { AuthenticatedFetchFn } from '../api/projection'
+import { actionErrorMessage, submitHandSelection } from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
 import { selectHandSelectionView, type HandSelectionView } from './handSelectionView'
@@ -84,7 +85,7 @@ export function useHandSelection({
       setSubmitPhase({
         kind: 'rejected',
         message: actionErrorMessage(error),
-        code: error instanceof ActionApiError ? error.code : null,
+        code: error instanceof ApiProblemError ? error.code : null,
       })
     }
   }, [apiBaseUrl, gameState, selectedCardInstanceIds, selectionKey, view])

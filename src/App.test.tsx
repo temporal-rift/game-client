@@ -5,6 +5,11 @@ import { UserManager } from 'oidc-client-ts'
 import App from './App'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
+import { uuid } from './test/uuid'
+
+const LOBBY = uuid('lobby-1')
+const GAME = uuid('game-1')
+const P1 = uuid('p1')
 
 const sdk = vi.hoisted(() => ({ client: null as Record<string, unknown> | null }))
 
@@ -123,7 +128,7 @@ describe('App', () => {
 
   it('opens a started game on its own page, with the lobby one link away', async () => {
     rememberLobbyMembership()
-    window.history.replaceState(null, '', '/lobbies/lobby-1')
+    window.history.replaceState(null, '', `/lobbies/${LOBBY}`)
     vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED')))
     sdk.client = signedInClient()
 
@@ -131,26 +136,26 @@ describe('App', () => {
 
     await userEvent.click(await screen.findByRole('link', { name: 'Open game' }))
 
-    expect(window.location.pathname).toBe('/games/game-1')
+    expect(window.location.pathname).toBe(`/games/${GAME}`)
     expect(screen.queryByRole('heading', { name: 'Game lobby' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: 'Back to lobby' }))
 
-    expect(window.location.pathname).toBe('/lobbies/lobby-1')
+    expect(window.location.pathname).toBe(`/lobbies/${LOBBY}`)
     expect(screen.getByRole('heading', { name: 'Game lobby' })).toBeInTheDocument()
     expect(screen.queryByText('Sample board · actions are disabled')).not.toBeInTheDocument()
   })
 
   it('follows the start from the lobby page into the game page', async () => {
     rememberLobbyMembership()
-    window.history.replaceState(null, '', '/lobbies/lobby-1')
+    window.history.replaceState(null, '', `/lobbies/${LOBBY}`)
     let status: 'WAITING' | 'STARTED' = 'WAITING'
     vi.stubGlobal(
       'fetch',
       lobbyServer(() => lobbyView(status, 3), (url) => {
-        if (url.endsWith('/api/v1/lobbies/lobby-1/start')) {
+        if (url.endsWith(`/api/v1/lobbies/${LOBBY}/start`)) {
           status = 'STARTED'
-          return { gameId: 'game-1' }
+          return { gameId: GAME }
         }
         return null
       }),
@@ -161,31 +166,31 @@ describe('App', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Start game' }))
 
-    await waitFor(() => expect(window.location.pathname).toBe('/games/game-1'))
-    expect(await screen.findByRole('link', { name: 'Back to lobby' })).toHaveAttribute('href', '/lobbies/lobby-1')
+    await waitFor(() => expect(window.location.pathname).toBe(`/games/${GAME}`))
+    expect(await screen.findByRole('link', { name: 'Back to lobby' })).toHaveAttribute('href', `/lobbies/${LOBBY}`)
   })
 
   it('sends the home page to the started game once lobby recovery settles', async () => {
     rememberLobbyMembership()
-    sessionStorage.setItem('temporal-rift.private.lobbyId', 'lobby-1')
+    sessionStorage.setItem('temporal-rift.private.lobbyId', LOBBY)
     vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED')))
     sdk.client = signedInClient()
 
     render(<App />)
 
-    await waitFor(() => expect(window.location.pathname).toBe('/games/game-1'))
+    await waitFor(() => expect(window.location.pathname).toBe(`/games/${GAME}`))
   })
 
   it('lands legacy ?game= invitations on the lobby page', async () => {
-    window.history.replaceState(null, '', '/?game=lobby-1')
+    window.history.replaceState(null, '', `/?game=${LOBBY}`)
     vi.stubGlobal('fetch', lobbyServer(() => ({ ...lobbyView('WAITING'), currentPlayerId: undefined })))
     sdk.client = signedInClient()
 
     render(<App />)
 
-    await waitFor(() => expect(window.location.pathname).toBe('/lobbies/lobby-1'))
+    await waitFor(() => expect(window.location.pathname).toBe(`/lobbies/${LOBBY}`))
     const invitation = await screen.findByRole('region', { name: 'Lobby invitation' })
-    expect(invitation).toHaveTextContent(/lobby-1/)
+    expect(invitation).toHaveTextContent(LOBBY)
     expect(screen.getByLabelText('Player name')).toHaveValue('player-one')
   })
 })
@@ -197,18 +202,18 @@ function signedInClient(): Record<string, unknown> {
 }
 
 function rememberLobbyMembership(): void {
-  sessionStorage.setItem('temporal-rift.private.playerId', 'p1')
+  sessionStorage.setItem('temporal-rift.private.playerId', P1)
 }
 
 function lobbyView(status: 'WAITING' | 'STARTED', memberCount = 1): Record<string, unknown> {
   return {
-    lobbyId: 'lobby-1',
-    gameId: 'game-1',
-    hostPlayerId: 'p1',
-    currentPlayerId: 'p1',
+    lobbyId: LOBBY,
+    gameId: GAME,
+    hostPlayerId: P1,
+    currentPlayerId: P1,
     status,
     members: Array.from({ length: memberCount }, (_, index) => ({
-      playerId: `p${index + 1}`,
+      playerId: uuid(`p${index + 1}`),
       playerName: `player-${index + 1}`,
       isHost: index === 0,
     })),
@@ -228,7 +233,7 @@ function lobbyServer(
     if (commandResult) {
       return json(commandResult)
     }
-    return url.endsWith('/api/v1/lobbies/lobby-1') ? json(readLobby()) : new Response(null, { status: 200 })
+    return url.endsWith(`/api/v1/lobbies/${LOBBY}`) ? json(readLobby()) : new Response(null, { status: 200 })
   })
 }
 
