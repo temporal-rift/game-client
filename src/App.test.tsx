@@ -184,6 +184,22 @@ describe('App', () => {
     await waitFor(() => expect(window.location.pathname).toBe(`/games/${GAME}`))
   })
 
+  it.each([
+    ['an invalid lobby reference', '/lobbies/not%20a%20reference', '/lobby'],
+    ['an invalid game reference', '/games/..%2Fadmin', '/lobby'],
+    ['an unknown page', '/nowhere', '/lobby'],
+    ['a signed-in visit to the sign-in callback', '/auth/callback', '/lobby'],
+  ])('sends %s back to a page of the app', async (_case, path, landing) => {
+    window.history.replaceState(null, '', path)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
+    sdk.client = signedInClient()
+
+    render(<App />)
+
+    await waitFor(() => expect(window.location.pathname).toBe(landing))
+    expect(await screen.findByRole('heading', { name: 'Game lobby' })).toBeInTheDocument()
+  })
+
   it('lands legacy ?game= invitations on the lobby page', async () => {
     window.history.replaceState(null, '', `/?game=${LOBBY}`)
     vi.stubGlobal('fetch', lobbyServer(() => ({ ...lobbyView('WAITING'), currentPlayerId: undefined })))

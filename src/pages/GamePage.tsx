@@ -1,7 +1,4 @@
-import type { ReactNode } from 'react'
-import { Link, Navigate, useParams } from 'react-router'
-import type { AuthenticatedFetchFn } from '../api/session'
-import type { AuthSession } from '../auth/session'
+import { Link, useParams } from '@tanstack/react-router'
 import { useActionSubmission } from '../action/useActionSubmission'
 import { ActionPanel } from '../components/ActionPanel'
 import { AppShell } from '../components/AppShell'
@@ -14,38 +11,21 @@ import { sampleFixturePlayerView } from '../fixtures/playerView'
 import { useGameState } from '../game/useGameState'
 import { useHandSelection } from '../hand/useHandSelection'
 import { useKnowledge } from '../knowledge/useKnowledge'
-import type { LobbySession } from '../lobby/useLobby'
 import { useParadoxResolution } from '../paradox/useParadoxResolution'
 import { useResults } from '../results/useResults'
 import { useRoundSummary } from '../round-summary/useRoundSummary'
-import { HOME_PATH, LOBBY_PATH, isResourceReference, lobbyPath } from '../routing/paths'
-
-interface GamePageProps {
-  readonly apiBaseUrl: string
-  readonly fetchFn: AuthenticatedFetchFn
-  readonly authSession: AuthSession
-  readonly lobby: LobbySession
-  readonly renderSessionBar: (faction: string | null) => ReactNode
-}
+import { useSignedIn } from '../routing/signedInContext'
 
 /** `/games/{gameId}`: the game named in the URL, so reloads and bookmarks land on it. */
-export function GameRoute(props: GamePageProps) {
-  const { gameId } = useParams()
-  if (!isResourceReference(gameId)) {
-    return <Navigate to={HOME_PATH} replace />
-  }
+export function GameRoute() {
+  const { gameId } = useParams({ from: '/games/$gameId' })
   // Keyed so every per-game hook starts clean when the route switches games.
-  return <GamePage key={gameId} gameId={gameId} {...props} />
+  return <GamePage key={gameId} gameId={gameId} />
 }
 
-function GamePage({
-  gameId,
-  apiBaseUrl,
-  fetchFn,
-  authSession,
-  lobby,
-  renderSessionBar,
-}: GamePageProps & { readonly gameId: string }) {
+function GamePage({ gameId }: { readonly gameId: string }) {
+  const { config, fetchFn, authSession, lobby, renderSessionBar } = useSignedIn()
+  const apiBaseUrl = config.apiBaseUrl
   const lobbyView = lobby.state.lobby
   // Seat-bound panels need the player's own lobby membership for this game;
   // any other game (e.g. a finished one opened from a link) shows results only.
@@ -64,9 +44,15 @@ function GamePage({
   return (
     <div className="game-page">
       <nav className="page-bar game-page-bar" aria-label="Game navigation">
-        <Link className="page-link" to={isLobbyGame && lobbyView ? lobbyPath(lobbyView.lobbyId) : LOBBY_PATH}>
-          Back to lobby
-        </Link>
+        {isLobbyGame && lobbyView ? (
+          <Link className="page-link" to="/lobbies/$lobbyId" params={{ lobbyId: lobbyView.lobbyId }}>
+            Back to lobby
+          </Link>
+        ) : (
+          <Link className="page-link" to="/lobby">
+            Back to lobby
+          </Link>
+        )}
         {renderSessionBar(gameState.state?.myFaction ?? null)}
       </nav>
       <HandSelectionPanel

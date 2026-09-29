@@ -4,7 +4,7 @@
  * invitation URLs or application logs.
  */
 import * as z from 'zod'
-import { lobbyPath, resourceReferenceSchema } from '../routing/paths'
+import { isResourceReference, lobbyPath, resourceReferenceSchema } from '../routing/paths'
 
 export interface LobbyInvitation {
   readonly lobbyId: string
@@ -42,6 +42,19 @@ export function parseLegacyLobbyInvitation(search: string): LobbyInvitation | nu
 }
 
 const LOBBY_PATH_PATTERN = /^\/lobbies\/([^/]+)$/
+
+/**
+ * The lobby a page names: its own page (`/lobbies/<lobbyId>`) or a legacy
+ * invitation (`/?game=<lobbyId>`). Such a lobby wins over one remembered from
+ * an earlier visit.
+ */
+export function lobbyIdFromLocation(pathname: string, search: string): string | null {
+  const pathMatch = LOBBY_PATH_PATTERN.exec(pathname)
+  if (pathMatch) {
+    return isResourceReference(pathMatch[1]) ? pathMatch[1] : null
+  }
+  return pathname === '/' ? (parseLegacyLobbyInvitation(search)?.lobbyId ?? null) : null
+}
 
 /**
  * One complete, unambiguous invitation URL: the lobby page with nothing

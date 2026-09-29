@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link } from '@tanstack/react-router'
 import { buildLobbyInvitationUrl, parseLobbyReference } from '../auth/invitation'
-import type { LobbyResponse } from '../api/session'
 import type { LobbyPhase, LobbySession } from '../lobby/useLobby'
-import { LOBBY_PATH, gamePath } from '../routing/paths'
+import { PLAYER_NAME_MAX_LENGTH, type LobbyResponse } from '../api/session'
 
 interface LobbyPanelProps {
   readonly lobby: LobbySession;
@@ -61,7 +60,7 @@ function InvitationJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorkin
           aria-label="Player name"
           value={playerName}
           onChange={(event) => setPlayerName(event.target.value)}
-          maxLength={64}
+          maxLength={PLAYER_NAME_MAX_LENGTH}
         />
       </label>
       <button
@@ -72,7 +71,7 @@ function InvitationJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorkin
         {actionLabel(lobby.state.phase, 'joining', 'Joining…', 'Join game')}
       </button>
       <p>
-        <Link to={LOBBY_PATH}>Create or join a different game</Link>
+        <Link to="/lobby">Create or join a different game</Link>
       </p>
     </section>
   )
@@ -96,7 +95,7 @@ function LobbyJoinView({ lobby, defaultPlayerName, isWorking, failure }: NonMemb
             aria-label="Player name for creating"
             value={createName}
             onChange={(event) => setCreateName(event.target.value)}
-            maxLength={64}
+            maxLength={PLAYER_NAME_MAX_LENGTH}
           />
         </label>
         <button type="button" disabled={isWorking || !createName.trim()} onClick={() => void lobby.create(createName)}>
@@ -120,7 +119,7 @@ function LobbyJoinView({ lobby, defaultPlayerName, isWorking, failure }: NonMemb
             aria-label="Player name for joining"
             value={joinName}
             onChange={(event) => setJoinName(event.target.value)}
-            maxLength={64}
+            maxLength={PLAYER_NAME_MAX_LENGTH}
           />
         </label>
         <button
@@ -248,7 +247,9 @@ function LobbyMemberView({ lobby, view, isWorking, failure }: LobbyMemberViewPro
       {view.status === 'STARTED' && (
         <div>
           <output>Game started. Game identity: {state.lastGameId ?? view.gameId}</output>{' '}
-          <Link to={gamePath(state.lastGameId ?? view.gameId)}>Open game</Link>
+          <Link to="/games/$gameId" params={{ gameId: state.lastGameId ?? view.gameId }}>
+            Open game
+          </Link>
           <button type="button" disabled={isWorking} onClick={() => void lobby.refresh()}>
             Refresh membership
           </button>

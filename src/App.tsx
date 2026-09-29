@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes, matchPath, useLocation, useNavigate } from 'react-router'
+import { RouterProvider } from '@tanstack/react-router'
+import type { AuthenticatedFetchFn } from './api/client'
 import { checkApiConnectivity } from './api/connectivity'
 import { queryClient } from './api/queryClient'
 import { createAuthenticatedFetch } from './auth/authenticatedFetch'
-import { parseLegacyLobbyInvitation } from './auth/invitation'
+import { lobbyIdFromLocation } from './auth/invitation'
 import type { PlayerSession } from './auth/usePlayerSession'
 import { usePlayerSession } from './auth/usePlayerSession'
 import type { AuthSession } from './auth/session'
@@ -16,10 +17,8 @@ import { ConfigurationErrorNotice } from './components/ConfigurationErrorNotice'
 import { ConnectivityErrorNotice } from './components/ConnectivityErrorNotice'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
-import { GameRoute } from './pages/GamePage'
-import { HomeRedirect } from './pages/HomeRedirect'
-import { LobbyPage } from './pages/LobbyPage'
-import { GAME_ROUTE, HOME_PATH, LOBBY_PATH, LOBBY_ROUTE, isResourceReference } from './routing/paths'
+import { createAppRouter } from './routing/router'
+import { SignedInContext } from './routing/signedInContext'
 
 type ConnectivityState =
   | { readonly status: 'checking' }
@@ -41,88 +40,60 @@ interface SignedInViewProps {
 function SignedInView(props: SignedInViewProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <SignedInRoutes {...props} />
-      </BrowserRouter>
+      <SignedInSessionView {...props} />
     </QueryClientProvider>
   )
 }
 
-function SignedInRoutes({ config, playerSession, authSession }: SignedInViewProps) {
+function SignedInSessionView({ config, playerSession, authSession }: SignedInViewProps) {
   const authenticatedFetch = useMemo(
     () => createAuthenticatedFetch(playerSession.getAccessToken),
     [playerSession],
   )
-  const fetchWithUnauthorized = useMemo(
+  const fetchFn = useMemo(
     () =>
       ((input: RequestInfo | URL, init: RequestInit = {}) =>
-        authenticatedFetch(input, { ...init, onUnauthorized: playerSession.handleUnauthorized })) as (
-        input: RequestInfo | URL,
-        init?: RequestInit,
-      ) => Promise<Response>,
+        authenticatedFetch(input, { ...init, onUnauthorized: playerSession.handleUnauthorized })) as AuthenticatedFetchFn,
     [authenticatedFetch, playerSession],
   )
-  const location = useLocation()
-  const navigate = useNavigate()
+  const perspective = authSession.identity.subject
+  const scope = useMemo(() => ({ perspective, apiBaseUrl: config.apiBaseUrl, fetchFn }), [perspective, config.apiBaseUrl, fetchFn])
+  const [router] = useState(() => createAppRouter({ queryClient, scope }))
   // The lobby named by the page the player opened (its own page or a legacy
   // invitation) wins over a lobby remembered from an earlier visit.
-  const [initialLobbyId] = useState(() => {
-    const routeLobbyId = matchPath(LOBBY_ROUTE, location.pathname)?.params.lobbyId
-    if (isResourceReference(routeLobbyId)) {
-      return routeLobbyId
-    }
-    return location.pathname === HOME_PATH ? (parseLegacyLobbyInvitation(location.search)?.lobbyId ?? null) : null
-  })
-  const pathnameRef = useRef(location.pathname)
-  useEffect(() => {
-    pathnameRef.current = location.pathname
-  }, [location.pathname])
+  const [initialLobbyId] = useState(() => lobbyIdFromLocation(window.location.pathname, window.location.search))
+
   const handleLobbyIdChange = useCallback(
     (lobbyId: string | null) => {
       // Leaving (or losing) the lobby this page shows returns to create/join.
-      if (lobbyId === null && matchPath(LOBBY_ROUTE, pathnameRef.current)) {
-        navigate(LOBBY_PATH, { replace: true })
+      if (lobbyId === null && router.state.matches.some((match) => match.routeId === '/lobbies/$lobbyId')) {
+        void router.navigate({ to: '/lobby', replace: true })
       }
     },
-    [navigate],
+    [router],
   )
   const lobby = useLobby({
     apiBaseUrl: config.apiBaseUrl,
-    perspectiveKey: authSession.identity.subject,
-    fetchFn: fetchWithUnauthorized,
+    perspectiveKey: perspective,
+    fetchFn,
     initialLobbyId,
     onLobbyIdChange: handleLobbyIdChange,
   })
-  const renderSessionBar = (faction: string | null) => (
-    <SessionBar identity={authSession.identity} faction={faction} onSignOut={() => void playerSession.signOut()} />
+  const renderSessionBar = useCallback(
+    (faction: string | null) => (
+      <SessionBar identity={authSession.identity} faction={faction} onSignOut={() => void playerSession.signOut()} />
+    ),
+    [authSession.identity, playerSession],
   )
-  const lobbyPage = (
-    <LobbyPage
-      lobby={lobby}
-      defaultPlayerName={authSession.identity.displayName ?? ''}
-      sessionBar={renderSessionBar(null)}
-    />
+  const session = useMemo(
+    () => ({ config, fetchFn, authSession, lobby, renderSessionBar }),
+    [config, fetchFn, authSession, lobby, renderSessionBar],
   )
 
   return (
-    <Routes>
-      <Route path={HOME_PATH} element={<HomeRedirect lobby={lobby} />} />
-      <Route path={LOBBY_PATH} element={lobbyPage} />
-      <Route path={LOBBY_ROUTE} element={lobbyPage} />
-      <Route
-        path={GAME_ROUTE}
-        element={
-          <GameRoute
-            apiBaseUrl={config.apiBaseUrl}
-            fetchFn={fetchWithUnauthorized}
-            authSession={authSession}
-            lobby={lobby}
-            renderSessionBar={renderSessionBar}
-          />
-        }
-      />
-      <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
-    </Routes>
+    <SignedInContext.Provider value={session}>
+      <RouterProvider router={router} context={{ queryClient, scope }} />
+    </SignedInContext.Provider>
   )
 }
 

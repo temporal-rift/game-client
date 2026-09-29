@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { AUTH_CALLBACK_PATH, gamePath, isResourceReference, lobbyPath, safeReturnTo } from './paths'
+import { AUTH_CALLBACK_PATH, isResourceReference, lobbyPath, safeReturnTo } from './paths'
 
 describe('client paths', () => {
-  it('builds lobby and game pages from valid references only', () => {
+  it('builds lobby pages from valid references only', () => {
     expect(lobbyPath('lobby-1')).toBe('/lobbies/lobby-1')
-    expect(gamePath('game_1')).toBe('/games/game_1')
+    expect(lobbyPath('lobby_1')).toBe('/lobbies/lobby_1')
     expect(() => lobbyPath('../admin')).toThrow()
-    expect(() => gamePath('')).toThrow()
+    expect(() => lobbyPath('')).toThrow()
   })
 
   it('recognises server-issued references', () => {
