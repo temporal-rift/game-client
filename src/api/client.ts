@@ -111,7 +111,8 @@ function adaptFetch(fetchFn: AuthenticatedFetchFn) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init)
     const body = request.body ? await request.text() : undefined
-    return fetchFn(request.url, { method: request.method, headers: request.headers, body, signal: request.signal })
+    // Server state is polled and reconciled here: a heuristically cached answer must never stand in for it.
+    return fetchFn(request.url, { method: request.method, headers: request.headers, body, signal: request.signal, cache: 'no-store' })
   }
 }
 

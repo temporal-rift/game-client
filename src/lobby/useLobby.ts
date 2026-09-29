@@ -105,7 +105,8 @@ export function useLobby(options: UseLobbyOptions) {
   const [knownOwnPlayerId, setKnownOwnPlayerIdState] = useState(() => readStored(OWN_PLAYER_STORAGE_KEY))
   const [started, setStarted] = useState<{ readonly lobbyId: string; readonly gameId: string } | null>(null)
   const [failure, setFailure] = useState<Failure | null>(null)
-  const [dismissedQueryFailure, setDismissedQueryFailure] = useState<unknown>(null)
+  // A dismissed recovery failure stays dismissed for its lobby: every retry reports a new error object.
+  const [dismissedRecoveryFor, setDismissedRecoveryFor] = useState<string | null>(null)
 
   const setLobbyId = useCallback(
     (next: string | null) => {
@@ -297,15 +298,19 @@ export function useLobby(options: UseLobbyOptions) {
   // shown, background poll failures keep it and retry quietly.
   const queryFailure = query.error ?? query.failureReason
   const recovering = activeLobbyId !== null && !invitedButHidden && !view
+  // A successful read ends the episode: a later recovery failure is shown again.
+  if (view && dismissedRecoveryFor !== null) {
+    setDismissedRecoveryFor(null)
+  }
   const recoveryFailure = useMemo(
-    () => (recovering && queryFailure && queryFailure !== dismissedQueryFailure ? failureOf(queryFailure) : null),
-    [recovering, queryFailure, dismissedQueryFailure],
+    () => (recovering && queryFailure && dismissedRecoveryFor !== activeLobbyId ? failureOf(queryFailure) : null),
+    [recovering, queryFailure, dismissedRecoveryFor, activeLobbyId],
   )
 
   const dismissError = useCallback(() => {
     setFailure(null)
-    setDismissedQueryFailure(queryFailure)
-  }, [queryFailure])
+    setDismissedRecoveryFor(activeLobbyId)
+  }, [activeLobbyId])
 
   const pendingAction = ((): 'creating' | 'joining' | 'starting' | 'leaving' | null => {
     if (createPending) return 'creating'

@@ -32,6 +32,16 @@ describe('session API', () => {
     expect(JSON.parse(String(init.body))).toEqual({ playerName: 'host-one' })
   })
 
+  it('asks for every read past the browser cache, so polling always reaches the server', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, { lobbyId, gameId, hostPlayerId: hostId, status: 'WAITING', members: [] }),
+    )
+
+    await getLobby(fetchMock, apiBaseUrl, lobbyId)
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', cache: 'no-store' })
+  })
+
   it('refuses a player name the contract does not accept before sending it', async () => {
     const fetchMock = vi.fn()
 
