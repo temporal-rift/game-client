@@ -272,6 +272,43 @@ describe('useLobby', () => {
     expect(onLobbyIdChange).not.toHaveBeenCalledWith(null)
   })
 
+  it('keeps the invited lobby when the server hides it from a non-member', async () => {
+    const server = createFakeServer()
+    const { lobbyId } = await createHostedLobby(server, 'host-one')
+    sessionStorage.clear()
+    // The real server answers a non-member's lobby read with 403-01.
+    const fetchFn = (input: RequestInfo | URL, init?: RequestInit) =>
+      (init?.method ?? 'GET') === 'GET'
+        ? Promise.resolve(problem(403, '403-01', 'not a member'))
+        : server.fetch(input, init ?? {})
+
+    const onLobbyIdChange = vi.fn()
+    const invited = renderHook(() =>
+      useLobby({
+        apiBaseUrl: 'https://api.example.test',
+        fetchFn,
+        initialLobbyId: lobbyId,
+        pollWhileWaitingMs: 0,
+        onLobbyIdChange,
+      }),
+    )
+    await waitFor(() => expect(invited.result.current.state.phase).toMatchObject({ kind: 'idle' }))
+    expect(invited.result.current.state.lobby).toBeNull()
+    expect(onLobbyIdChange).not.toHaveBeenCalledWith(null)
+  })
+
+  it('forgets a remembered lobby the server now hides from the player', async () => {
+    sessionStorage.setItem('temporal-rift.private.lobbyId', 'lobby-gone')
+    const fetchFn = () => Promise.resolve(problem(403, '403-01', 'not a member'))
+
+    const onLobbyIdChange = vi.fn()
+    const recovered = renderHook(() =>
+      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0, onLobbyIdChange }),
+    )
+    await waitFor(() => expect(onLobbyIdChange).toHaveBeenCalledWith(null))
+    expect(recovered.result.current.state.phase).toMatchObject({ kind: 'idle' })
+  })
+
   it('does not silently succeed against a stale prior lobby when a join response is lost', async () => {
     const server = createFakeServer()
     const { lobbyId: targetLobbyId } = await createHostedLobby(server, 'host-one')
