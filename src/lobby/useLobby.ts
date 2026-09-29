@@ -79,6 +79,7 @@ export function useLobby(options: UseLobbyOptions) {
   const stateRef = useRef(state);
   const fetchRef = useRef(fetchFn);
   const lobbyIdRef = useRef<string | null>(initialLobbyId ?? readStored(LOBBY_STORAGE_KEY));
+  const initialLobbyIdRef = useRef(initialLobbyId);
   const onLobbyIdChangeRef = useRef(onLobbyIdChange);
   const generationRef = useRef(0);
   const commandInFlightRef = useRef(false);
@@ -204,6 +205,13 @@ export function useLobby(options: UseLobbyOptions) {
           return;
         }
         const code = error instanceof LobbyApiError ? error.code : null;
+        // The server hides a lobby from non-members, which is exactly an
+        // invitee's state: keep the routed lobby as the join target.
+        if (code === '403-01' && lobbyId === initialLobbyIdRef.current) {
+          writeStored(OWN_PLAYER_STORAGE_KEY, null);
+          setState((previous) => ({ ...previous, phase: { kind: 'idle' }, lobby: null, ownPlayerId: null }));
+          return;
+        }
         if (code === '404-01' || code === '403-01') {
           setLobbyId(null);
           writeStored(OWN_PLAYER_STORAGE_KEY, null);
