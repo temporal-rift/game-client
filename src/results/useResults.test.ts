@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
 import { createGameStateSession } from '../game/gameStateTestSupport'
@@ -98,7 +98,8 @@ describe('useResults', () => {
     const fetchFn = fetchForTerminal()
     const gameState = createGameStateSession({ state: terminalStateBody() })
     const { result } = renderHookWithQueries(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
-    await flush()
+    // Scores and history arrive on their own reads; wait for both rather than a fixed delay.
+    await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'complete', explanations: [expect.anything()] }))
 
     expect(result.current.view.kind).toBe('complete')
     if (result.current.view.kind !== 'complete') {
@@ -129,11 +130,7 @@ describe('useResults', () => {
         useResults({ ...BASE, fetchFn, gameState, ownPlayerId, perspectiveKey }),
       { initialProps: { perspectiveKey: 'alice', ownPlayerId: P1 } },
     )
-    await flush()
-    expect(result.current.view.kind).toBe('complete')
-    if (result.current.view.kind === 'complete') {
-      expect(result.current.view.explanations).not.toHaveLength(0)
-    }
+    await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'complete', explanations: [expect.anything()] }))
 
     rerender({ perspectiveKey: 'bob', ownPlayerId: P2 })
     await flush()
@@ -157,8 +154,7 @@ describe('useResults', () => {
     act(() => {
       void result.current.refresh()
     })
-    await flush()
-    expect(result.current.isRefreshing).toBe(true)
+    await waitFor(() => expect(result.current.isRefreshing).toBe(true))
 
     rerender({ perspectiveKey: 'bob', ownPlayerId: P2 })
     await flush()
