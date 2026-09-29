@@ -4,7 +4,8 @@ import { dirname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { unzipSync } from 'fflate'
 
-// Downloads each backend contract jar pinned in contracts.json from Maven Central and extracts its
+// Downloads each backend contract jar pinned in contracts.json from Maven Central, verifies it
+// against Central's published SHA-256, and extracts its
 // OpenAPI specs into .contracts/<module>/openapi/. The specs are never copied into this repository
 // (see the temporal-rift/apis README): the published artifact is the only source, and the version
 // pinned in contracts.json is the only thing to review when a contract changes.
@@ -69,10 +70,10 @@ async function fetchContract(module, version) {
   }
   const jarUrl = `${REPOSITORY}/${GROUP_PATH}/${module}/${version}/${module}-${version}.jar`
   const jar = await download(jarUrl)
-  const expectedSha1 = (await download(`${jarUrl}.sha1`)).toString('utf8').trim().split(/\s+/)[0]
-  const actualSha1 = createHash('sha1').update(jar).digest('hex')
-  if (actualSha1 !== expectedSha1) {
-    throw new Error(`${module}@${version}: checksum mismatch (expected ${expectedSha1}, got ${actualSha1}).`)
+  const expectedSha256 = (await download(`${jarUrl}.sha256`)).toString('utf8').trim().split(/\s+/)[0]
+  const actualSha256 = createHash('sha256').update(jar).digest('hex')
+  if (actualSha256 !== expectedSha256) {
+    throw new Error(`${module}@${version}: checksum mismatch (expected ${expectedSha256}, got ${actualSha256}).`)
   }
   rmSync(destination, { recursive: true, force: true })
   mkdirSync(destination, { recursive: true })

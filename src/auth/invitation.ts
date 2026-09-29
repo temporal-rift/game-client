@@ -56,6 +56,21 @@ export function lobbyIdFromLocation(pathname: string, search: string): string | 
   return pathname === '/' ? (parseLegacyLobbyInvitation(search)?.lobbyId ?? null) : null
 }
 
+/** The lobby reference an invitation URL carries, if it is exactly one of the two invitation shapes. */
+function invitationCandidate(url: URL): string | null {
+  if (url.hash) {
+    return null
+  }
+  const pathMatch = LOBBY_PATH_PATTERN.exec(url.pathname)
+  if (pathMatch) {
+    return url.search === '' ? pathMatch[1] : null
+  }
+  if (url.pathname === '/' && url.searchParams.size === 1) {
+    return url.searchParams.get('game')
+  }
+  return null
+}
+
 /**
  * One complete, unambiguous invitation URL: the lobby page with nothing
  * else, or the legacy root page carrying `game` as its only parameter.
@@ -64,11 +79,7 @@ const invitationUrlSchema = z
   .url({ protocol: /^https?$/ })
   .transform((value) => new URL(value))
   .transform((url, context) => {
-    const pathMatch = url.hash ? null : LOBBY_PATH_PATTERN.exec(url.pathname)
-    const candidate = pathMatch
-      ? url.search === '' ? pathMatch[1] : null
-      : !url.hash && url.pathname === '/' && url.searchParams.size === 1 ? url.searchParams.get('game') : null
-    const reference = resourceReferenceSchema.safeParse(candidate)
+    const reference = resourceReferenceSchema.safeParse(invitationCandidate(url))
     if (!reference.success) {
       context.issues.push({ code: 'custom', message: 'Not an invitation URL.', input: url.href })
       return z.NEVER

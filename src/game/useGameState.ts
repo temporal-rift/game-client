@@ -95,7 +95,7 @@ export function useGameState(options: UseGameStateOptions): GameStateSession {
     // One immediate read, outside any backoff in progress: callers reconcile against its answer.
     await queryClient.cancelQueries({ queryKey: query.queryKey })
     try {
-      return await queryClient.fetchQuery({ ...query, retry: false })
+      return await queryClient.query({ ...query, retry: false })
     } catch {
       return null
     }
