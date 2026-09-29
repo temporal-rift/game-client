@@ -54,4 +54,33 @@ describe('resolveAppConfig', () => {
       expect(result.errors).toContain('oidcIssuerUrl must be an absolute http(s) URL.')
     }
   })
+
+  it('reports a missing value once, not also as malformed', () => {
+    const result = resolveAppConfig({ ...validConfig, apiBaseUrl: '   ' })
+
+    expect(result).toEqual({ ok: false, errors: ['apiBaseUrl is not configured.'] })
+  })
+
+  it('treats a config that is not an object as nothing configured', () => {
+    for (const config of [undefined, null, 'apiBaseUrl=https://api.example.test', 42]) {
+      const result = resolveAppConfig(config)
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.errors).toEqual([
+          'apiBaseUrl is not configured.',
+          'oidcIssuerUrl is not configured.',
+          'oidcClientId is not configured.',
+          'oidcAudience is not configured.',
+        ])
+      }
+    }
+  })
+
+  it('rejects non-text values and trims the ones it keeps', () => {
+    const result = resolveAppConfig({ ...validConfig, oidcClientId: 7, oidcAudience: '  aud  ' })
+
+    expect(result).toEqual({ ok: false, errors: ['oidcClientId is not configured.'] })
+    expect(resolveAppConfig({ ...validConfig, oidcAudience: '  aud  ' })).toMatchObject({ ok: true, config: { oidcAudience: 'aud' } })
+  })
 })
