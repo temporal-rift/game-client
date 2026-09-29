@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ActionCoordinates, AuthenticatedFetchFn, SpecialAction, SubmitActionRequest } from '../api/actionClient'
-import { ActionApiError, actionErrorMessage, submitAction } from '../api/actionClient'
+import { ApiProblemError } from '../api/client'
+import type { ActionCoordinates, AuthenticatedFetchFn, SpecialAction, SubmitActionRequest } from '../api/action'
+import { actionErrorMessage, submitAction } from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
 import { selectActionRoundView, type ActionRoundView } from './actionView'
@@ -102,8 +103,8 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
     const { gameId: activeGameId, eraNumber, roundNumber } = view
     const request: SubmitActionRequest =
       draft.kind === 'card'
-        ? { actionType: 'CARD', cardInstanceId: draft.cardInstanceId, coordinates: draft.coordinates }
-        : { actionType: 'SPECIAL', specialAction: draft.specialAction, coordinates: draft.coordinates }
+        ? { ...draft.coordinates, actionType: 'CARD', cardInstanceId: draft.cardInstanceId }
+        : { ...draft.coordinates, actionType: 'SPECIAL', specialAction: draft.specialAction }
 
     setSubmitPhase({ kind: 'submitting' })
     try {
@@ -125,7 +126,7 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
       setSubmitPhase({
         kind: 'rejected',
         message: actionErrorMessage(error),
-        code: error instanceof ActionApiError ? error.code : null,
+        code: error instanceof ApiProblemError ? error.code : null,
       })
     }
   }, [view, draft, apiBaseUrl, gameState])

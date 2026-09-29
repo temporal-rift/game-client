@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AuthenticatedFetchFn } from '../api/gameStateClient'
-import { ScoresApiError, getScores, getScoresHistory, scoresErrorMessage } from '../api/scoresClient'
-import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
+import { ApiProblemError, isAbortError } from '../api/client'
+import type { AuthenticatedFetchFn } from '../api/projection'
+import { getScores, getScoresHistory, scoresErrorMessage } from '../api/scoring'
+import type { ScoresHistoryResponse, ScoresResponse } from '../api/scoring'
 import type { GameStateSession } from '../game/useGameState'
 import { selectResultsView, type ResultsView } from './resultsView'
 
@@ -32,8 +33,8 @@ export interface ResultsSession {
  */
 export function useResults(options: UseResultsOptions): ResultsSession {
   const { apiBaseUrl, fetchFn, gameState, ownPlayerId, perspectiveKey } = options
-  const [scores, setScores] = useState<{ data: ScoresView; perspectiveKey: string | null } | null>(null)
-  const [history, setHistory] = useState<{ data: ScoresHistoryView; perspectiveKey: string | null } | null>(null)
+  const [scores, setScores] = useState<{ data: ScoresResponse; perspectiveKey: string | null } | null>(null)
+  const [history, setHistory] = useState<{ data: ScoresHistoryResponse; perspectiveKey: string | null } | null>(null)
   const [scoresError, setScoresError] = useState<{
     message: string
     code: string | null
@@ -94,13 +95,13 @@ export function useResults(options: UseResultsOptions): ResultsSession {
         setHistory({ data: nextHistory, perspectiveKey: requestPerspective })
         setScoresError(null)
       } catch (error) {
-        if (cancelled || (error instanceof DOMException && error.name === 'AbortError')) {
+        if (cancelled || (isAbortError(error))) {
           return
         }
         if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
           return
         }
-        const code = error instanceof ScoresApiError ? error.code : null
+        const code = error instanceof ApiProblemError ? error.code : null
         setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
       }
     })()
@@ -133,13 +134,13 @@ export function useResults(options: UseResultsOptions): ResultsSession {
       setHistory({ data: nextHistory, perspectiveKey: requestPerspective })
       setScoresError(null)
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
+      if (isAbortError(error)) {
         return
       }
       if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
         return
       }
-      const code = error instanceof ScoresApiError ? error.code : null
+      const code = error instanceof ApiProblemError ? error.code : null
       setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
     } finally {
       setActiveRefresh((current) => (current?.seq === seq ? null : current))

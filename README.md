@@ -34,6 +34,36 @@ cross-origin API call:
 | `/api/v1/games/{id}/chains` | timeline-service | `http://localhost:8081` (`TIMELINE_SERVICE_URL`) |
 | `/actuator/health`, every other `/api/` path | game-service | `http://localhost:8080` (`GAME_SERVICE_URL`) |
 
+### API contracts
+
+The HTTP client is generated from the backend's published OpenAPI contracts, never written by hand. Each
+contract module is pinned in [`contracts.json`](contracts.json):
+
+| Module | Used for |
+|---|---|
+| `session-api` | Lobbies: create, join, leave, start |
+| `action-api` | Hand selection, action-round and paradox-resolution submissions |
+| `projection-api` | The participant's game state |
+| `scoring-api` | Final scores and score history |
+
+```bash
+npm run generate:api # download the pinned contracts and regenerate src/api/generated
+npm run check:api    # the same, then fail if the committed client differs (CI runs this)
+```
+
+`generate:api` downloads each module's jar at its pinned version from Maven Central
+(`io.github.temporal-rift:{module}:{version}`), verifies it against Central's checksum and extracts its
+`openapi/` specs into the gitignored `.contracts/` folder; the specs are never copied into this repository.
+[`@hey-api/openapi-ts`](https://heyapi.dev) then generates a typed fetch SDK and Zod schemas per module into
+`src/api/generated/`, which is committed so a contract bump shows up as a reviewable diff. Bump a module by
+changing its version in `contracts.json`, running `npm run generate:api` and committing both. Never edit
+`src/api/generated/` by hand: `check:api` fails on any difference.
+
+Every request and every response is validated against its contract at the client boundary, so a response that
+breaks the pinned contract surfaces as a recoverable error instead of reaching the board. Requests go through
+the authenticated fetch (Bearer token, sign-out on `401`), and problem-detail codes (e.g. `409-02`) map to the
+same player-facing messages as before (`src/api/session.ts`, `action.ts`, `projection.ts`, `scoring.ts`).
+
 ### Pages and sign-in redirects
 
 Each page has its own URL, so reloads, bookmarks and shared links land on the same page:
@@ -55,6 +85,7 @@ edge configurations do; the Vite dev server does this by default.
 Other checks, also run in CI:
 
 ```bash
+npm run check:api
 npm run typecheck
 npm run lint
 npm test

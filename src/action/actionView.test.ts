@@ -63,8 +63,8 @@ describe('selectActionRoundView', () => {
     expect(view.hand).toEqual([expect.objectContaining({ cardInstanceId: 'card-1', targetMode: 'PLAYER_LIST', targetListSize: 2 })])
   })
 
-  it('drops malformed hand entries instead of throwing', () => {
-    const state = baseState({}, { myHand: [{ cardInstanceId: 'card-1' }, { cardInstanceId: 'card-2', cardType: 'PUSH', grade: 'X' }] })
+  it('drops a hand card whose type the action contract does not know', () => {
+    const state = baseState({}, { myHand: [{ cardInstanceId: 'card-1', cardType: 'TELEPORT', grade: 'I', isPlayableThisRound: true }] })
     const view = selectActionRoundView(state)
     if (view.kind !== 'open') throw new Error('expected open view')
     expect(view.hand).toEqual([])
@@ -80,8 +80,8 @@ describe('selectActionRoundView', () => {
             title: 'The Reactor',
             carryOverState: 'FRESH',
             outcomes: [
-              { outcomeId: 'out-1', description: 'Succeeds' },
-              { outcomeId: 'out-2', description: 'Fails' },
+              { outcomeId: 'out-1', description: 'Succeeds', initialProbability: 60 },
+              { outcomeId: 'out-2', description: 'Fails', initialProbability: 40 },
             ],
           },
         ],
@@ -165,7 +165,7 @@ describe('selectActionRoundView', () => {
   })
 
   it('reflects hasSubmitted from an accepted ACTION submission for the current era/round', () => {
-    const state = baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, kind: 'ACTION', actionType: 'CARD' }] })
+    const state = baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }] })
     const view = selectActionRoundView(state)
     if (view.kind !== 'open') throw new Error('expected open view')
     expect(view.hasSubmitted).toBe(true)

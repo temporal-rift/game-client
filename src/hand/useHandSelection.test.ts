@@ -1,19 +1,29 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AuthenticatedFetchFn, GameStateView } from '../api/gameStateClient'
+import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
 import { createGameStateSession } from '../game/gameStateTestSupport'
+import { gameStatePayload, sevenCardDeal } from '../test/gameStatePayload'
+import { uuid } from '../test/uuid'
 import { useHandSelection } from './useHandSelection'
 
-function stateBody(overrides: Record<string, unknown> = {}): GameStateView {
-  const body = {
-    gameId: 'game-1', eraNumber: 2, revision: 1, phase: 'HAND_SELECTION', mySubmissions: [],
+const GAME = uuid('game-1')
+const ME = uuid('me')
+const cardId = (slot: number) => uuid(`card-${slot}`)
+const [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5, CARD_6] = [1, 2, 3, 4, 5, 6].map(cardId)
+
+function stateBody(overrides: Partial<GameStateView> = {}): GameStateView {
+  return gameStatePayload({
+    gameId: GAME,
+    revision: 1,
+    phase: 'HAND_SELECTION',
+    mySubmissions: [],
     pendingHandSelection: {
-      cards: Array.from({ length: 7 }, (_, index) => ({ cardInstanceId: `card-${index + 1}`, cardType: 'PUSH', grade: 'II', dealSlot: index + 1 })),
-      requiredSelectionCount: 5, expiresAt: '2026-10-01T12:00:00Z',
+      cards: sevenCardDeal((slot) => ({ cardInstanceId: cardId(slot), cardType: 'PUSH', grade: 'II', dealSlot: slot })),
+      requiredSelectionCount: 5,
+      expiresAt: '2026-10-01T12:00:00Z',
     },
     ...overrides,
-  }
-  return { ...body, raw: body } as unknown as GameStateView
+  })
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -22,19 +32,19 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe('useHandSelection', () => {
   it('keeps five distinct offered cards and refreshes after acceptance', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId: 'game-1', eraNumber: 2, playerId: 'me', status: 'SELECTED' })) as unknown as AuthenticatedFetchFn
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId: GAME, eraNumber: 2, playerId: ME, status: 'SELECTED' })) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: stateBody() })
     const { result } = renderHook(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
 
-    act(() => ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'].forEach(result.current.toggleCard))
-    expect(result.current.selectedCardInstanceIds).toEqual(['card-1', 'card-2', 'card-3', 'card-4', 'card-5'])
-    act(() => result.current.toggleCard('card-6'))
+    act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
+    expect(result.current.selectedCardInstanceIds).toEqual([CARD_1, CARD_2, CARD_3, CARD_4, CARD_5])
+    act(() => result.current.toggleCard(CARD_6))
     expect(result.current.selectedCardInstanceIds).toHaveLength(5)
 
     await act(async () => { await result.current.confirm() })
 
     expect(JSON.parse((fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body)).toEqual({
-      keptCardInstanceIds: ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'],
+      keptCardInstanceIds: [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5],
     })
     expect(result.current.submitPhase).toEqual({ kind: 'submitted' })
     expect(gameState.refresh).toHaveBeenCalledTimes(1)
@@ -47,7 +57,7 @@ describe('useHandSelection', () => {
       refresh: async () => stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }] }),
     })
     const { result } = renderHook(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
-    act(() => ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'].forEach(result.current.toggleCard))
+    act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
 
     await act(async () => { await result.current.confirm() })
 
@@ -59,7 +69,7 @@ describe('useHandSelection', () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ code: '422-11', detail: 'bad cards' }, 422)) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: stateBody(), refresh: async () => stateBody() })
     const { result } = renderHook(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
-    act(() => ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'].forEach(result.current.toggleCard))
+    act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
 
     await act(async () => { await result.current.confirm() })
 
@@ -72,14 +82,14 @@ describe('useHandSelection', () => {
     const fetchFn = vi.fn(
       () =>
         new Promise<Response>((resolve) => {
-          resolveSubmission = () => resolve(jsonResponse({ gameId: 'game-1', eraNumber: 2, playerId: 'me', status: 'SELECTED' }))
+          resolveSubmission = () => resolve(jsonResponse({ gameId: GAME, eraNumber: 2, playerId: ME, status: 'SELECTED' }))
         }),
     ) as unknown as AuthenticatedFetchFn
     const firstGameState = createGameStateSession({ state: stateBody() })
     const secondGameState = createGameStateSession({
       state: stateBody({
         pendingHandSelection: {
-          cards: Array.from({ length: 7 }, (_, index) => ({ cardInstanceId: `replacement-${index + 1}`, cardType: 'SCAN', grade: 'I', dealSlot: index + 1 })),
+          cards: sevenCardDeal((slot) => ({ cardInstanceId: uuid(`replacement-${slot}`), cardType: 'SCAN', grade: 'I', dealSlot: slot })),
           requiredSelectionCount: 5,
           expiresAt: '2026-10-01T12:00:00Z',
         },
@@ -89,7 +99,7 @@ describe('useHandSelection', () => {
       ({ gameState }) => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
       { initialProps: { gameState: firstGameState } },
     )
-    act(() => ['card-1', 'card-2', 'card-3', 'card-4', 'card-5'].forEach(result.current.toggleCard))
+    act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
     const confirmation = result.current.confirm()
 
     await act(async () => {

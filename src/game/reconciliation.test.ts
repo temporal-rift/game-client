@@ -1,39 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import type { GameStateView } from '../api/gameStateClient'
+import type { GameStateView } from '../api/projection'
+import { baseGameState } from './gameStateFixtures'
 import { hasAcceptedSubmission, nextPollDelayMs, shouldApplyGameState } from './reconciliation'
 
 function gameState(overrides: Partial<GameStateView> = {}): GameStateView {
-  return {
-    gameId: 'game-1',
-    eraNumber: 1,
-    revision: 1,
-    lastUpdatedAt: '2026-01-01T00:00:00Z',
-    phase: 'ACTION_ROUND_1',
-    roundNumber: 1,
-    myFaction: null,
-    myScore: 0,
-    deadlines: { handSelectionExpiresAt: null, actionRoundExpiresAt: null, paradoxResolutionExpiresAt: null },
-    phaseContext: { declarationOpen: false, paradoxOpen: false, paradoxIds: [] },
-    mySubmissions: [],
-    mySpecialBudgets: [],
-    result: null,
-    raw: {},
-    ...overrides,
-  }
+  return baseGameState({ eraNumber: 1, revision: 1, phase: 'ACTION_ROUND_1', roundNumber: 1, ...overrides })
 }
 
 describe('shouldApplyGameState', () => {
   it('applies the first response even without a confirmed revision', () => {
-    expect(shouldApplyGameState(null, gameState({ revision: null }))).toBe(true)
+    expect(shouldApplyGameState(null, gameState({ revision: undefined }))).toBe(true)
   })
 
   it('never lets an unconfirmed response replace an already-reconciled view', () => {
     const current = gameState({ revision: 5 })
-    expect(shouldApplyGameState(current, gameState({ revision: null }))).toBe(false)
+    expect(shouldApplyGameState(current, gameState({ revision: undefined }))).toBe(false)
   })
 
   it('upgrades an unconfirmed view once a revision is confirmed', () => {
-    const current = gameState({ revision: null })
+    const current = gameState({ revision: undefined })
     expect(shouldApplyGameState(current, gameState({ revision: 1 }))).toBe(true)
   })
 
@@ -74,7 +59,7 @@ describe('hasAcceptedSubmission', () => {
 
   it('finds an accepted hand selection by era and kind alone', () => {
     const state = gameState({
-      mySubmissions: [{ eraNumber: 1, roundNumber: null, kind: 'HAND_SELECTION', actionType: null }],
+      mySubmissions: [{ eraNumber: 1, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }],
     })
     expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'HAND_SELECTION' })).toBe(true)
     expect(hasAcceptedSubmission(state, { eraNumber: 2, kind: 'HAND_SELECTION' })).toBe(false)
@@ -82,7 +67,7 @@ describe('hasAcceptedSubmission', () => {
 
   it('scopes an ordinary action submission to its round', () => {
     const state = gameState({
-      mySubmissions: [{ eraNumber: 1, roundNumber: 2, kind: 'ACTION', actionType: 'CARD' }],
+      mySubmissions: [{ eraNumber: 1, roundNumber: 2, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }],
     })
     expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'ACTION', roundNumber: 2 })).toBe(true)
     expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'ACTION', roundNumber: 1 })).toBe(false)
@@ -90,7 +75,7 @@ describe('hasAcceptedSubmission', () => {
 
   it('never matches another kind at the same coordinate', () => {
     const state = gameState({
-      mySubmissions: [{ eraNumber: 1, roundNumber: null, kind: 'DECLARATION', actionType: null }],
+      mySubmissions: [{ eraNumber: 1, roundNumber: null, kind: 'DECLARATION', status: 'ACCEPTED' }],
     })
     expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'PARADOX_CARD' })).toBe(false)
   })

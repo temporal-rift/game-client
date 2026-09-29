@@ -20,6 +20,8 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci --ignore-scripts
+      # Regenerates the API client from the contracts pinned in contracts.json and fails on drift.
+      - run: npm run check:api
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run guard:renderer

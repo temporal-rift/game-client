@@ -196,7 +196,7 @@ describe('ActionPanel', () => {
       ],
     }
 
-    function renderNullify(targetPlayerIds?: readonly string[]) {
+    function renderNullify(targetPlayerIds?: string[]) {
       const onSelectCard = vi.fn()
       render(
         <ActionPanel

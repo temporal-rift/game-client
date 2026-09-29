@@ -1,26 +1,11 @@
-import type { GameResultView, GameStateView } from '../api/gameStateClient'
-import type { ScoresHistoryView, ScoresView } from '../api/scoresClient'
+import type { GameResult, GameStateView, PlayerInGame } from '../api/projection'
+import type { ScoresHistoryResponse, ScoresResponse } from '../api/scoring'
 
-export type EndReason =
-  | 'WIN_CONDITION_MET'
-  | 'TIMELINE_COLLAPSED'
-  | 'TIMELINE_STABILIZED'
-  | 'DECK_EXHAUSTED'
-  | 'RESOLUTION_FAILED'
+export type EndReason = GameResult['endReason']
 
-const KNOWN_END_REASONS: readonly string[] = [
-  'WIN_CONDITION_MET',
-  'TIMELINE_COLLAPSED',
-  'TIMELINE_STABILIZED',
-  'DECK_EXHAUSTED',
-  'RESOLUTION_FAILED',
-]
+export type WinType = NonNullable<GameResult['winners'][number]['winType']>
 
-export function isKnownEndReason(value: string): value is EndReason {
-  return (KNOWN_END_REASONS as readonly string[]).includes(value)
-}
-
-export function endReasonLabel(endReason: string): string {
+export function endReasonLabel(endReason: EndReason): string {
   switch (endReason) {
     case 'WIN_CONDITION_MET':
       return 'Victory'
@@ -32,13 +17,13 @@ export function endReasonLabel(endReason: string): string {
       return 'Card supply exhausted'
     case 'RESOLUTION_FAILED':
       return 'Final resolution could not complete'
-    default:
-      return endReason
+    case 'ALL_PLAYERS_ABANDONED':
+      return 'Every player left the game'
   }
 }
 
 /** How a winner of a WIN_CONDITION_MET ending won; null when the ending carries no win type. */
-export function winTypeLabel(winType: string | null): string | null {
+export function winTypeLabel(winType: WinType | null): string | null {
   switch (winType) {
     case null:
       return null
@@ -48,8 +33,6 @@ export function winTypeLabel(winType: string | null): string | null {
       return 'completed their faction objective'
     case 'LAST_PLAYER_STANDING':
       return 'last player standing — everyone else left'
-    default:
-      return winType
   }
 }
 
@@ -61,7 +44,7 @@ export interface ResultsPlayerEntry {
   /** Permitted final faction; null while withheld before the recorded reveal boundary. */
   readonly faction: string | null
   /** How this winner won a WIN_CONDITION_MET ending; null otherwise. */
-  readonly winType: string | null
+  readonly winType: WinType | null
 }
 
 export interface ResultsExplanationEntry {
@@ -81,51 +64,14 @@ export type ResultsView =
       readonly kind: 'complete'
       readonly gameId: string
       readonly endReason: EndReason
-      readonly endReasonRaw: string
       readonly winners: readonly ResultsPlayerEntry[]
       readonly scores: readonly ResultsPlayerEntry[]
       readonly isRevealed: boolean
       readonly explanations: readonly ResultsExplanationEntry[]
     }
-  | { readonly kind: 'unknown-terminal'; readonly gameId: string; readonly endReasonRaw: string }
 
-interface RawPlayer {
-  readonly playerId: string
-  readonly playerName: string | null
-  readonly score: number
-  readonly faction: string | null
-}
-
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function parseRawPlayer(entry: unknown): RawPlayer | null {
-  if (typeof entry !== 'object' || entry === null) {
-    return null
-  }
-  const source = entry as Record<string, unknown>
-  const playerId = nonEmptyString(source['playerId'])
-  const score = typeof source['score'] === 'number' ? source['score'] : null
-  if (!playerId || score === null) {
-    return null
-  }
-  return { playerId, playerName: nonEmptyString(source['playerName']), score, faction: nonEmptyString(source['faction']) }
-}
-
-function rawPlayersFrom(state: GameStateView): readonly RawPlayer[] {
-  const raw = state.raw['players']
-  if (!Array.isArray(raw)) {
-    return []
-  }
-  return raw.flatMap((entry) => {
-    const player = parseRawPlayer(entry)
-    return player ? [player] : []
-  })
-}
-
-function playerNameFor(playerId: string, rawPlayers: readonly RawPlayer[], scores: ScoresView | null): string | null {
-  const fromState = rawPlayers.find((player) => player.playerId === playerId)?.playerName ?? null
+function playerNameFor(playerId: string, players: readonly PlayerInGame[], scores: ScoresResponse | null): string | null {
+  const fromState = players.find((player) => player.playerId === playerId)?.playerName || null
   if (fromState) {
     return fromState
   }
@@ -135,28 +81,28 @@ function playerNameFor(playerId: string, rawPlayers: readonly RawPlayer[], score
 function factionForPlayer(
   playerId: string,
   isRevealed: boolean,
-  result: GameResultView,
-  scores: ScoresView | null,
-  rawPlayers: readonly RawPlayer[],
+  result: GameResult,
+  scores: ScoresResponse | null,
+  players: readonly PlayerInGame[],
 ): string | null {
   if (!isRevealed) {
     return null
   }
-  const fromResult = result.winners.find((winner) => winner.playerId === playerId)?.faction ?? null
+  const fromResult = result.winners.find((winner) => winner.playerId === playerId)?.faction || null
   if (fromResult) {
     return fromResult
   }
-  const fromScores = scores?.scores.find((score) => score.playerId === playerId)?.faction ?? null
+  const fromScores = scores?.scores.find((score) => score.playerId === playerId)?.faction || null
   if (fromScores) {
     return fromScores
   }
-  return rawPlayers.find((player) => player.playerId === playerId)?.faction ?? null
+  return players.find((player) => player.playerId === playerId)?.faction || null
 }
 
 function orderedPlayersFrom(
-  result: GameResultView,
-  rawPlayers: readonly RawPlayer[],
-  scores: ScoresView | null,
+  result: GameResult,
+  players: readonly PlayerInGame[],
+  scores: ScoresResponse | null,
   isRevealed: boolean,
 ): readonly ResultsPlayerEntry[] {
   const winTypeByWinner = new Map(result.winners.map((winner) => [winner.playerId, winner.winType] as const))
@@ -165,33 +111,33 @@ function orderedPlayersFrom(
     new Set([
       ...result.finalScores.map((entry) => entry.playerId),
       ...result.winners.map((winner) => winner.playerId),
-      ...rawPlayers.map((player) => player.playerId),
+      ...players.map((player) => player.playerId),
     ]),
   )
   return playerIds.map((playerId) => ({
     playerId,
-    playerName: playerNameFor(playerId, rawPlayers, scores),
-    score: scoreByPlayer.get(playerId) ?? rawPlayers.find((player) => player.playerId === playerId)?.score ?? 0,
+    playerName: playerNameFor(playerId, players, scores),
+    score: scoreByPlayer.get(playerId) ?? players.find((player) => player.playerId === playerId)?.score ?? 0,
     isWinner: winTypeByWinner.has(playerId),
-    faction: factionForPlayer(playerId, isRevealed, result, scores, rawPlayers),
+    faction: factionForPlayer(playerId, isRevealed, result, scores, players),
     winType: winTypeByWinner.get(playerId) ?? null,
   }))
 }
 
 function explanationsFrom(
-  history: ScoresHistoryView | null,
-  rawPlayers: readonly RawPlayer[],
-  scores: ScoresView | null,
+  history: ScoresHistoryResponse | null,
+  players: readonly PlayerInGame[],
+  scores: ScoresResponse | null,
   ownPlayerId: string | null,
 ): readonly ResultsExplanationEntry[] {
   return (
     history?.history.flatMap((era) =>
       era.deltas.map((delta) => ({
         playerId: delta.playerId,
-        playerName: playerNameFor(delta.playerId, rawPlayers, scores),
+        playerName: playerNameFor(delta.playerId, players, scores),
         eraNumber: era.eraNumber,
         pointsDelta: delta.pointsDelta,
-        reason: delta.reason,
+        reason: delta.reason || null,
         isOwn: ownPlayerId !== null && delta.playerId === ownPlayerId,
       })),
     ) ?? []
@@ -209,8 +155,8 @@ function explanationsFrom(
  */
 export function selectResultsView(
   state: GameStateView | null,
-  scores: ScoresView | null,
-  history: ScoresHistoryView | null,
+  scores: ScoresResponse | null,
+  history: ScoresHistoryResponse | null,
   ownPlayerId: string | null,
 ): ResultsView {
   if (state?.phase !== 'GAME_ENDED') {
@@ -220,21 +166,17 @@ export function selectResultsView(
   if (!result) {
     return { kind: 'waiting', gameId: state.gameId, eraNumber: state.eraNumber }
   }
-  if (!isKnownEndReason(result.endReason)) {
-    return { kind: 'unknown-terminal', gameId: state.gameId, endReasonRaw: result.endReason }
-  }
   const isRevealed = result.revealBoundary === 'FACTIONS_AND_SCORES_PUBLIC'
-  const rawPlayers = rawPlayersFrom(state)
-  const ordered = orderedPlayersFrom(result, rawPlayers, scores, isRevealed)
+  const players = state.players
+  const ordered = orderedPlayersFrom(result, players, scores, isRevealed)
 
   return {
     kind: 'complete',
     gameId: state.gameId,
     endReason: result.endReason,
-    endReasonRaw: result.endReason,
     winners: ordered.filter((entry) => entry.isWinner),
     scores: ordered,
     isRevealed,
-    explanations: explanationsFrom(history, rawPlayers, scores, ownPlayerId),
+    explanations: explanationsFrom(history, players, scores, ownPlayerId),
   }
 }

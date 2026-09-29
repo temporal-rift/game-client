@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { buildLobbyInvitationUrl, parseLobbyReference } from '../auth/invitation'
-import type { LobbyView } from '../api/lobbyClient'
+import type { LobbyResponse } from '../api/session'
 import type { LobbyPhase, LobbySession } from '../lobby/useLobby'
 import { LOBBY_PATH, gamePath } from '../routing/paths'
 
@@ -141,7 +141,7 @@ function LobbyJoinView({ lobby, defaultPlayerName, isWorking, failure }: NonMemb
 
 interface WaitingControlsProps {
   readonly lobby: LobbySession;
-  readonly view: LobbyView;
+  readonly view: LobbyResponse;
   readonly isWorking: boolean;
 }
 
@@ -176,7 +176,7 @@ function WaitingControls({ lobby, view, isWorking }: WaitingControlsProps) {
 
 interface LobbyMemberViewProps {
   readonly lobby: LobbySession;
-  readonly view: LobbyView;
+  readonly view: LobbyResponse;
   readonly isWorking: boolean;
   readonly failure: FailedPhase | null;
 }

@@ -1,29 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import type { GameStateView } from '../api/gameStateClient'
+import type { GameStateView } from '../api/projection'
+import { baseGameState } from '../game/gameStateFixtures'
+import { sevenCardDeal } from '../test/gameStatePayload'
 import { selectHandSelectionView } from './handSelectionView'
 
-function stateBody(overrides: Record<string, unknown> = {}): GameStateView {
-  const body = {
-    gameId: 'game-1',
-    eraNumber: 2,
+function stateBody(overrides: Partial<GameStateView> = {}): GameStateView {
+  return baseGameState({
     revision: 1,
     phase: 'HAND_SELECTION',
-    mySubmissions: [],
+    roundNumber: null,
     pendingHandSelection: {
-      cards: Array.from({ length: 7 }, (_, index) => ({ cardInstanceId: `card-${index + 1}`, cardType: 'PUSH', grade: 'II', dealSlot: index + 1 })),
+      cards: sevenCardDeal((slot) => ({ cardInstanceId: `card-${slot}`, cardType: 'PUSH', grade: 'II', dealSlot: slot })),
       requiredSelectionCount: 5,
       expiresAt: '2026-10-01T12:00:00Z',
     },
     ...overrides,
-  }
-  return { ...body, raw: body } as unknown as GameStateView
+  })
 }
 
 describe('selectHandSelectionView', () => {
   it('exposes only the caller private seven-card offer in deal order', () => {
     const state = stateBody({
       pendingHandSelection: {
-        cards: [7, 6, 5, 4, 3, 2, 1].map((slot) => ({ cardInstanceId: `card-${slot}`, cardType: 'PUSH', grade: 'II', dealSlot: slot })),
+        cards: sevenCardDeal((slot) => ({ cardInstanceId: `card-${8 - slot}`, cardType: 'PUSH', grade: 'II', dealSlot: 8 - slot })),
         requiredSelectionCount: 5,
         expiresAt: '2026-10-01T12:00:00Z',
       },
@@ -40,8 +39,9 @@ describe('selectHandSelectionView', () => {
     if (view.kind === 'open') expect(view.cards.map((card) => card.cardInstanceId)).toEqual(['card-1', 'card-2', 'card-3', 'card-4', 'card-5', 'card-6', 'card-7'])
   })
 
-  it('does not fabricate an offer when the authoritative pending deal is incomplete', () => {
-    const state = stateBody({ pendingHandSelection: { cards: [], requiredSelectionCount: 5, expiresAt: '2026-10-01T12:00:00Z' } })
+  it('does not fabricate an offer when the authoritative pending deal repeats a card', () => {
+    const cards = sevenCardDeal((slot) => ({ cardInstanceId: slot === 7 ? 'card-1' : `card-${slot}`, cardType: 'PUSH', grade: 'II', dealSlot: slot }))
+    const state = stateBody({ pendingHandSelection: { cards, requiredSelectionCount: 5, expiresAt: '2026-10-01T12:00:00Z' } })
     expect(selectHandSelectionView(state)).toEqual({ kind: 'unavailable', reason: 'Your private card offer is incomplete. Refreshing authoritative state.' })
   })
 

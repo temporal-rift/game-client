@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_TYPES, FACTIONS, SPECIAL_ACTIONS } from '../api/actionClient'
+import { CARD_TYPES, FACTIONS, SPECIAL_ACTIONS } from '../api/action'
 import {
   CARD_CATEGORIES,
   cardCategoryDisplayName,

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ApiProblemError } from '../api/client'
 import {
-  ActionApiError,
   actionErrorMessage,
   getParadoxResolutionStatus,
   submitParadoxResolutionCard,
   type AuthenticatedFetchFn,
-  type ParadoxResolutionStatusView,
-} from '../api/actionClient'
+  type ParadoxResolutionStatusResponse,
+} from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
 import { selectParadoxResolutionView, type ParadoxResolutionView } from './paradoxView'
@@ -40,7 +40,7 @@ export interface ParadoxResolutionSession {
 
 export function useParadoxResolution(options: UseParadoxResolutionOptions): ParadoxResolutionSession {
   const { apiBaseUrl, fetchFn, gameState } = options
-  const [status, setStatus] = useState<ParadoxResolutionStatusView | null>(null)
+  const [status, setStatus] = useState<ParadoxResolutionStatusResponse | null>(null)
   const [draft, setDraft] = useState<ParadoxDraft>({ kind: 'none' })
   const [submitPhase, setSubmitPhase] = useState<ParadoxSubmitPhase>({ kind: 'idle' })
   const fetchRef = useRef(fetchFn)
@@ -51,7 +51,7 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
 
   const phaseScope = useMemo(() => {
     const state = gameState.state
-    return state?.phase === 'PARADOX_RESOLUTION' && state.phaseContext.paradoxOpen ? `${state.gameId}:${state.eraNumber}` : null
+    return state?.phase === 'PARADOX_RESOLUTION' && state.phaseContext?.paradoxOpen ? `${state.gameId}:${state.eraNumber}` : null
   }, [gameState.state])
   const statusRefreshKey = phaseScope ? `${phaseScope}:${gameState.state?.revision ?? 'unversioned'}` : null
 
@@ -64,7 +64,7 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
   }
 
   const readStatus = useCallback(
-    async (activeGameId: string, eraNumber: number): Promise<ParadoxResolutionStatusView | null> => {
+    async (activeGameId: string, eraNumber: number): Promise<ParadoxResolutionStatusResponse | null> => {
       try {
         const next = await getParadoxResolutionStatus(fetchRef.current, apiBaseUrl, activeGameId, eraNumber)
         setStatus(next)
@@ -150,7 +150,7 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
       setSubmitPhase({
         kind: 'rejected',
         message: actionErrorMessage(error),
-        code: error instanceof ActionApiError ? error.code : null,
+        code: error instanceof ApiProblemError ? error.code : null,
       })
     }
   }, [apiBaseUrl, draft, gameState, readStatus, view])

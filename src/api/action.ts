@@ -1,0 +1,225 @@
+/**
+ * Participant-scoped submissions against the pinned `action-api` contract:
+ * hand selection, action-round actions and paradox-resolution cards, plus
+ * the paradox-resolution status read.
+ *
+ * The server remains authoritative for card/special eligibility, target
+ * legality and budgets; the generated schemas validate each request against
+ * the contract before it is sent, and each response after it arrives.
+ */
+
+import * as z from 'zod'
+import { apiClientsFor, apiErrorMessage, callApi, invalidRequestError, type AuthenticatedFetchFn } from './client'
+import {
+  getParadoxResolutionStatus as getParadoxResolutionStatusCall,
+  selectHand as selectHandCall,
+  submitAction as submitActionCall,
+  submitParadoxResolutionCard as submitParadoxResolutionCardCall,
+} from './generated/action'
+import type {
+  CardActionRequest,
+  HandSelectionRequest,
+  HandSelectionResponse,
+  ParadoxResolutionCardResponse,
+  ParadoxResolutionStatusResponse,
+  SpecialActionRequest,
+  SubmitActionResponse,
+} from './generated/action'
+import {
+  zCardActionRequest,
+  zEnumsCardCategory,
+  zEnumsCardGrade,
+  zEnumsCardType,
+  zEnumsSpecialAction,
+  zSpecialActionRequest,
+} from './generated/action/zod.gen'
+import { zFaction } from './generated/scoring/zod.gen'
+
+import type { EnumsCardType as CardType, EnumsSpecialAction as SpecialAction } from './generated/action'
+import type { Faction } from './generated/scoring'
+
+export type { AuthenticatedFetchFn } from './client'
+export type {
+  CardActionRequest,
+  EligibleResolutionCard,
+  EnumsCardCategory as CardCategory,
+  EnumsCardGrade as CardGrade,
+  EnumsCardType as CardType,
+  EnumsSpecialAction as SpecialAction,
+  ParadoxResolutionStatusResponse,
+  SpecialActionRequest,
+} from './generated/action'
+export type { Faction } from './generated/scoring'
+
+export const CARD_TYPES = zEnumsCardType.options
+export const CARD_GRADES = zEnumsCardGrade.options
+export const CARD_CATEGORIES = zEnumsCardCategory.options
+export const SPECIAL_ACTIONS = zEnumsSpecialAction.options
+export const FACTIONS = zFaction.options
+
+// The projection contract carries some of these as free text (a hand card's `cardType`, the
+// caller's `mySpecialActions` and `myFaction`); these narrow them to the enumerations the action
+// contract accepts.
+export function isCardType(value: string | null | undefined): value is CardType {
+  return zEnumsCardType.safeParse(value).success
+}
+
+export function isSpecialAction(value: string | null | undefined): value is SpecialAction {
+  return zEnumsSpecialAction.safeParse(value).success
+}
+
+export function isFaction(value: string | null | undefined): value is Faction {
+  return zFaction.safeParse(value).success
+}
+
+/**
+ * The precise coordinates for one action's target: every target field a
+ * card or special request carries. Exactly the fields relevant to the chosen
+ * card/special's target mode are populated by the caller.
+ */
+export type ActionCoordinates = Omit<CardActionRequest, 'actionType' | 'cardInstanceId'> &
+  Omit<SpecialActionRequest, 'actionType' | 'specialAction'>
+
+export type SubmitActionRequest = CardActionRequest | SpecialActionRequest
+
+// The generated operation validates only the discriminator of its polymorphic body, so the
+// wrapper checks the whole card or special variant before sending it.
+const submitActionRequestSchema = z.union([zCardActionRequest, zSpecialActionRequest])
+
+/**
+ * Submits the authenticated player's single card or faction-special action
+ * for an open action round. A lost response does not imply failure: recover
+ * acceptance via game state before treating it as one.
+ */
+export async function submitAction(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  roundNumber: number,
+  request: SubmitActionRequest,
+): Promise<SubmitActionResponse> {
+  if (!gameId.trim()) {
+    throw new Error('A game reference is needed to submit an action.')
+  }
+  if (!submitActionRequestSchema.safeParse(request).success) {
+    throw invalidRequestError('submit the action')
+  }
+  const client = apiClientsFor(fetchFn, apiBaseUrl).action
+  return callApi('submit the action', () =>
+    submitActionCall({ client, path: { gameId, eraNumber, roundNumber }, body: request }),
+  )
+}
+
+type FiveCards = HandSelectionRequest['keptCardInstanceIds']
+
+function isFiveDistinctCards(ids: readonly string[]): ids is Readonly<FiveCards> {
+  return ids.length === 5 && new Set(ids).size === 5
+}
+
+/**
+ * Submits exactly five distinct caller-owned cards from the private pending
+ * deal. The server remains authoritative for deal ownership and expiry.
+ */
+export async function submitHandSelection(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  keptCardInstanceIds: readonly string[],
+): Promise<HandSelectionResponse> {
+  if (!gameId.trim()) {
+    throw new Error('A game reference is needed to select a hand.')
+  }
+  if (!isFiveDistinctCards(keptCardInstanceIds)) {
+    throw new Error('Choose exactly five different cards before confirming.')
+  }
+  const client = apiClientsFor(fetchFn, apiBaseUrl).action
+  const [first, second, third, fourth, fifth] = keptCardInstanceIds
+  return callApi('select the hand', () =>
+    selectHandCall({ client, path: { gameId, eraNumber }, body: { keptCardInstanceIds: [first, second, third, fourth, fifth] } }),
+  )
+}
+
+/** Submits one caller-owned eligible card during the current paradox-resolution phase. */
+export async function submitParadoxResolutionCard(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  request: { readonly cardInstanceId: string; readonly targetEventId: string; readonly targetOutcomeId: string },
+): Promise<ParadoxResolutionCardResponse> {
+  if (!gameId.trim()) {
+    throw new Error('A game reference is needed to submit a paradox-resolution choice.')
+  }
+  const client = apiClientsFor(fetchFn, apiBaseUrl).action
+  const { cardInstanceId, targetEventId, targetOutcomeId } = request
+  return callApi('submit the paradox-resolution choice', () =>
+    submitParadoxResolutionCardCall({
+      client,
+      path: { gameId, eraNumber },
+      body: { actionType: 'CARD', cardInstanceId, targetEventId, targetOutcomeId },
+    }),
+  )
+}
+
+/** Recovers phase-scoped targets, caller-owned eligible cards, deadline, and acceptance state. */
+export async function getParadoxResolutionStatus(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  init: { readonly signal?: AbortSignal } = {},
+): Promise<ParadoxResolutionStatusResponse> {
+  if (!gameId.trim()) {
+    throw new Error('A game reference is needed to read paradox-resolution status.')
+  }
+  const client = apiClientsFor(fetchFn, apiBaseUrl).action
+  return callApi('read paradox-resolution status', () =>
+    getParadoxResolutionStatusCall({ client, path: { gameId, eraNumber }, signal: init.signal }),
+  )
+}
+
+/** Maps stable problem codes to player-safe messages; unknown codes keep the server detail. */
+export function actionErrorMessage(error: unknown): string {
+  return apiErrorMessage(error, (problem) => {
+    switch (problem.code) {
+      case '409-01':
+        return 'The round already closed. Reconciling your accepted action.'
+      case '409-02':
+        return 'You already submitted for this round. Reconciling your accepted action.'
+      case '409-08':
+        return 'The hand-selection window already closed. Reconciling your accepted hand.'
+      case '409-09':
+        return 'Your hand selection is already resolved. Reconciling your accepted hand.'
+      case '409-06':
+        return 'The paradox-resolution phase already closed. Reconciling your accepted choice.'
+      case '409-07':
+        return 'You already submitted a paradox-resolution choice. Reconciling your accepted choice.'
+      case '409-05':
+        return 'Expose was already used this era.'
+      case '409-10':
+        return 'That special action was already used this era.'
+      case '422-01':
+        return 'That card is not in your hand.'
+      case '422-02':
+        return 'You are jammed and cannot use faction specials right now.'
+      case '422-03':
+        return 'That target is not legal for this action.'
+      case '422-04':
+        return 'A faction is required to use a special action.'
+      case '422-05':
+        return 'Your faction does not own that special action.'
+      case '422-06':
+        return "That target does not belong to the current game's era."
+      case '422-10':
+        return 'That card is not eligible during this phase.'
+      case '422-11':
+        return 'Choose five different cards from your offered hand.'
+      case '422-12':
+        return 'That card cannot be played in this specific round.'
+      default:
+        return problem.status === 404 ? 'Round or target player not found.' : null
+    }
+  })
+}

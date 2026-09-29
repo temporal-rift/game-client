@@ -8,11 +8,11 @@
  * separately in `actionView.ts` from server-supplied state, not hardcoded.
  */
 
-import type { CardCategory, CardGrade, CardType, Faction, SpecialAction } from '../api/actionClient'
-import type { SpecialBudgetView } from '../api/gameStateClient'
+import type { CardCategory, CardGrade, CardType, Faction, SpecialAction } from '../api/action'
+import type { SpecialBudget } from '../api/projection'
 
-export type { CardCategory } from '../api/actionClient'
-export { CARD_CATEGORIES } from '../api/actionClient'
+export type { CardCategory } from '../api/action'
+export { CARD_CATEGORIES } from '../api/action'
 
 export type TargetMode =
   | 'EVENT_OUTCOME'
@@ -219,7 +219,7 @@ export interface SpecialAvailability {
 export interface SpecialAvailabilityContext {
   readonly roundNumber: number | null
   readonly myJammedUntilRound: number | null
-  readonly budgets: readonly SpecialBudgetView[]
+  readonly budgets: readonly SpecialBudget[]
 }
 
 /**

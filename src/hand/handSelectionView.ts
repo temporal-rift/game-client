@@ -1,6 +1,6 @@
-import { CARD_GRADES, CARD_TYPES } from '../api/actionClient'
-import type { CardGrade, CardType } from '../api/actionClient'
-import type { GameStateView } from '../api/gameStateClient'
+import { isCardType } from '../api/action'
+import type { CardGrade, CardType } from '../api/action'
+import type { GameStateView } from '../api/projection'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import { cardDisplayName, cardEffectSummary } from '../action/actionRules'
 
@@ -29,49 +29,25 @@ export type HandSelectionView =
       readonly cards: readonly OfferedHandCard[]
     }
 
-const KNOWN_CARD_TYPES: ReadonlySet<string> = new Set(CARD_TYPES)
-const KNOWN_GRADES: ReadonlySet<string> = new Set(CARD_GRADES)
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
+interface DealtCard {
+  readonly cardInstanceId: string
+  readonly cardType: string
+  readonly grade: CardGrade
+  readonly dealSlot: number
 }
 
-function parseCards(value: unknown, requiresDealSlot: boolean): readonly OfferedHandCard[] | null {
-  if (!Array.isArray(value)) return null
-  const cards: OfferedHandCard[] = []
-  for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) return null
-    const source = entry as Record<string, unknown>
-    const cardInstanceId = stringField(source['cardInstanceId'])
-    const cardType = stringField(source['cardType'])
-    const grade = stringField(source['grade'])
-    const suppliedDealSlot = source['dealSlot']
-    const dealSlot = typeof suppliedDealSlot === 'number' ? suppliedDealSlot : cards.length + 1
-    if (
-      !cardInstanceId ||
-      !cardType ||
-      !KNOWN_CARD_TYPES.has(cardType) ||
-      !grade ||
-      !KNOWN_GRADES.has(grade) ||
-      (requiresDealSlot && typeof suppliedDealSlot !== 'number') ||
-      !Number.isInteger(dealSlot) ||
-      dealSlot < 1 ||
-      dealSlot > 7
-    ) {
-      return null
-    }
-    cards.push({
-      cardInstanceId,
-      cardType: cardType as CardType,
-      grade: grade as CardGrade,
-      dealSlot,
-      name: cardDisplayName(cardType as CardType),
-      effectSummary: cardEffectSummary(cardType as CardType),
-    })
-  }
-  const distinctIds = new Set(cards.map((card) => card.cardInstanceId))
-  const distinctSlots = new Set(cards.map((card) => card.dealSlot))
-  return distinctIds.size === cards.length && distinctSlots.size === cards.length ? cards.sort((left, right) => left.dealSlot - right.dealSlot) : null
+/** Null unless every card is a known type and ids and deal slots are distinct. */
+function offeredCards(cards: readonly DealtCard[]): readonly OfferedHandCard[] | null {
+  const offered = cards.flatMap(({ cardInstanceId, cardType, grade, dealSlot }) =>
+    isCardType(cardType)
+      ? [{ cardInstanceId, cardType, grade, dealSlot, name: cardDisplayName(cardType), effectSummary: cardEffectSummary(cardType) }]
+      : [],
+  )
+  const distinctIds = new Set(offered.map((card) => card.cardInstanceId))
+  const distinctSlots = new Set(offered.map((card) => card.dealSlot))
+  return offered.length === cards.length && distinctIds.size === cards.length && distinctSlots.size === cards.length
+    ? [...offered].sort((left, right) => left.dealSlot - right.dealSlot)
+    : null
 }
 
 /** Builds the owner-private hand-selection view without deriving an offer locally. */
@@ -79,7 +55,8 @@ export function selectHandSelectionView(state: GameStateView | null): HandSelect
   if (!state) return { kind: 'unavailable', reason: 'Game state is not loaded yet.' }
 
   const accepted = hasAcceptedSubmission(state, { eraNumber: state.eraNumber, kind: 'HAND_SELECTION' })
-  const acceptedCards = parseCards(state.raw['myHand'], false)
+  // The accepted hand carries no deal slots: it keeps the order the server lists it in.
+  const acceptedCards = offeredCards(state.myHand.map((card, index) => ({ ...card, dealSlot: index + 1 })))
   if (accepted) {
     if (acceptedCards?.length === 5) {
       return { kind: 'accepted', eraNumber: state.eraNumber, cards: acceptedCards }
@@ -90,18 +67,20 @@ export function selectHandSelectionView(state: GameStateView | null): HandSelect
   if (state.phase !== 'HAND_SELECTION') {
     return { kind: 'unavailable', reason: 'No hand-selection window is currently open.' }
   }
-  const pending = state.raw['pendingHandSelection']
-  if (typeof pending !== 'object' || pending === null) {
+  const pending = state.pendingHandSelection
+  if (!pending) {
     return { kind: 'unavailable', reason: 'Your private card offer is being refreshed.' }
   }
-  const source = pending as Record<string, unknown>
-  const cards = parseCards(source['cards'], true)
-  if (cards?.length !== 7 || source['requiredSelectionCount'] !== 5) {
+  const cards = offeredCards(pending.cards)
+  if (cards?.length !== 7) {
     return { kind: 'unavailable', reason: 'Your private card offer is incomplete. Refreshing authoritative state.' }
   }
-  const expiresAt = stringField(source['expiresAt'])
-  if (!expiresAt) {
-    return { kind: 'unavailable', reason: 'The hand-selection deadline is being refreshed.' }
+  return {
+    kind: 'open',
+    gameId: state.gameId,
+    eraNumber: state.eraNumber,
+    cards,
+    requiredSelectionCount: pending.requiredSelectionCount,
+    expiresAt: pending.expiresAt,
   }
-  return { kind: 'open', gameId: state.gameId, eraNumber: state.eraNumber, cards, requiredSelectionCount: 5, expiresAt }
 }
