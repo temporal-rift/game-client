@@ -145,32 +145,32 @@ export function useLobby(options: UseLobbyOptions) {
   // The routed lobby (its page or an invitation) stays the join target even while the
   // server hides it from a non-member; a lobby remembered from an earlier visit does not.
   const [routedLobbyId] = useState(initialLobbyId)
-  const [lobbyId, setLobbyIdState] = useState(() => initialLobbyId ?? readStored(LOBBY_STORAGE_KEY))
-  const [knownOwnPlayerId, setKnownOwnPlayerIdState] = useState(() => readStored(OWN_PLAYER_STORAGE_KEY))
+  const [lobbyId, setLobbyId] = useState(() => initialLobbyId ?? readStored(LOBBY_STORAGE_KEY))
+  const [knownOwnPlayerId, setKnownOwnPlayerId] = useState(() => readStored(OWN_PLAYER_STORAGE_KEY))
   const [started, setStarted] = useState<{ readonly lobbyId: string; readonly gameId: string } | null>(null)
   const [failure, setFailure] = useState<Failure | null>(null)
   // A dismissed recovery failure stays dismissed for its lobby: every retry reports a new error object.
   const [dismissedRecoveryFor, setDismissedRecoveryFor] = useState<string | null>(null)
 
-  const setLobbyId = useCallback(
+  const rememberLobbyId = useCallback(
     (next: string | null) => {
-      setLobbyIdState(next)
+      setLobbyId(next)
       writeStored(LOBBY_STORAGE_KEY, next)
       onLobbyIdChange?.(next)
     },
     [onLobbyIdChange],
   )
 
-  const setKnownOwnPlayerId = useCallback((next: string | null) => {
-    setKnownOwnPlayerIdState(next)
+  const rememberOwnPlayerId = useCallback((next: string | null) => {
+    setKnownOwnPlayerId(next)
     writeStored(OWN_PLAYER_STORAGE_KEY, next)
   }, [])
 
   const forgetLobby = useCallback(() => {
-    setLobbyId(null)
-    setKnownOwnPlayerId(null)
+    rememberLobbyId(null)
+    rememberOwnPlayerId(null)
     setStarted(null)
-  }, [setLobbyId, setKnownOwnPlayerId])
+  }, [rememberLobbyId, rememberOwnPlayerId])
 
   // A deleted lobby, or one the server now hides from a player who was not invited to it,
   // must not pin the client to a dead reference: it is read no more.
@@ -221,9 +221,9 @@ export function useLobby(options: UseLobbyOptions) {
   const { mutateAsync: createLobby, isPending: createPending } = useMutation({
     mutationFn: (playerName: string) => apiCreateLobby(fetchFn, apiBaseUrl, playerName),
     onSuccess: async (created) => {
-      setKnownOwnPlayerId(created.hostPlayerId)
+      rememberOwnPlayerId(created.hostPlayerId)
       setStarted(null)
-      setLobbyId(created.lobbyId)
+      rememberLobbyId(created.lobbyId)
       // The create may have succeeded even when this read does not: the lobby query keeps
       // retrying the safe read with the server-issued identifiers.
       await queryClient.query(lobbyQuery(scope, created.lobbyId)).catch(() => undefined)
@@ -235,9 +235,9 @@ export function useLobby(options: UseLobbyOptions) {
     mutationFn: ({ target, playerName }: { readonly target: string; readonly playerName: string }) =>
       apiJoinLobby(fetchFn, apiBaseUrl, target, playerName),
     onSuccess: async (joined) => {
-      setKnownOwnPlayerId(joined.playerId)
+      rememberOwnPlayerId(joined.playerId)
       setStarted(null)
-      setLobbyId(joined.lobbyId)
+      rememberLobbyId(joined.lobbyId)
       // Authoritative membership wins over the join echo.
       await queryClient.query(lobbyQuery(scope, joined.lobbyId)).catch(() => undefined)
     },
@@ -249,8 +249,8 @@ export function useLobby(options: UseLobbyOptions) {
       if (alreadyJoined || !(error instanceof ApiProblemError)) {
         const confirmed = await readMembership(target)
         if (confirmed) {
-          setKnownOwnPlayerId(confirmed)
-          setLobbyId(target)
+          rememberOwnPlayerId(confirmed)
+          rememberLobbyId(target)
           return
         }
       }
