@@ -35,7 +35,7 @@ export function createGameOidcClient(config: AppConfig): UserManager {
     // this client does not configure — that path degrades to a safe, self-announcing re-login
     // rather than silently failing, but is not a substitute for requesting a refresh token from
     // any issuer that honors this scope.
-    scope: 'openid profile email offline_access',
+    scope: 'openid profile offline_access',
     extraQueryParams: { audience: config.oidcAudience },
     userStore: new WebStorageStateStore({ store: window.localStorage }),
     automaticSilentRenew: false,

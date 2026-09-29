@@ -22,7 +22,6 @@ export interface AuthSession {
 export interface IdentityClaims {
   readonly sub?: string
   readonly preferred_username?: string
-  readonly email?: string
   readonly name?: string
 }
 
@@ -33,11 +32,13 @@ export function identityFromUser(profile: IdentityClaims): PlayerIdentity | null
   return { subject: profile.sub, displayName: displayNameFrom(profile) }
 }
 
+// The display name prefills a lobby name every other player sees, so private
+// claims such as `email` are never used.
 function displayNameFrom(user: IdentityClaims): string | null {
-  const candidates = [user.preferred_username, user.email, user.name]
+  const candidates = [user.preferred_username, user.name]
   for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.length > 0) {
-      return candidate
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim()
     }
   }
   return null

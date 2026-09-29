@@ -184,7 +184,9 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => expect(window.location.pathname).toBe('/lobbies/lobby-1'))
-    expect(await screen.findByText(/invited to lobby lobby-1/i)).toBeInTheDocument()
+    const invitation = await screen.findByRole('region', { name: 'Lobby invitation' })
+    expect(invitation).toHaveTextContent(/lobby-1/)
+    expect(screen.getByLabelText('Player name')).toHaveValue('player-one')
   })
 })
 
