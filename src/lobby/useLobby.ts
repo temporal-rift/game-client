@@ -8,8 +8,9 @@ import {
   leaveLobby as apiLeaveLobby,
   lobbyErrorMessage,
   startGame as apiStartGame,
+  type AuthenticatedFetchFn,
+  type LobbyResponse,
 } from '../api/session'
-import type { AuthenticatedFetchFn, LobbyResponse } from '../api/session'
 import { parseLobbyReference } from '../auth/invitation'
 import { backoffDelayMs } from '../game/reconciliation'
 
@@ -113,10 +114,13 @@ function lastGameIdOf(
   started: { readonly lobbyId: string; readonly gameId: string } | null,
   memberView: LobbyResponse | null,
 ): string | null {
-  if (started && started.lobbyId === memberView?.lobbyId) {
+  if (!memberView) {
+    return null
+  }
+  if (started?.lobbyId === memberView.lobbyId) {
     return started.gameId
   }
-  return memberView?.status === 'STARTED' ? memberView.gameId : null
+  return memberView.status === 'STARTED' ? memberView.gameId : null
 }
 
 function hostRights(memberView: LobbyResponse | null, ownPlayerId: string | null): { readonly isHost: boolean; readonly canStart: boolean } {

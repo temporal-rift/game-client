@@ -4,8 +4,7 @@
  * current era's active events, and opponents to target.
  */
 
-import { isCardType, isFaction, isSpecialAction } from '../api/action'
-import type { CardGrade, CardType, Faction, SpecialAction } from '../api/action'
+import { isCardType, isFaction, isSpecialAction, type CardGrade, type CardType, type Faction, type SpecialAction } from '../api/action'
 import type { ActiveEvent, GameStateView, PlayerInGame, SpecialBudget } from '../api/projection'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import {

@@ -15,6 +15,12 @@ export interface UseResultsOptions {
   readonly perspectiveKey: string | null
 }
 
+/** The viewer and game an explicit refresh was started for. */
+interface RefreshContext {
+  readonly perspectiveKey: string | null
+  readonly gameId: string | null
+}
+
 export interface ResultsSession {
   readonly view: ResultsView
   readonly status: 'idle' | 'loading' | 'ready' | 'stalled' | 'failed'
@@ -53,8 +59,8 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     mutateAsync: runRefresh,
     isPending: refreshPending,
     variables: refreshContext,
-  } = useMutation({
-    mutationFn: async (_context: { readonly perspectiveKey: string | null; readonly gameId: string | null }) => {
+  } = useMutation<void, Error, RefreshContext>({
+    mutationFn: async () => {
       const next = await gameState.refresh()
       if (next?.phase !== 'GAME_ENDED' || next.result === undefined || perspectiveKey === null) {
         return

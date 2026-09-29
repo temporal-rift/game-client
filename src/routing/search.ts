@@ -16,7 +16,8 @@ export function parseSearch(search: string): Record<string, string> {
 export function stringifySearch(search: Record<string, unknown>): string {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(search)) {
-    if (value !== undefined && value !== null) {
+    // Every route's search is flat text; a value of any other shape has no place in the URL.
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
       params.set(key, String(value))
     }
   }

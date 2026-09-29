@@ -1,5 +1,4 @@
-import { isCardType } from '../api/action'
-import type { CardGrade, CardType } from '../api/action'
+import { isCardType, type CardGrade, type CardType } from '../api/action'
 import type { GameStateView } from '../api/projection'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import { cardDisplayName, cardEffectSummary } from '../action/actionRules'

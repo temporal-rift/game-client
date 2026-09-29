@@ -8,8 +8,7 @@
  */
 
 import { apiClientsFor, apiErrorMessage, callApi, type AuthenticatedFetchFn } from './client'
-import { getGameState as getGameStateCall } from './generated/projection'
-import type { PlayerGameStateResponse } from './generated/projection'
+import { getGameState as getGameStateCall, type PlayerGameStateResponse } from './generated/projection'
 
 export type { AuthenticatedFetchFn } from './client'
 export type {
