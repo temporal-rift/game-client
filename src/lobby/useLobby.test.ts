@@ -463,4 +463,36 @@ describe('useLobby', () => {
       vi.useRealTimers()
     }
   })
+
+  it('keeps a dismissed recovery failure dismissed while the read keeps retrying', async () => {
+    vi.useFakeTimers()
+    try {
+      const lobbyId = uuid('unreachable-lobby')
+      const fetchFn = () => Promise.reject(new TypeError('network down'))
+      const settle = async (ms: number) => {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(ms)
+          for (let turn = 0; turn < 3; turn += 1) {
+            await vi.advanceTimersByTimeAsync(1)
+          }
+        })
+      }
+
+      const hook = renderHookWithQueries(() =>
+        useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: lobbyId, pollWhileWaitingMs: 1000 }),
+      )
+      await settle(0)
+      expect(hook.result.current.state.phase).toMatchObject({ kind: 'failed' })
+
+      act(() => hook.result.current.dismissError())
+      expect(hook.result.current.state.phase.kind).not.toBe('failed')
+
+      // Retries (2s, then 4s) fail with new errors; the dismissed notice must not come back.
+      await settle(2000)
+      await settle(4000)
+      expect(hook.result.current.state.phase.kind).not.toBe('failed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
