@@ -167,7 +167,7 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
   }
 
   const faction = isFaction(state.myFaction) ? state.myFaction : null
-  const mySpecialActions = (state.mySpecialActions ?? []).filter(isSpecialAction)
+  const mySpecialActions = (state.mySpecialActions ?? []).filter((action) => isSpecialAction(action))
 
   return {
     kind: 'open',
