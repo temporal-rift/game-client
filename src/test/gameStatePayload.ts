@@ -24,6 +24,6 @@ type DealtCard = NonNullable<GameStateView['pendingHandSelection']>['cards'][num
 
 /** A seven-card pending deal, as the contract's fixed-length tuple. */
 export function sevenCardDeal(card: (slot: number) => DealtCard): NonNullable<GameStateView['pendingHandSelection']>['cards'] {
-  const [first, second, third, fourth, fifth, sixth, seventh] = [1, 2, 3, 4, 5, 6, 7].map(card)
+  const [first, second, third, fourth, fifth, sixth, seventh] = [1, 2, 3, 4, 5, 6, 7].map((slot) => card(slot))
   return [first, second, third, fourth, fifth, sixth, seventh]
 }
