@@ -82,6 +82,11 @@ Each page has its own URL, so reloads, bookmarks and shared links land on the sa
 | `/games/{gameId}` | One game's board, action rounds and results |
 | `/auth/callback` | OIDC redirect URI |
 
+The routes are declared with [TanStack Router](https://tanstack.com/router) in `src/routing/router.tsx`: lobby
+and game references in the path are checked against the server-issued reference pattern (an invalid one redirects
+to `/lobby` or `/`), search params are validated with Zod schemas, and page loaders warm the query cache so a page
+renders from it.
+
 The OIDC client always uses the fixed redirect URI `{origin}/auth/callback` and post-logout URI `{origin}/`;
 the page to return to after sign-in travels in the sign-in `state`, validated as an app-relative path. Register
 exactly those two URIs with a real issuer. The local and E2E test issuers accept any redirect URI. Any server in

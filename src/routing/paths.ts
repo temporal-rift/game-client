@@ -9,15 +9,13 @@
  *
  * Identity never travels in these URLs: lobby and game references are
  * server-issued slugs, and membership is always confirmed server-side.
+ * The routes themselves are declared in `router.tsx`.
  */
 
 import * as z from 'zod'
 
 export const AUTH_CALLBACK_PATH = '/auth/callback'
 export const HOME_PATH = '/'
-export const LOBBY_PATH = '/lobby'
-export const LOBBY_ROUTE = '/lobbies/:lobbyId'
-export const GAME_ROUTE = '/games/:gameId'
 
 // Server-issued lobby and game references are URL-safe slugs (uuids); anything
 // else is rejected rather than stored or acted on.
@@ -36,10 +34,6 @@ function requireReference(reference: string, kind: string): string {
 
 export function lobbyPath(lobbyId: string): string {
   return `/lobbies/${requireReference(lobbyId, 'lobby')}`
-}
-
-export function gamePath(gameId: string): string {
-  return `/games/${requireReference(gameId, 'game')}`
 }
 
 // Any fixed same-origin base works: it only anchors relative resolution.

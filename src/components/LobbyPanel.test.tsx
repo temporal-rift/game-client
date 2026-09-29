@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { LobbyPanel } from './LobbyPanel'
+import { renderInRouter } from '../test/renderInRouter'
 import type { LobbySession } from '../lobby/useLobby'
 import type { LobbyResponse } from '../api/session'
 
@@ -151,11 +151,7 @@ describe('LobbyPanel', () => {
   it('offers only a name and a join for the invited lobby to a non-member', async () => {
     const join = vi.fn()
     const idle = session({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, isHost: false }, { join })
-    render(
-      <MemoryRouter>
-        <LobbyPanel lobby={idle} defaultPlayerName="juanito" invitedLobbyId="lobby-9" />
-      </MemoryRouter>,
-    )
+    await renderInRouter(<LobbyPanel lobby={idle} defaultPlayerName="juanito" invitedLobbyId="lobby-9" />)
 
     expect(screen.getByRole('region', { name: 'Lobby invitation' })).toHaveTextContent(/lobby-9/)
     expect(screen.queryByLabelText(/invitation link or lobby reference/i)).not.toBeInTheDocument()
@@ -167,18 +163,14 @@ describe('LobbyPanel', () => {
     expect(join).toHaveBeenCalledWith('lobby-9', 'juanito')
   })
 
-  it('keeps the invitation view and shows a rejected invitation join', () => {
+  it('keeps the invitation view and shows a rejected invitation join', async () => {
     const rejected = session({
       phase: { kind: 'failed', message: 'This lobby is full (5 players maximum).', code: '422-01' },
       lobby: null,
       ownPlayerId: null,
       isHost: false,
     })
-    render(
-      <MemoryRouter>
-        <LobbyPanel lobby={rejected} defaultPlayerName="" invitedLobbyId="lobby-9" />
-      </MemoryRouter>,
-    )
+    await renderInRouter(<LobbyPanel lobby={rejected} defaultPlayerName="" invitedLobbyId="lobby-9" />)
 
     expect(screen.getByRole('alert')).toHaveTextContent(/full.*5 players/i)
     expect(screen.getByRole('region', { name: 'Lobby invitation' })).toBeInTheDocument()
@@ -192,16 +184,12 @@ describe('LobbyPanel', () => {
     expect(screen.queryByRole('region', { name: 'Lobby invitation' })).not.toBeInTheDocument()
   })
 
-  it('announces the started game and links to its page', () => {
+  it('announces the started game and links to its page', async () => {
     const started = session({
       lobby: lobbyView({ status: 'STARTED' }),
       lastGameId: 'game-1',
     })
-    render(
-      <MemoryRouter>
-        <LobbyPanel lobby={started} defaultPlayerName="host-one" invitedLobbyId={null} />
-      </MemoryRouter>,
-    )
+    await renderInRouter(<LobbyPanel lobby={started} defaultPlayerName="host-one" invitedLobbyId={null} />)
 
     expect(screen.getByRole('status')).toHaveTextContent(/game started/i)
     expect(screen.getAllByText(/game-1/).length).toBeGreaterThan(0)
