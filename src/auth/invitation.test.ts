@@ -56,4 +56,18 @@ describe('invitation and callback URLs', () => {
     expect(urlCarriesCredentials('https://app/?access_token=x')).toBe(true)
     expect(urlCarriesCredentials('https://app/lobbies/lobby-123')).toBe(false)
   })
+
+  it('reads a callback with a code and state, and nothing else', () => {
+    expect(parseAuthCallback('code=abc&state=xyz&access_token=ignored')).toEqual({
+      code: 'abc',
+      state: 'xyz',
+      error: null,
+      errorDescription: null,
+    })
+  })
+
+  it('trims a pasted lobby reference', () => {
+    expect(parseLobbyReference('  lobby-123  ')).toEqual({ lobbyId: 'lobby-123' })
+    expect(parseLobbyReference('')).toBeNull()
+  })
 })

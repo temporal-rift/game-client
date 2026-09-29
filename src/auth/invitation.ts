@@ -3,17 +3,28 @@
  * player identity never comes from URLs and tokens/codes never enter
  * invitation URLs or application logs.
  */
-import { isResourceReference, lobbyPath } from '../routing/paths'
+import * as z from 'zod'
+import { lobbyPath, resourceReferenceSchema } from '../routing/paths'
 
 export interface LobbyInvitation {
-  readonly lobbyId: string;
+  readonly lobbyId: string
 }
 
-// Before lobbies had their own route, invitations carried the lobby reference
-// in this query parameter on the root path. Links already shared still work.
-const LEGACY_INVITATION_PARAM = 'game'
+/** A lobby reference as typed or pasted: surrounding whitespace is not part of it. */
+const typedReferenceSchema = z.string().trim().pipe(resourceReferenceSchema)
 
-const LOBBY_PATH_PATTERN = /^\/lobbies\/([^/]+)$/
+/**
+ * The search of a legacy invitation. Before lobbies had their own route,
+ * invitations carried the lobby reference in `?game=` on the root path, and
+ * links already shared still work. Identity-like parameters (player, token,
+ * code, state, …) are deliberately not part of the schema, so a crafted
+ * invitation can never fabricate or steal a player session.
+ */
+export const legacyInvitationSearchSchema = z.object({ game: typedReferenceSchema })
+
+function searchParams(search: string): URLSearchParams {
+  return new URLSearchParams(search.startsWith('?') ? search : `?${search}`)
+}
 
 /** Builds a shareable invitation: the lobby's own page, carrying nothing else. */
 export function buildLobbyInvitationUrl(origin: string, lobbyId: string): string {
@@ -24,47 +35,59 @@ export function buildLobbyInvitationUrl(origin: string, lobbyId: string): string
   return `${normalized}${lobbyPath(lobbyId)}`
 }
 
-/**
- * Reads a legacy `?game=<lobbyId>` invitation. Identity-like parameters
- * (player, token, code, state, …) are deliberately ignored so a crafted
- * invitation can never fabricate or steal a player session, and malformed
- * references are rejected rather than stored.
- */
+/** Reads a legacy `?game=<lobbyId>` invitation; malformed references are rejected rather than stored. */
 export function parseLegacyLobbyInvitation(search: string): LobbyInvitation | null {
-  const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`)
-  const lobbyId = params.get(LEGACY_INVITATION_PARAM)?.trim()
-  return isResourceReference(lobbyId) ? { lobbyId } : null
+  const result = legacyInvitationSearchSchema.safeParse({ game: searchParams(search).get('game') })
+  return result.success ? { lobbyId: result.data.game } : null
 }
 
+const LOBBY_PATH_PATTERN = /^\/lobbies\/([^/]+)$/
+
 /**
- * Accepts either an exact lobby reference or one complete, unambiguous
- * invitation URL (`/lobbies/<lobbyId>`, or the legacy `/?game=<lobbyId>`).
- * Bare query-like text is never treated as another lobby.
+ * One complete, unambiguous invitation URL: the lobby page with nothing
+ * else, or the legacy root page carrying `game` as its only parameter.
  */
+const invitationUrlSchema = z
+  .url({ protocol: /^https?$/ })
+  .transform((value) => new URL(value))
+  .transform((url, context) => {
+    const pathMatch = url.hash ? null : LOBBY_PATH_PATTERN.exec(url.pathname)
+    const candidate = pathMatch
+      ? url.search === '' ? pathMatch[1] : null
+      : !url.hash && url.pathname === '/' && url.searchParams.size === 1 ? url.searchParams.get('game') : null
+    const reference = resourceReferenceSchema.safeParse(candidate)
+    if (!reference.success) {
+      context.issues.push({ code: 'custom', message: 'Not an invitation URL.', input: url.href })
+      return z.NEVER
+    }
+    return reference.data
+  })
+
+/**
+ * Accepts either an exact lobby reference or one complete invitation URL
+ * (`/lobbies/<lobbyId>`, or the legacy `/?game=<lobbyId>`). Bare query-like
+ * text is never treated as another lobby.
+ */
+export const lobbyReferenceInputSchema = z.union([typedReferenceSchema, z.string().trim().pipe(invitationUrlSchema)])
+
 export function parseLobbyReference(value: string): LobbyInvitation | null {
-  const reference = value.trim();
-  if (isResourceReference(reference)) {
-    return { lobbyId: reference };
-  }
-  let invitationUrl: URL;
-  try {
-    invitationUrl = new URL(reference);
-  } catch {
-    return null;
-  }
-  if ((invitationUrl.protocol !== 'https:' && invitationUrl.protocol !== 'http:') || invitationUrl.hash) {
-    return null;
-  }
-  const pathMatch = LOBBY_PATH_PATTERN.exec(invitationUrl.pathname);
-  if (pathMatch) {
-    return invitationUrl.search === '' && isResourceReference(pathMatch[1]) ? { lobbyId: pathMatch[1] } : null;
-  }
-  if (invitationUrl.pathname !== '/' || invitationUrl.searchParams.size !== 1) {
-    return null;
-  }
-  const lobbyId = invitationUrl.searchParams.get(LEGACY_INVITATION_PARAM);
-  return isResourceReference(lobbyId) ? { lobbyId } : null;
+  const result = lobbyReferenceInputSchema.safeParse(value)
+  return result.success ? { lobbyId: result.data } : null
 }
+
+// A callback field that is absent, repeated oddly or not text reads as absent.
+const callbackField = z.string().nullable().catch(null)
+
+/**
+ * The OAuth fields of an `/auth/callback` search. Only these are read;
+ * identity still comes from the tokens the SDK validates.
+ */
+export const authCallbackSearchSchema = z.object({
+  code: callbackField,
+  state: callbackField,
+  error: callbackField,
+  error_description: callbackField,
+})
 
 export interface AuthCallbackParams {
   readonly code: string | null
@@ -75,13 +98,14 @@ export interface AuthCallbackParams {
 
 /** Reads only the OAuth callback fields; identity still comes from tokens. */
 export function parseAuthCallback(search: string): AuthCallbackParams {
-  const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`)
-  return {
+  const params = searchParams(search)
+  const { code, state, error, error_description: errorDescription } = authCallbackSearchSchema.parse({
     code: params.get('code'),
     state: params.get('state'),
     error: params.get('error'),
-    errorDescription: params.get('error_description'),
-  }
+    error_description: params.get('error_description'),
+  })
+  return { code, state, error, errorDescription }
 }
 
 /** True when a URL visibly carries credential material (for tests/guards). */
