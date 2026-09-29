@@ -10,8 +10,12 @@
  */
 
 import { apiClientsFor, apiErrorMessage, callApi, type AuthenticatedFetchFn } from './client'
-import { getScores as getScoresCall, getScoresHistory as getScoresHistoryCall } from './generated/scoring'
-import type { ScoresHistoryResponse, ScoresResponse } from './generated/scoring'
+import {
+  getScores as getScoresCall,
+  getScoresHistory as getScoresHistoryCall,
+  type ScoresHistoryResponse,
+  type ScoresResponse,
+} from './generated/scoring'
 
 export type { ScoresHistoryResponse, ScoresResponse } from './generated/scoring'
 

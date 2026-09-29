@@ -13,12 +13,10 @@ import {
   joinLobby as joinLobbyCall,
   leaveLobby as leaveLobbyCall,
   startGame as startGameCall,
-} from './generated/session'
-import type {
-  CreateLobbyResponse,
-  JoinLobbyResponse,
-  LobbyResponse,
-  StartGameResponse,
+  type CreateLobbyResponse,
+  type JoinLobbyResponse,
+  type LobbyResponse,
+  type StartGameResponse,
 } from './generated/session'
 import { zCreateLobbyRequest } from './generated/session/zod.gen'
 

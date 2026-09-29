@@ -31,7 +31,7 @@ export type ParadoxResolutionView =
     }
 
 function isParadoxPhase(state: GameStateView): boolean {
-  return state.phase === 'PARADOX_RESOLUTION' && state.phaseContext?.paradoxOpen === true
+  return state.phase === 'PARADOX_RESOLUTION' && Boolean(state.phaseContext?.paradoxOpen)
 }
 
 /**

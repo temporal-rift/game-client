@@ -15,15 +15,15 @@ import {
   selectHand as selectHandCall,
   submitAction as submitActionCall,
   submitParadoxResolutionCard as submitParadoxResolutionCardCall,
-} from './generated/action'
-import type {
-  CardActionRequest,
-  HandSelectionRequest,
-  HandSelectionResponse,
-  ParadoxResolutionCardResponse,
-  ParadoxResolutionStatusResponse,
-  SpecialActionRequest,
-  SubmitActionResponse,
+  type CardActionRequest,
+  type EnumsCardType as CardType,
+  type EnumsSpecialAction as SpecialAction,
+  type HandSelectionRequest,
+  type HandSelectionResponse,
+  type ParadoxResolutionCardResponse,
+  type ParadoxResolutionStatusResponse,
+  type SpecialActionRequest,
+  type SubmitActionResponse,
 } from './generated/action'
 import {
   zCardActionRequest,
@@ -34,8 +34,6 @@ import {
   zSpecialActionRequest,
 } from './generated/action/zod.gen'
 import { zFaction } from './generated/scoring/zod.gen'
-
-import type { EnumsCardType as CardType, EnumsSpecialAction as SpecialAction } from './generated/action'
 import type { Faction } from './generated/scoring'
 
 export type { AuthenticatedFetchFn } from './client'

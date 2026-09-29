@@ -1,11 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
-import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
-import { gameStateErrorMessage } from '../api/projection'
+import { gameStateErrorMessage, type AuthenticatedFetchFn, type GameStateView } from '../api/projection'
 import { gameStateQuery } from '../api/queries'
-import type { SubmissionQuery } from './reconciliation'
-import { backoffDelayMs, hasAcceptedSubmission as checkAcceptedSubmission } from './reconciliation'
+import { backoffDelayMs, hasAcceptedSubmission as checkAcceptedSubmission, type SubmissionQuery } from './reconciliation'
 
 export type { SubmissionQuery } from './reconciliation'
 

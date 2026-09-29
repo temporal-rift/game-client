@@ -10,8 +10,7 @@
  * current era so the display can show that expiry alongside its age.
  */
 
-import { isCardType } from '../api/action'
-import type { CardGrade, CardType } from '../api/action'
+import { isCardType, type CardGrade, type CardType } from '../api/action'
 import type { ActiveEvent, ExposeFact, GameStateView, PublicBandEvent, PublicDeclaration, RevealedIntel } from '../api/projection'
 import { nameFor, playerNameLookup } from '../game/playerNames'
 import { cardDisplayName, specialDisplayName } from '../action/actionRules'

@@ -1,8 +1,14 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
-import type { ActionCoordinates, AuthenticatedFetchFn, SpecialAction, SubmitActionRequest } from '../api/action'
-import { actionErrorMessage, submitAction } from '../api/action'
+import {
+  actionErrorMessage,
+  submitAction,
+  type ActionCoordinates,
+  type AuthenticatedFetchFn,
+  type SpecialAction,
+  type SubmitActionRequest,
+} from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
 import { selectActionRoundView, type ActionRoundView } from './actionView'

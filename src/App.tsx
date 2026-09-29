@@ -51,9 +51,9 @@ function SignedInSessionView({ config, playerSession, authSession }: SignedInVie
     [playerSession],
   )
   const fetchFn = useMemo(
-    () =>
-      ((input: RequestInfo | URL, init: RequestInit = {}) =>
-        authenticatedFetch(input, { ...init, onUnauthorized: playerSession.handleUnauthorized })) as AuthenticatedFetchFn,
+    (): AuthenticatedFetchFn =>
+      (input, init = {}) =>
+        authenticatedFetch(input, { ...init, onUnauthorized: playerSession.handleUnauthorized }),
     [authenticatedFetch, playerSession],
   )
   const perspective = authSession.identity.subject

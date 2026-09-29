@@ -13,8 +13,7 @@ import { ZodError } from 'zod'
 import { createClient as createActionClient } from './generated/action/client'
 import { createClient as createProjectionClient } from './generated/projection/client'
 import { createClient as createScoringClient } from './generated/scoring/client'
-import { createClient as createSessionClient } from './generated/session/client'
-import type { Client } from './generated/session/client'
+import { createClient as createSessionClient, type Client } from './generated/session/client'
 
 export type AuthenticatedFetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
