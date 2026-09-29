@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
 import type { ActionCoordinates, AuthenticatedFetchFn, SpecialAction, SubmitActionRequest } from '../api/action'
 import { actionErrorMessage, submitAction } from '../api/action'
@@ -16,6 +17,13 @@ export type SubmitPhase =
   | { readonly kind: 'submitting' }
   | { readonly kind: 'submitted' }
   | { readonly kind: 'rejected'; readonly message: string; readonly code: string | null }
+
+interface RoundSubmission {
+  readonly gameId: string
+  readonly eraNumber: number
+  readonly roundNumber: number
+  readonly request: SubmitActionRequest
+}
 
 export interface UseActionSubmissionOptions {
   readonly apiBaseUrl: string
@@ -48,11 +56,6 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
   const { apiBaseUrl, fetchFn, gameState, ownPlayerId } = options
   const [draft, setDraft] = useState<ActionDraft>({ kind: 'none' })
   const [submitPhase, setSubmitPhase] = useState<SubmitPhase>({ kind: 'idle' })
-
-  const fetchRef = useRef(fetchFn)
-  useEffect(() => {
-    fetchRef.current = fetchFn
-  }, [fetchFn])
 
   const view = useMemo(() => selectActionRoundView(gameState.state, ownPlayerId), [gameState.state, ownPlayerId])
 
@@ -96,31 +99,25 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
     setSubmitPhase((previous) => (previous.kind === 'rejected' ? { kind: 'idle' } : previous))
   }, [])
 
-  const confirm = useCallback(async (): Promise<void> => {
-    if (view.kind !== 'open' || draft.kind === 'none') {
-      return
-    }
-    const { gameId: activeGameId, eraNumber, roundNumber } = view
-    const request: SubmitActionRequest =
-      draft.kind === 'card'
-        ? { ...draft.coordinates, actionType: 'CARD', cardInstanceId: draft.cardInstanceId }
-        : { ...draft.coordinates, actionType: 'SPECIAL', specialAction: draft.specialAction }
+  const accepted = useCallback(() => {
+    setSubmitPhase({ kind: 'submitted' })
+    setDraft({ kind: 'none' })
+  }, [])
 
-    setSubmitPhase({ kind: 'submitting' })
-    try {
-      await submitAction(fetchRef.current, apiBaseUrl, activeGameId, eraNumber, roundNumber, request)
-      setSubmitPhase({ kind: 'submitted' })
-      setDraft({ kind: 'none' })
+  const { mutateAsync: submit } = useMutation({
+    mutationFn: ({ gameId, eraNumber, roundNumber, request }: RoundSubmission) =>
+      submitAction(fetchFn, apiBaseUrl, gameId, eraNumber, roundNumber, request),
+    onSuccess: async () => {
+      accepted()
       await gameState.refresh()
-    } catch (error) {
-      // Every failure — including an authoritative rejection, a stale
-      // phase, or an ambiguous (network-level) response — reconciles
-      // acceptance before being reported: a lost response may still have
-      // landed, and a stale-phase rejection means the round moved on.
+    },
+    // Every failure — an authoritative rejection, a stale phase, or an ambiguous (network-level)
+    // response — reconciles acceptance before being reported: a lost response may still have
+    // landed, and a stale-phase rejection means the round moved on.
+    onError: async (error, { eraNumber, roundNumber }) => {
       const reconciled = await gameState.refresh()
       if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, kind: 'ACTION', roundNumber })) {
-        setSubmitPhase({ kind: 'submitted' })
-        setDraft({ kind: 'none' })
+        accepted()
         return
       }
       setSubmitPhase({
@@ -128,8 +125,21 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
         message: actionErrorMessage(error),
         code: error instanceof ApiProblemError ? error.code : null,
       })
+    },
+  })
+
+  const confirm = useCallback(async (): Promise<void> => {
+    if (view.kind !== 'open' || draft.kind === 'none') {
+      return
     }
-  }, [view, draft, apiBaseUrl, gameState])
+    const { gameId, eraNumber, roundNumber } = view
+    const request: SubmitActionRequest =
+      draft.kind === 'card'
+        ? { ...draft.coordinates, actionType: 'CARD', cardInstanceId: draft.cardInstanceId }
+        : { ...draft.coordinates, actionType: 'SPECIAL', specialAction: draft.specialAction }
+    setSubmitPhase({ kind: 'submitting' })
+    await submit({ gameId, eraNumber, roundNumber, request }).catch(() => undefined)
+  }, [view, draft, submit])
 
   return useMemo(
     () => ({ view, draft, submitPhase, selectCard, selectSpecial, clearDraft, confirm, dismissRejection }),

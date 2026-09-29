@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createQueryClient } from '../api/queryClient'
 import { clearPrivateCaches, identityFromUser, sameIdentity } from './session'
 
 function memoryStorage(): Storage {
@@ -63,5 +64,14 @@ describe('clearPrivateCaches', () => {
 
   it('tolerates missing storage', () => {
     expect(() => clearPrivateCaches(null)).not.toThrow()
+  })
+
+  it('also empties the cached server state, so nothing private survives a player change', () => {
+    const serverState = createQueryClient()
+    serverState.setQueryData(['temporal-rift', 'one', 'game-state', 'game-1'], { myHand: ['secret'] })
+
+    clearPrivateCaches(null, serverState)
+
+    expect(serverState.getQueryCache().getAll()).toHaveLength(0)
   })
 })

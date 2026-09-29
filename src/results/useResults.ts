@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ApiProblemError, isAbortError } from '../api/client'
+import { useCallback, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiProblemError } from '../api/client'
 import type { AuthenticatedFetchFn } from '../api/projection'
-import { getScores, getScoresHistory, scoresErrorMessage } from '../api/scoring'
-import type { ScoresHistoryResponse, ScoresResponse } from '../api/scoring'
+import { scoresHistoryQuery, scoresQuery } from '../api/queries'
+import { scoresErrorMessage } from '../api/scoring'
 import type { GameStateSession } from '../game/useGameState'
 import { selectResultsView, type ResultsView } from './resultsView'
 
@@ -25,127 +26,50 @@ export interface ResultsSession {
 
 /**
  * Owns the reload-safe terminal results read for one participant. Game state
- * stays authoritative through the shared polling layer (freshness by
- * revision, cancellation on perspective change); scores and score history
- * are fetched only once the terminal phase carries a complete published
- * result, and are re-fetched on explicit refresh so a reload shows the
- * same winner set and totals instead of a locally cached guess.
+ * stays authoritative through the shared polling layer; scores and score
+ * history are read only once the terminal phase carries a complete published
+ * result, cached per viewer and game, and re-read on explicit refresh so a
+ * reload shows the same winner set and totals instead of a local guess.
  */
 export function useResults(options: UseResultsOptions): ResultsSession {
   const { apiBaseUrl, fetchFn, gameState, ownPlayerId, perspectiveKey } = options
-  const [scores, setScores] = useState<{ data: ScoresResponse; perspectiveKey: string | null } | null>(null)
-  const [history, setHistory] = useState<{ data: ScoresHistoryResponse; perspectiveKey: string | null } | null>(null)
-  const [scoresError, setScoresError] = useState<{
-    message: string
-    code: string | null
-    gameId: string
-    perspectiveKey: string | null
-  } | null>(null)
-  const [activeRefresh, setActiveRefresh] = useState<{
-    seq: number
-    gameId: string
-    perspectiveKey: string | null
-  } | null>(null)
-  const refreshSeqRef = useRef(0)
-
-  const fetchRef = useRef(fetchFn)
-  useEffect(() => {
-    fetchRef.current = fetchFn
-  }, [fetchFn])
-
-  const perspectiveRef = useRef(perspectiveKey)
-  useEffect(() => {
-    perspectiveRef.current = perspectiveKey
-  }, [perspectiveKey])
-
+  const queryClient = useQueryClient()
   const state = gameState.state
-  const effectiveGameId = state?.gameId ?? null
-  const gameIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    gameIdRef.current = effectiveGameId
-  }, [effectiveGameId])
+  const gameId = state?.gameId ?? null
+  const hasCompleteResult = state?.phase === 'GAME_ENDED' && state.result !== undefined
+  const enabled = hasCompleteResult && gameId !== null && perspectiveKey !== null
 
-  const hasCompleteResult = state?.phase === 'GAME_ENDED' && state.result !== null
+  const scope = useMemo(() => ({ perspective: perspectiveKey ?? '', apiBaseUrl, fetchFn }), [perspectiveKey, apiBaseUrl, fetchFn])
+  const scores = useQuery({ ...scoresQuery(scope, gameId ?? ''), enabled })
+  const history = useQuery({ ...scoresHistoryQuery(scope, gameId ?? ''), enabled })
 
-  const visibleScores =
-    scores?.data.gameId === effectiveGameId && scores?.perspectiveKey === perspectiveKey ? scores.data : null
-  const visibleHistory =
-    history?.data.gameId === effectiveGameId && history?.perspectiveKey === perspectiveKey ? history.data : null
-  const visibleScoresError =
-    scoresError?.gameId === effectiveGameId && scoresError?.perspectiveKey === perspectiveKey ? scoresError : null
+  const visibleScores = enabled ? (scores.data ?? null) : null
+  const visibleHistory = enabled ? (history.data ?? null) : null
+  const scoresError = enabled ? (scores.error ?? history.error) : null
 
-  useEffect(() => {
-    if (!hasCompleteResult || !effectiveGameId) {
-      return
-    }
-    const requestGameId = effectiveGameId
-    const requestPerspective = perspectiveKey
-    let cancelled = false
-    const controller = new AbortController()
-    void (async () => {
-      try {
-        const [nextScores, nextHistory] = await Promise.all([
-          getScores(fetchRef.current, apiBaseUrl, requestGameId, { signal: controller.signal }),
-          getScoresHistory(fetchRef.current, apiBaseUrl, requestGameId, { signal: controller.signal }),
-        ])
-        if (cancelled || perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
-          return
-        }
-        setScores({ data: nextScores, perspectiveKey: requestPerspective })
-        setHistory({ data: nextHistory, perspectiveKey: requestPerspective })
-        setScoresError(null)
-      } catch (error) {
-        if (cancelled || (isAbortError(error))) {
-          return
-        }
-        if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
-          return
-        }
-        const code = error instanceof ApiProblemError ? error.code : null
-        setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
+  // An explicit refresh belongs to the viewer and game it started for: another context never
+  // shows it as in progress.
+  const {
+    mutateAsync: runRefresh,
+    isPending: refreshPending,
+    variables: refreshContext,
+  } = useMutation({
+    mutationFn: async (_context: { readonly perspectiveKey: string | null; readonly gameId: string | null }) => {
+      const next = await gameState.refresh()
+      if (next?.phase !== 'GAME_ENDED' || next.result === undefined || perspectiveKey === null) {
+        return
       }
-    })()
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [hasCompleteResult, effectiveGameId, apiBaseUrl, perspectiveKey])
+      // Re-reads the terminal scores for the game the fresh state names; failures land on the queries.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: scoresQuery(scope, next.gameId).queryKey }),
+        queryClient.refetchQueries({ queryKey: scoresHistoryQuery(scope, next.gameId).queryKey }),
+      ])
+    },
+  })
 
   const refresh = useCallback(async () => {
-    const requestPerspective = perspectiveRef.current
-    const next = await gameState.refresh()
-    const requestGameId = next?.gameId ?? null
-    const terminal = next?.phase === 'GAME_ENDED' && next.result !== null
-    if (!terminal || !requestGameId) {
-      return
-    }
-    refreshSeqRef.current += 1
-    const seq = refreshSeqRef.current
-    setActiveRefresh({ seq, gameId: requestGameId, perspectiveKey: requestPerspective })
-    try {
-      const [nextScores, nextHistory] = await Promise.all([
-        getScores(fetchRef.current, apiBaseUrl, requestGameId),
-        getScoresHistory(fetchRef.current, apiBaseUrl, requestGameId),
-      ])
-      if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
-        return
-      }
-      setScores({ data: nextScores, perspectiveKey: requestPerspective })
-      setHistory({ data: nextHistory, perspectiveKey: requestPerspective })
-      setScoresError(null)
-    } catch (error) {
-      if (isAbortError(error)) {
-        return
-      }
-      if (perspectiveRef.current !== requestPerspective || gameIdRef.current !== requestGameId) {
-        return
-      }
-      const code = error instanceof ApiProblemError ? error.code : null
-      setScoresError({ message: scoresErrorMessage(error), code, gameId: requestGameId, perspectiveKey: requestPerspective })
-    } finally {
-      setActiveRefresh((current) => (current?.seq === seq ? null : current))
-    }
-  }, [gameState, apiBaseUrl])
+    await runRefresh({ perspectiveKey, gameId }).catch(() => undefined)
+  }, [runRefresh, perspectiveKey, gameId])
 
   const view = useMemo(
     () => selectResultsView(state, visibleScores, visibleHistory, ownPlayerId),
@@ -157,26 +81,19 @@ export function useResults(options: UseResultsOptions): ResultsSession {
     if (detail.kind === 'stalled' || detail.kind === 'failed') {
       return { status: detail.kind, message: detail.message, code: detail.code }
     }
-    if (visibleScoresError && view.kind === 'complete') {
-      return { status: 'stalled', message: visibleScoresError.message, code: visibleScoresError.code }
+    if (scoresError && view.kind === 'complete') {
+      const code = scoresError instanceof ApiProblemError ? scoresError.code : null
+      return { status: 'stalled', message: scoresErrorMessage(scoresError), code }
     }
     return { status: detail.kind, message: null, code: null }
-  }, [gameState.status, visibleScoresError, view.kind])
+  }, [gameState.status, scoresError, view.kind])
 
-  const isRefreshingForContext =
-    activeRefresh !== null &&
-    activeRefresh.gameId === effectiveGameId &&
-    activeRefresh.perspectiveKey === perspectiveKey
+  const isRefreshing =
+    gameState.status.kind === 'loading' ||
+    (refreshPending && refreshContext?.perspectiveKey === perspectiveKey && refreshContext.gameId === gameId)
 
   return useMemo(
-    () => ({
-      view,
-      status: combined.status,
-      message: combined.message,
-      code: combined.code,
-      isRefreshing: gameState.status.kind === 'loading' || isRefreshingForContext,
-      refresh,
-    }),
-    [view, combined, gameState.status.kind, isRefreshingForContext, refresh],
+    () => ({ view, status: combined.status, message: combined.message, code: combined.code, isRefreshing, refresh }),
+    [view, combined, isRefreshing, refresh],
   )
 }

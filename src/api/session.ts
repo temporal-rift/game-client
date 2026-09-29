@@ -94,12 +94,17 @@ export async function createLobby(
 }
 
 /** Recovers authoritative membership/host/start state; the reload-safe read. */
-export async function getLobby(fetchFn: AuthenticatedFetchFn, apiBaseUrl: string, lobbyId: string): Promise<LobbyResponse> {
+export async function getLobby(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  lobbyId: string,
+  init: { readonly signal?: AbortSignal } = {},
+): Promise<LobbyResponse> {
   if (!lobbyId.trim()) {
     throw new Error('A lobby reference is needed to refresh membership.')
   }
   const client = apiClientsFor(fetchFn, apiBaseUrl).session
-  const lobby = await callApi('refresh the lobby', () => getLobbyCall({ client, path: { lobbyId } }))
+  const lobby = await callApi('refresh the lobby', () => getLobbyCall({ client, path: { lobbyId }, signal: init.signal }))
   // The contract promises the caller is one of the members; a view that breaks it proves nothing.
   if (lobby.currentPlayerId && !lobby.members.some((member) => member.playerId === lobby.currentPlayerId)) {
     throw new Error('Lobby response caller identity is not a lobby member.')

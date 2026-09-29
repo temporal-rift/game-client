@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GameStateView } from '../api/projection'
 import { baseGameState } from './gameStateFixtures'
-import { hasAcceptedSubmission, nextPollDelayMs, shouldApplyGameState } from './reconciliation'
+import { backoffDelayMs, hasAcceptedSubmission, shouldApplyGameState } from './reconciliation'
 
 function gameState(overrides: Partial<GameStateView> = {}): GameStateView {
   return baseGameState({ eraNumber: 1, revision: 1, phase: 'ACTION_ROUND_1', roundNumber: 1, ...overrides })
@@ -34,21 +34,21 @@ describe('shouldApplyGameState', () => {
   })
 })
 
-describe('nextPollDelayMs', () => {
+describe('backoffDelayMs', () => {
   const options = { baseDelayMs: 1000, maxDelayMs: 8000 }
 
-  it('resets to the base delay on success', () => {
-    expect(nextPollDelayMs(4000, 'success', options)).toBe(1000)
+  it('uses the base delay while polls succeed', () => {
+    expect(backoffDelayMs(0, options)).toBe(1000)
   })
 
-  it('doubles the delay on failure', () => {
-    expect(nextPollDelayMs(1000, 'failure', options)).toBe(2000)
-    expect(nextPollDelayMs(2000, 'failure', options)).toBe(4000)
+  it('doubles the delay for every consecutive failure', () => {
+    expect(backoffDelayMs(1, options)).toBe(2000)
+    expect(backoffDelayMs(2, options)).toBe(4000)
   })
 
   it('caps the delay at the configured maximum', () => {
-    expect(nextPollDelayMs(6000, 'failure', options)).toBe(8000)
-    expect(nextPollDelayMs(8000, 'failure', options)).toBe(8000)
+    expect(backoffDelayMs(3, options)).toBe(8000)
+    expect(backoffDelayMs(10, options)).toBe(8000)
   })
 })
 

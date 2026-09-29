@@ -30,12 +30,12 @@ export interface BackoffOptions {
   readonly maxDelayMs: number
 }
 
-/** Doubles the poll delay on failure, up to a cap; resets to the base delay on success. */
-export function nextPollDelayMs(currentDelayMs: number, outcome: 'success' | 'failure', options: BackoffOptions): number {
-  if (outcome === 'success') {
-    return options.baseDelayMs
-  }
-  return Math.min(Math.max(currentDelayMs, options.baseDelayMs) * 2, options.maxDelayMs)
+/**
+ * The delay before the next poll: the base delay after a success, doubled
+ * for every consecutive failure since, up to a cap.
+ */
+export function backoffDelayMs(consecutiveFailures: number, options: BackoffOptions): number {
+  return Math.min(options.baseDelayMs * 2 ** Math.max(consecutiveFailures, 0), options.maxDelayMs)
 }
 
 export interface SubmissionQuery {

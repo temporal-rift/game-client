@@ -1,9 +1,10 @@
-import { act, renderHook } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedFetchFn } from '../api/projection'
 import type { GameStateView } from '../api/projection'
 import { createGameStateSession } from '../game/gameStateTestSupport'
 import { gameStatePayload } from '../test/gameStatePayload'
+import { renderHookWithQueries } from '../test/renderWithQueries'
 import { uuid } from '../test/uuid'
 import { useActionSubmission } from './useActionSubmission'
 
@@ -47,7 +48,7 @@ describe('useActionSubmission', () => {
     const fetchFn = fetchMock as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: stateBody() })
 
-    const { result } = renderHook(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
 
     act(() => result.current.selectCard(CARD, { targetEventId: EVT, targetOutcomeId: OUT }))
     expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: CARD, coordinates: { targetEventId: EVT, targetOutcomeId: OUT } })
@@ -75,7 +76,7 @@ describe('useActionSubmission', () => {
     const fetchFn = fetchMock as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: stateBody() })
 
-    const { result } = renderHook(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
 
     act(() => result.current.selectCard(CARD, { disguiseCategory: 'DISRUPTION' }))
 
@@ -101,7 +102,7 @@ describe('useActionSubmission', () => {
       refresh: async () => stateBody({ revision: 2, mySubmissions: [{ eraNumber: 2, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }] }),
     })
 
-    const { result } = renderHook(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
 
     act(() => result.current.selectCard(CARD, { targetEventId: EVT, targetOutcomeId: OUT }))
     await act(async () => {
@@ -119,7 +120,7 @@ describe('useActionSubmission', () => {
       refresh: async () => stateBody({ revision: 1, mySubmissions: [] }),
     })
 
-    const { result } = renderHook(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
 
     act(() => result.current.selectCard(CARD, { targetEventId: EVT, targetOutcomeId: OUT }))
     await act(async () => {
@@ -136,7 +137,7 @@ describe('useActionSubmission', () => {
       state: stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }] }),
     })
 
-    const { result } = renderHook(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
 
     expect(result.current.view.kind).toBe('open')
     if (result.current.view.kind === 'open') {

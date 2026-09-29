@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
+import { lobbyQuery, queryKeys } from '../api/queries'
 import {
   createLobby as apiCreateLobby,
-  getLobby as apiGetLobby,
   joinLobby as apiJoinLobby,
   leaveLobby as apiLeaveLobby,
   lobbyErrorMessage,
@@ -10,477 +11,341 @@ import {
 } from '../api/session'
 import type { AuthenticatedFetchFn, LobbyResponse } from '../api/session'
 import { parseLobbyReference } from '../auth/invitation'
+import { backoffDelayMs } from '../game/reconciliation'
 
 export type LobbyPhase =
   | { readonly kind: 'idle' }
   | { readonly kind: 'working'; readonly action: 'creating' | 'joining' | 'loading' | 'starting' | 'leaving' }
   | { readonly kind: 'ready' }
-  | { readonly kind: 'failed'; readonly message: string; readonly code: string | null };
+  | { readonly kind: 'failed'; readonly message: string; readonly code: string | null }
 
 export interface LobbySessionState {
-  readonly phase: LobbyPhase;
-  readonly lobby: LobbyResponse | null;
-  readonly ownPlayerId: string | null;
-  readonly lastGameId: string | null;
-  readonly isHost: boolean;
-  readonly canStart: boolean;
+  readonly phase: LobbyPhase
+  readonly lobby: LobbyResponse | null
+  readonly ownPlayerId: string | null
+  readonly lastGameId: string | null
+  readonly isHost: boolean
+  readonly canStart: boolean
 }
 
 export interface UseLobbyOptions {
-  readonly apiBaseUrl: string;
-  readonly fetchFn: AuthenticatedFetchFn;
-  readonly initialLobbyId: string | null;
-  readonly pollWhileWaitingMs?: number;
-  readonly onLobbyIdChange?: (lobbyId: string | null) => void;
+  readonly apiBaseUrl: string
+  readonly fetchFn: AuthenticatedFetchFn
+  /** The viewer's identity subject: cached lobby state is scoped to it. */
+  readonly perspectiveKey: string
+  readonly initialLobbyId: string | null
+  readonly pollWhileWaitingMs?: number
+  readonly onLobbyIdChange?: (lobbyId: string | null) => void
 }
 
-const LOBBY_STORAGE_KEY = 'temporal-rift.private.lobbyId';
-const OWN_PLAYER_STORAGE_KEY = 'temporal-rift.private.playerId';
+interface Failure {
+  readonly message: string
+  readonly code: string | null
+}
+
+const LOBBY_STORAGE_KEY = 'temporal-rift.private.lobbyId'
+const OWN_PLAYER_STORAGE_KEY = 'temporal-rift.private.playerId'
+const MAX_POLL_INTERVAL_MS = 30_000
+
+const UNCONFIRMED_JOIN_MESSAGE =
+  'The server reports that you already joined, but membership could not be confirmed. Reopen a valid invitation after the connection recovers.'
 
 function readStored(key: string): string | null {
   try {
-    const value = sessionStorage.getItem(key);
-    return value && value.length > 0 ? value : null;
+    const value = sessionStorage.getItem(key)
+    return value && value.length > 0 ? value : null
   } catch {
-    return null;
+    return null
   }
 }
 
 function writeStored(key: string, value: string | null): void {
   try {
     if (value) {
-      sessionStorage.setItem(key, value);
+      sessionStorage.setItem(key, value)
     } else {
-      sessionStorage.removeItem(key);
+      sessionStorage.removeItem(key)
     }
   } catch {
     // Reload recovery is best-effort; authoritative state stays server-side.
   }
 }
 
+function problemCode(error: unknown): string | null {
+  return error instanceof ApiProblemError ? error.code : null
+}
+
+function failureOf(error: unknown): Failure {
+  return { message: lobbyErrorMessage(error), code: problemCode(error) }
+}
+
+/** Membership counts only when the authoritative view names the caller among its members. */
+function confirmedOwnPlayerId(view: LobbyResponse, knownOwnPlayerId: string | null): string | null {
+  const candidate = view.currentPlayerId ?? knownOwnPlayerId
+  return candidate && view.members.some((member) => member.playerId === candidate) ? candidate : null
+}
+
 /**
  * Owns recoverable lobby membership against the authoritative session
- * contracts. Lost join/start responses never retry blindly: the hook
- * refreshes with `GET /lobbies/{id}` first and treats `409-02` as
- * "already joined, reconcile" rather than a duplicate join.
+ * contracts. The lobby is a query (polled while waiting, backing off on
+ * failure); create, join, start and leave are mutations that never retry
+ * blindly: a lost join or start response is reconciled with
+ * `GET /lobbies/{id}` first, and `409-02` means "already joined, reconcile"
+ * rather than a duplicate join.
  */
 export function useLobby(options: UseLobbyOptions) {
-  const { apiBaseUrl, fetchFn, initialLobbyId, pollWhileWaitingMs = 5000, onLobbyIdChange } = options;
-  // Recovery reads the lobby before anything can be shown for it, so a stored
-  // reference (reload on a game page) reports loading just like an invitation.
-  const [state, setState] = useState<LobbySessionState>(() => ({
-    phase: initialLobbyId || readStored(LOBBY_STORAGE_KEY) ? { kind: 'working', action: 'loading' } : { kind: 'idle' },
-    lobby: null,
-    ownPlayerId: readStored(OWN_PLAYER_STORAGE_KEY),
-    lastGameId: null,
-    isHost: false,
-    canStart: false,
-  }));
-  const stateRef = useRef(state);
-  const fetchRef = useRef(fetchFn);
-  const lobbyIdRef = useRef<string | null>(initialLobbyId ?? readStored(LOBBY_STORAGE_KEY));
-  const initialLobbyIdRef = useRef(initialLobbyId);
-  const onLobbyIdChangeRef = useRef(onLobbyIdChange);
-  const generationRef = useRef(0);
-  const commandInFlightRef = useRef(false);
-  const pollDelayRef = useRef(pollWhileWaitingMs);
+  const { apiBaseUrl, fetchFn, perspectiveKey, initialLobbyId, pollWhileWaitingMs = 5000, onLobbyIdChange } = options
+  const queryClient = useQueryClient()
+  const scope = useMemo(() => ({ perspective: perspectiveKey, apiBaseUrl, fetchFn }), [perspectiveKey, apiBaseUrl, fetchFn])
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-  useEffect(() => {
-    fetchRef.current = fetchFn;
-  }, [fetchFn]);
-  useEffect(() => {
-    onLobbyIdChangeRef.current = onLobbyIdChange;
-  }, [onLobbyIdChange]);
+  // The routed lobby (its page or an invitation) stays the join target even while the
+  // server hides it from a non-member; a lobby remembered from an earlier visit does not.
+  const [routedLobbyId] = useState(initialLobbyId)
+  const [lobbyId, setLobbyIdState] = useState(() => initialLobbyId ?? readStored(LOBBY_STORAGE_KEY))
+  const [knownOwnPlayerId, setKnownOwnPlayerIdState] = useState(() => readStored(OWN_PLAYER_STORAGE_KEY))
+  const [started, setStarted] = useState<{ readonly lobbyId: string; readonly gameId: string } | null>(null)
+  const [failure, setFailure] = useState<Failure | null>(null)
+  const [dismissedQueryFailure, setDismissedQueryFailure] = useState<unknown>(null)
 
-  const setLobbyId = useCallback((lobbyId: string | null) => {
-    lobbyIdRef.current = lobbyId;
-    writeStored(LOBBY_STORAGE_KEY, lobbyId);
-    onLobbyIdChangeRef.current?.(lobbyId);
-  }, []);
-
-  const confirmedOwnPlayerId = useCallback((view: LobbyResponse, knownOwnPlayerId: string | null): string | null => {
-    const candidate = view.currentPlayerId ?? knownOwnPlayerId;
-    return candidate && view.members.some((member) => member.playerId === candidate) ? candidate : null;
-  }, []);
-
-  const applyLobby = useCallback(
-    (lobby: LobbyResponse, ownPlayerId: string | null, lastGameId: string | null = null) => {
-      const isHost = ownPlayerId !== null && lobby.hostPlayerId === ownPlayerId;
-      const memberCount = lobby.members.length;
-      setState({
-        phase: { kind: 'ready' },
-        lobby,
-        ownPlayerId,
-        lastGameId: lastGameId ?? (lobby.status === 'STARTED' ? lobby.gameId : null),
-        isHost,
-        canStart: isHost && lobby.status === 'WAITING' && memberCount >= 3 && memberCount <= 5,
-      });
+  const setLobbyId = useCallback(
+    (next: string | null) => {
+      setLobbyIdState(next)
+      writeStored(LOBBY_STORAGE_KEY, next)
+      onLobbyIdChange?.(next)
     },
-    [],
-  );
+    [onLobbyIdChange],
+  )
 
-  const refresh = useCallback(async (background = false): Promise<LobbyResponse | null> => {
-    const lobbyId = lobbyIdRef.current;
-    if (!lobbyId) {
-      return null;
-    }
-    const generation = generationRef.current;
-    try {
-      const view = await apiGetLobby(fetchRef.current, apiBaseUrl, lobbyId);
-      if (generation !== generationRef.current || commandInFlightRef.current || lobbyId !== lobbyIdRef.current) {
-        return null;
-      }
-      const knownOwn = confirmedOwnPlayerId(view, stateRef.current.ownPlayerId);
-      if (!knownOwn) {
-        // No confirmed membership in the authoritative view: don't show a
-        // member view for a lobby we can't prove we're part of. The lobby
-        // reference (and its invitation URL) stays intact so a join still
-        // has a target.
-        writeStored(OWN_PLAYER_STORAGE_KEY, null);
-        setState({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, lastGameId: null, isHost: false, canStart: false });
-        return null;
-      }
-      applyLobby(view, knownOwn);
-      return view;
-    } catch (error) {
-      const code = error instanceof ApiProblemError ? error.code : null;
-      // A deleted/unknown lobby must not pin the client to a dead reference.
-      if (code === '404-01') {
-        setLobbyId(null);
-        writeStored(OWN_PLAYER_STORAGE_KEY, null);
-        setState((previous) => ({
-          ...previous,
-          phase: { kind: 'failed', message: lobbyErrorMessage(error), code },
-          lobby: null,
-          ownPlayerId: null,
-          isHost: false,
-          canStart: false,
-        }));
-        return null;
-      }
-      if (!background) {
-        setState((previous) => ({
-          ...previous,
-          phase: { kind: 'failed', message: lobbyErrorMessage(error), code },
-        }));
-      }
-      return previousLobbyOnFailure();
-    }
+  const setKnownOwnPlayerId = useCallback((next: string | null) => {
+    setKnownOwnPlayerIdState(next)
+    writeStored(OWN_PLAYER_STORAGE_KEY, next)
+  }, [])
 
-    function previousLobbyOnFailure(): null {
-      return null;
-    }
-  }, [apiBaseUrl, applyLobby, confirmedOwnPlayerId, setLobbyId]);
+  const forgetLobby = useCallback(() => {
+    setLobbyId(null)
+    setKnownOwnPlayerId(null)
+    setStarted(null)
+  }, [setLobbyId, setKnownOwnPlayerId])
 
-  // Initial reload recovery: authoritative GET wins over cached references.
+  // A deleted lobby, or one the server now hides from a player who was not invited to it,
+  // must not pin the client to a dead reference: it is read no more.
+  const isGone = (error: unknown) =>
+    problemCode(error) === '404-01' || (problemCode(error) === '403-01' && lobbyId !== routedLobbyId)
+
+  const query = useQuery({
+    ...lobbyQuery(scope, lobbyId ?? ''),
+    enabled: (current) => lobbyId !== null && !isGone(current.state.error),
+    // While waiting, poll the authoritative read; a failing read retries with capped backoff,
+    // except for the answers that mean the lobby is gone or hidden.
+    refetchInterval: (current) =>
+      pollWhileWaitingMs > 0 && current.state.data?.status === 'WAITING' ? pollWhileWaitingMs : false,
+    retry: (_failureCount, error) => pollWhileWaitingMs > 0 && problemCode(error) !== '404-01' && problemCode(error) !== '403-01',
+    retryDelay: (failureCount) => backoffDelayMs(failureCount + 1, { baseDelayMs: pollWhileWaitingMs, maxDelayMs: MAX_POLL_INTERVAL_MS }),
+  })
+
+  // A gone lobby stops being the active one, and the remembered reference (and the page
+  // showing it) is let go.
+  const invitedButHidden = problemCode(query.error) === '403-01' && lobbyId === routedLobbyId
+  const lobbyGone = lobbyId !== null && isGone(query.error)
+  const activeLobbyId = lobbyGone ? null : lobbyId
   useEffect(() => {
-    if (!lobbyIdRef.current) {
-      return;
+    if (lobbyGone) {
+      writeStored(LOBBY_STORAGE_KEY, null)
+      writeStored(OWN_PLAYER_STORAGE_KEY, null)
+      onLobbyIdChange?.(null)
     }
-    let cancelled = false;
-    const lobbyId = lobbyIdRef.current;
-    const generation = generationRef.current;
-    void (async () => {
+  }, [lobbyGone, onLobbyIdChange])
+
+  const view = activeLobbyId !== null && !invitedButHidden ? (query.data ?? null) : null
+  const ownPlayerId = view ? confirmedOwnPlayerId(view, knownOwnPlayerId) : null
+  const memberView = ownPlayerId ? view : null
+
+  /** Reads a lobby now and reports whether it confirms the caller's membership. */
+  const readMembership = useCallback(
+    async (target: string): Promise<string | null> => {
       try {
-        const view = await apiGetLobby(fetchRef.current, apiBaseUrl, lobbyId);
-        if (cancelled || generation !== generationRef.current || commandInFlightRef.current || lobbyId !== lobbyIdRef.current) {
-          return;
-        }
-        const knownOwn = confirmedOwnPlayerId(view, readStored(OWN_PLAYER_STORAGE_KEY));
-        if (!knownOwn) {
-          // Invited or stale reference with no confirmed membership: show
-          // the join view rather than a member view we can't back up. Keep
-          // the lobby reference (and its invitation URL) so the join view
-          // can still target it.
-          writeStored(OWN_PLAYER_STORAGE_KEY, null);
-          setState((previous) => ({ ...previous, phase: { kind: 'idle' }, lobby: null, ownPlayerId: null }));
-          return;
-        }
-        applyLobby(view, knownOwn);
-      } catch (error) {
-        if (cancelled || generation !== generationRef.current || commandInFlightRef.current || lobbyId !== lobbyIdRef.current) {
-          return;
-        }
-        const code = error instanceof ApiProblemError ? error.code : null;
-        // The server hides a lobby from non-members, which is exactly an
-        // invitee's state: keep the routed lobby as the join target.
-        if (code === '403-01' && lobbyId === initialLobbyIdRef.current) {
-          writeStored(OWN_PLAYER_STORAGE_KEY, null);
-          setState((previous) => ({ ...previous, phase: { kind: 'idle' }, lobby: null, ownPlayerId: null }));
-          return;
-        }
-        if (code === '404-01' || code === '403-01') {
-          setLobbyId(null);
-          writeStored(OWN_PLAYER_STORAGE_KEY, null);
-          setState((previous) => ({ ...previous, phase: { kind: 'idle' }, lobby: null, ownPlayerId: null }));
-          return;
-        }
-        setState((previous) => ({
-          ...previous,
-          phase: { kind: 'failed', message: lobbyErrorMessage(error), code },
-        }));
+        const fresh = await queryClient.fetchQuery(lobbyQuery(scope, target))
+        return confirmedOwnPlayerId(fresh, knownOwnPlayerId)
+      } catch {
+        return null
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [apiBaseUrl, applyLobby, confirmedOwnPlayerId, setLobbyId]);
+    },
+    [queryClient, scope, knownOwnPlayerId],
+  )
 
-  // While waiting, retry authoritative reads with capped backoff so a brief
-  // connection loss cannot disable recovery.
-  useEffect(() => {
-    if (state.phase.kind !== 'ready' || state.lobby?.status !== 'WAITING') {
-      return;
-    }
-    if (pollWhileWaitingMs <= 0) {
-      return;
-    }
-    let cancelled = false;
-    let timer: number | null = null;
-    pollDelayRef.current = pollWhileWaitingMs;
-    const schedule = (delay: number) => {
-      timer = window.setTimeout(() => {
-        void (async () => {
-          const view = await refresh(true);
-          if (cancelled || stateRef.current.phase.kind !== 'ready' || stateRef.current.lobby?.lobbyId !== state.lobby?.lobbyId) {
-            return;
-          }
-          pollDelayRef.current = view ? pollWhileWaitingMs : Math.min(pollDelayRef.current * 2, 30_000);
-          schedule(pollDelayRef.current);
-        })();
-      }, delay);
-    };
-    schedule(pollDelayRef.current);
-    return () => {
-      cancelled = true;
-      if (timer !== null) {
-        window.clearTimeout(timer);
+  const { mutateAsync: createLobby, isPending: createPending } = useMutation({
+    mutationFn: (playerName: string) => apiCreateLobby(fetchFn, apiBaseUrl, playerName),
+    onSuccess: async (created) => {
+      setKnownOwnPlayerId(created.hostPlayerId)
+      setStarted(null)
+      setLobbyId(created.lobbyId)
+      // The create may have succeeded even when this read does not: the lobby query keeps
+      // retrying the safe read with the server-issued identifiers.
+      await queryClient.prefetchQuery(lobbyQuery(scope, created.lobbyId))
+    },
+    onError: (error) => setFailure(failureOf(error)),
+  })
+
+  const { mutateAsync: joinLobby, isPending: joinPending } = useMutation({
+    mutationFn: ({ target, playerName }: { readonly target: string; readonly playerName: string }) =>
+      apiJoinLobby(fetchFn, apiBaseUrl, target, playerName),
+    onSuccess: async (joined) => {
+      setKnownOwnPlayerId(joined.playerId)
+      setStarted(null)
+      setLobbyId(joined.lobbyId)
+      // Authoritative membership wins over the join echo.
+      await queryClient.prefetchQuery(lobbyQuery(scope, joined.lobbyId))
+    },
+    // A 409-02 (already joined) or a lost response may both mean the join landed: reconcile
+    // against the lobby actually being joined, never a stale prior reference. Identity is
+    // never inferred from a display name: only a confirmed own player id counts.
+    onError: async (error, { target }) => {
+      const alreadyJoined = problemCode(error) === '409-02'
+      if (alreadyJoined || !(error instanceof ApiProblemError)) {
+        const confirmed = await readMembership(target)
+        if (confirmed) {
+          setKnownOwnPlayerId(confirmed)
+          setLobbyId(target)
+          return
+        }
       }
-    };
-  }, [state.phase.kind, state.lobby?.status, state.lobby?.lobbyId, pollWhileWaitingMs, refresh]);
+      setFailure(alreadyJoined ? { message: UNCONFIRMED_JOIN_MESSAGE, code: '409-02' } : failureOf(error))
+    },
+  })
+
+  const { mutateAsync: startLobbyGame, isPending: startPending } = useMutation({
+    mutationFn: (target: string) => apiStartGame(fetchFn, apiBaseUrl, target),
+    onSuccess: async (result, target) => {
+      setStarted({ lobbyId: target, gameId: result.gameId })
+      await queryClient.prefetchQuery(lobbyQuery(scope, target))
+    },
+    onError: async (error, target) => {
+      if (!(error instanceof ApiProblemError)) {
+        // A lost start response may still have started the lobby.
+        const fresh = await queryClient.fetchQuery(lobbyQuery(scope, target)).catch(() => null)
+        if (fresh?.status === 'STARTED') {
+          return
+        }
+      }
+      setFailure(failureOf(error))
+    },
+  })
+
+  const { mutateAsync: leaveLobby, isPending: leavePending } = useMutation({
+    mutationFn: (target: string) => apiLeaveLobby(fetchFn, apiBaseUrl, target),
+    onSettled: (_result, error, target) => {
+      // Leaving a missing lobby still clears the local reference.
+      if (error && problemCode(error) !== '404-01') {
+        setFailure(failureOf(error))
+        return
+      }
+      queryClient.removeQueries({ queryKey: queryKeys.lobby(perspectiveKey, target) })
+      forgetLobby()
+    },
+  })
 
   const create = useCallback(
     async (playerName: string): Promise<void> => {
-      const generation = ++generationRef.current;
-      commandInFlightRef.current = true;
-      let createdLobbyId: string | null = null;
-      setState((previous) => ({ ...previous, phase: { kind: 'working', action: 'creating' } }));
-      try {
-        const created = await apiCreateLobby(fetchRef.current, apiBaseUrl, playerName);
-        if (generation !== generationRef.current) {
-          return;
-        }
-        createdLobbyId = created.lobbyId;
-        setLobbyId(created.lobbyId);
-        writeStored(OWN_PLAYER_STORAGE_KEY, created.hostPlayerId);
-        setState((previous) => ({ ...previous, ownPlayerId: created.hostPlayerId }));
-        const view = await apiGetLobby(fetchRef.current, apiBaseUrl, created.lobbyId);
-        if (generation !== generationRef.current || lobbyIdRef.current !== created.lobbyId) {
-          return;
-        }
-        applyLobby(view, created.hostPlayerId);
-      } catch (error) {
-        if (generation !== generationRef.current) {
-          return;
-        }
-        // The create may have succeeded even when its confirmation read did
-        // not. Keep its server-issued identifiers and retry the safe read.
-        if (createdLobbyId) {
-          setState((previous) => ({ ...previous, phase: { kind: 'working', action: 'loading' } }));
-          const retryCreatedRead = async (delay: number): Promise<void> => {
-            const recovered = await refresh(true);
-            if (recovered || generation !== generationRef.current || lobbyIdRef.current !== createdLobbyId) {
-              return;
-            }
-            window.setTimeout(() => void retryCreatedRead(Math.min(delay * 2, 30_000)), delay);
-          };
-          window.setTimeout(() => void retryCreatedRead(pollWhileWaitingMs), pollWhileWaitingMs);
-        } else {
-          setState((previous) => ({
-            ...previous,
-            phase: {
-              kind: 'failed',
-              message: lobbyErrorMessage(error),
-              code: error instanceof ApiProblemError ? error.code : null,
-            },
-          }));
-        }
-      } finally {
-        if (generation === generationRef.current) {
-          commandInFlightRef.current = false;
-        }
-      }
+      setFailure(null)
+      await createLobby(playerName).catch(() => undefined)
     },
-    [apiBaseUrl, applyLobby, pollWhileWaitingMs, refresh, setLobbyId],
-  );
-
-  // Reconciles a join against the lobby actually being joined (never a
-  // stale prior reference) when the join response itself was lost or
-  // already landed. Never infers identity from playerName: a display name
-  // is not unique, so only a confirmed own-player-id counts as membership.
-  // Returns whether membership was confirmed.
-  const reconcileJoin = useCallback(
-    async (target: string): Promise<boolean> => {
-      try {
-        const view = await apiGetLobby(fetchRef.current, apiBaseUrl, target);
-        const reconciledOwn = confirmedOwnPlayerId(view, readStored(OWN_PLAYER_STORAGE_KEY));
-        if (!reconciledOwn) {
-          return false;
-        }
-        setLobbyId(target);
-        writeStored(OWN_PLAYER_STORAGE_KEY, reconciledOwn);
-        applyLobby(view, reconciledOwn);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [apiBaseUrl, applyLobby, confirmedOwnPlayerId, setLobbyId],
-  );
+    [createLobby],
+  )
 
   const join = useCallback(
-    async (lobbyId: string, playerName: string): Promise<void> => {
-      const invitation = parseLobbyReference(lobbyId);
+    async (reference: string, playerName: string): Promise<void> => {
+      setFailure(null)
+      const invitation = parseLobbyReference(reference)
       if (!invitation) {
-        setState((previous) => ({
-          ...previous,
-          phase: { kind: 'failed', message: 'Enter a valid invitation URL or lobby reference to join.', code: null },
-        }));
-        return;
+        setFailure({ message: 'Enter a valid invitation URL or lobby reference to join.', code: null })
+        return
       }
-      const target = invitation.lobbyId;
-      const generation = ++generationRef.current;
-      commandInFlightRef.current = true;
-      setState((previous) => ({ ...previous, phase: { kind: 'working', action: 'joining' } }));
-      try {
-        const joined = await apiJoinLobby(fetchRef.current, apiBaseUrl, target, playerName);
-        if (generation !== generationRef.current) {
-          return;
-        }
-        setLobbyId(joined.lobbyId);
-        writeStored(OWN_PLAYER_STORAGE_KEY, joined.playerId);
-        // Authoritative membership wins over the join echo.
-        const view = await apiGetLobby(fetchRef.current, apiBaseUrl, joined.lobbyId);
-        if (generation !== generationRef.current || lobbyIdRef.current !== joined.lobbyId) {
-          return;
-        }
-        applyLobby(view, joined.playerId);
-      } catch (error) {
-        // A 409-02 (already joined) or a lost response for the lobby being
-        // targeted may both mean the join actually landed: reconcile
-        // against `target` itself rather than a stale prior reference.
-        const shouldReconcile = (error instanceof ApiProblemError && error.code === '409-02') || !(error instanceof ApiProblemError);
-        if (shouldReconcile && (await reconcileJoin(target))) {
-          return;
-        }
-        const cannotConfirmExistingMembership = error instanceof ApiProblemError && error.code === '409-02';
-        setState((previous) => ({
-          ...previous,
-          phase: {
-            kind: 'failed',
-            message: cannotConfirmExistingMembership
-              ? 'The server reports that you already joined, but membership could not be confirmed. Reopen a valid invitation after the connection recovers.'
-              : lobbyErrorMessage(error),
-            code: error instanceof ApiProblemError ? error.code : null,
-          },
-        }));
-      } finally {
-        if (generation === generationRef.current) {
-          commandInFlightRef.current = false;
-        }
-      }
+      await joinLobby({ target: invitation.lobbyId, playerName }).catch(() => undefined)
     },
-    [apiBaseUrl, applyLobby, reconcileJoin, setLobbyId],
-  );
-
-  const leave = useCallback(async (): Promise<void> => {
-    const lobbyId = lobbyIdRef.current;
-    if (!lobbyId) {
-      return;
-    }
-    const generation = ++generationRef.current;
-    commandInFlightRef.current = true;
-    setState((previous) => ({ ...previous, phase: { kind: 'working', action: 'leaving' } }));
-    try {
-      await apiLeaveLobby(fetchRef.current, apiBaseUrl, lobbyId);
-    } catch (error) {
-      // Leaving a missing lobby still clears the local reference.
-      if (!(error instanceof ApiProblemError && error.code === '404-01')) {
-        setState((previous) => ({
-          ...previous,
-          phase: {
-            kind: 'failed',
-            message: lobbyErrorMessage(error),
-            code: error instanceof ApiProblemError ? error.code : null,
-          },
-        }));
-        commandInFlightRef.current = false;
-        return;
-      }
-    }
-    if (generation !== generationRef.current) {
-      return;
-    }
-    setLobbyId(null);
-    writeStored(OWN_PLAYER_STORAGE_KEY, null);
-    setState({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, lastGameId: null, isHost: false, canStart: false });
-    commandInFlightRef.current = false;
-  }, [apiBaseUrl, setLobbyId]);
+    [joinLobby],
+  )
 
   const start = useCallback(async (): Promise<void> => {
-    const lobbyId = lobbyIdRef.current;
-    if (!lobbyId) {
-      return;
+    if (activeLobbyId) {
+      setFailure(null)
+      await startLobbyGame(activeLobbyId).catch(() => undefined)
     }
-    const generation = ++generationRef.current;
-    commandInFlightRef.current = true;
-    setState((previous) => ({ ...previous, phase: { kind: 'working', action: 'starting' } }));
+  }, [activeLobbyId, startLobbyGame])
+
+  const leave = useCallback(async (): Promise<void> => {
+    if (activeLobbyId) {
+      setFailure(null)
+      await leaveLobby(activeLobbyId).catch(() => undefined)
+    }
+  }, [activeLobbyId, leaveLobby])
+
+  /** An explicit authoritative read; its failure is reported, unlike a background poll's. */
+  const refresh = useCallback(async (): Promise<LobbyResponse | null> => {
+    if (!activeLobbyId) {
+      return null
+    }
     try {
-      const started = await apiStartGame(fetchRef.current, apiBaseUrl, lobbyId);
-      const view = await apiGetLobby(fetchRef.current, apiBaseUrl, lobbyId);
-      if (generation !== generationRef.current || lobbyId !== lobbyIdRef.current) {
-        return;
-      }
-      applyLobby(view, stateRef.current.ownPlayerId, started.gameId);
+      const fresh = await queryClient.fetchQuery(lobbyQuery(scope, activeLobbyId))
+      return confirmedOwnPlayerId(fresh, knownOwnPlayerId) ? fresh : null
     } catch (error) {
-      if (!(error instanceof ApiProblemError)) {
-        // A lost start response may still have started the lobby.
-        commandInFlightRef.current = false;
-        const reconciled = await refresh();
-        commandInFlightRef.current = true;
-        if (reconciled?.status === 'STARTED') {
-          return;
-        }
-      }
-      setState((previous) => ({
-        ...previous,
-        phase: {
-          kind: 'failed',
-          message: lobbyErrorMessage(error),
-          code: error instanceof ApiProblemError ? error.code : null,
-        },
-      }));
-    } finally {
-      if (generation === generationRef.current) {
-        commandInFlightRef.current = false;
-      }
+      setFailure(failureOf(error))
+      return null
     }
-  }, [apiBaseUrl, applyLobby, refresh]);
+  }, [activeLobbyId, queryClient, scope, knownOwnPlayerId])
+
+  // A read that fails before any view arrives is reported (and dismissible); once a view is
+  // shown, background poll failures keep it and retry quietly.
+  const queryFailure = query.error ?? query.failureReason
+  const recovering = activeLobbyId !== null && !invitedButHidden && !view
+  const recoveryFailure = useMemo(
+    () => (recovering && queryFailure && queryFailure !== dismissedQueryFailure ? failureOf(queryFailure) : null),
+    [recovering, queryFailure, dismissedQueryFailure],
+  )
 
   const dismissError = useCallback(() => {
-    setState((previous) => ({
-      ...previous,
-      phase: previous.lobby ? { kind: 'ready' } : { kind: 'idle' },
-    }));
-  }, []);
+    setFailure(null)
+    setDismissedQueryFailure(queryFailure)
+  }, [queryFailure])
+
+  const pendingAction = ((): 'creating' | 'joining' | 'starting' | 'leaving' | null => {
+    if (createPending) return 'creating'
+    if (joinPending) return 'joining'
+    if (startPending) return 'starting'
+    return leavePending ? 'leaving' : null
+  })()
+  const loading = recovering && query.isPending
+
+  const phase = useMemo((): LobbyPhase => {
+    if (pendingAction) return { kind: 'working', action: pendingAction }
+    const shownFailure = failure ?? recoveryFailure
+    if (shownFailure) return { kind: 'failed', ...shownFailure }
+    // Recovery reads the lobby before anything can be shown for it.
+    if (loading) return { kind: 'working', action: 'loading' }
+    return memberView ? { kind: 'ready' } : { kind: 'idle' }
+  }, [pendingAction, failure, recoveryFailure, loading, memberView])
+
+  const isHost = memberView !== null && memberView.hostPlayerId === ownPlayerId
+  const memberCount = memberView?.members.length ?? 0
+  const lastGameId =
+    (started && started.lobbyId === memberView?.lobbyId ? started.gameId : null) ??
+    (memberView?.status === 'STARTED' ? memberView.gameId : null)
+
+  const state = useMemo(
+    (): LobbySessionState => ({
+      phase,
+      lobby: memberView,
+      ownPlayerId,
+      lastGameId,
+      isHost,
+      canStart: isHost && memberView?.status === 'WAITING' && memberCount >= 3 && memberCount <= 5,
+    }),
+    [phase, memberView, ownPlayerId, lastGameId, isHost, memberCount],
+  )
 
   return useMemo(
     () => ({ state, create, join, leave, start, refresh, dismissError }),
     [state, create, join, leave, start, refresh, dismissError],
-  );
+  )
 }
 
-export type LobbySession = ReturnType<typeof useLobby>;
+export type LobbySession = ReturnType<typeof useLobby>

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UserManager } from 'oidc-client-ts'
 import App from './App'
+import { queryClient } from './api/queryClient'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
 import { uuid } from './test/uuid'
@@ -46,6 +47,8 @@ describe('App', () => {
   beforeEach(() => {
     window.__APP_CONFIG__ = { ...validRuntimeConfig }
     sessionStorage.clear()
+    // The app keeps one server-state cache; each test starts without another test's responses.
+    queryClient.clear()
     window.history.replaceState(null, '', '/')
     vi.mocked(UserManager).mockClear()
   })

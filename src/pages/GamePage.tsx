@@ -57,7 +57,7 @@ function GamePage({
   const results = useResults({ apiBaseUrl, fetchFn, gameState, ownPlayerId, perspectiveKey })
   const action = useActionSubmission({ apiBaseUrl, fetchFn, gameState, ownPlayerId })
   const handSelection = useHandSelection({ apiBaseUrl, fetchFn, gameState })
-  const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState })
+  const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState, perspectiveKey })
   const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
 

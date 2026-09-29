@@ -1,8 +1,9 @@
-import { act, renderHook } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
 import { createGameStateSession } from '../game/gameStateTestSupport'
 import { gameStatePayload, sevenCardDeal } from '../test/gameStatePayload'
+import { renderHookWithQueries } from '../test/renderWithQueries'
 import { uuid } from '../test/uuid'
 import { useHandSelection } from './useHandSelection'
 
@@ -34,7 +35,7 @@ describe('useHandSelection', () => {
   it('keeps five distinct offered cards and refreshes after acceptance', async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId: GAME, eraNumber: 2, playerId: ME, status: 'SELECTED' })) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: stateBody() })
-    const { result } = renderHook(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
 
     act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
     expect(result.current.selectedCardInstanceIds).toEqual([CARD_1, CARD_2, CARD_3, CARD_4, CARD_5])
@@ -56,7 +57,7 @@ describe('useHandSelection', () => {
       state: stateBody(),
       refresh: async () => stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }] }),
     })
-    const { result } = renderHook(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
     act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
 
     await act(async () => { await result.current.confirm() })
@@ -68,7 +69,7 @@ describe('useHandSelection', () => {
   it('keeps the draft on a genuine authoritative rejection', async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ code: '422-11', detail: 'bad cards' }, 422)) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: stateBody(), refresh: async () => stateBody() })
-    const { result } = renderHook(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+    const { result } = renderHookWithQueries(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
     act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))
 
     await act(async () => { await result.current.confirm() })
@@ -95,7 +96,7 @@ describe('useHandSelection', () => {
         },
       }),
     })
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHookWithQueries(
       ({ gameState }) => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
       { initialProps: { gameState: firstGameState } },
     )
