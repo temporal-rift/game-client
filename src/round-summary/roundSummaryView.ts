@@ -12,7 +12,7 @@ import type { CardCategory } from '../api/action'
 import type { ActionFamily, ActionSummary, GameStateView } from '../api/projection'
 import { nameFor, playerNameLookup } from '../game/playerNames'
 
-export type { ActionFamily }
+export type { ActionFamily } from '../api/projection'
 
 export type RoundSummaryEntry =
   | {

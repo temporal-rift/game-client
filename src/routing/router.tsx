@@ -3,12 +3,11 @@
  * for the URLs themselves). The router mounts only under a signed-in session;
  * route params are checked against the server-issued reference pattern and
  * search params against Zod schemas, and loaders warm the query cache so pages
- * render from it.
+ * render from it (`staleTime: 'static'` reuses a cached answer as-is).
  */
 
 import type { QueryClient } from '@tanstack/react-query'
 import { Navigate, Outlet, createRootRouteWithContext, createRoute, createRouter, redirect } from '@tanstack/react-router'
-import * as z from 'zod'
 import { gameStateQuery, lobbyQuery, type QueryScope } from '../api/queries'
 import { authCallbackSearchSchema, legacyInvitationSearchSchema } from '../auth/invitation'
 import { GameRoute } from '../pages/GamePage'
@@ -34,7 +33,9 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  validateSearch: z.object({ game: legacyInvitationSearchSchema.shape.game.optional().catch(undefined) }),
+  validateSearch: (search: Record<string, unknown>): { readonly game?: string } => ({
+    game: legacyInvitationSearchSchema.shape.game.safeParse(search.game).data,
+  }),
   beforeLoad: ({ search }) => {
     if (search.game) {
       throw redirect({ to: '/lobbies/$lobbyId', params: { lobbyId: search.game }, replace: true })
@@ -58,7 +59,8 @@ const lobbyRoute = createRoute({
     }
   },
   // The page reports a failed read itself; the loader only warms the cache.
-  loader: ({ context, params }) => context.queryClient.ensureQueryData(lobbyQuery(context.scope, params.lobbyId)).catch(() => undefined),
+  loader: ({ context, params }) =>
+    context.queryClient.query({ ...lobbyQuery(context.scope, params.lobbyId), staleTime: 'static' }).catch(() => undefined),
   component: LobbyPage,
 })
 
@@ -71,7 +73,7 @@ const gameRoute = createRoute({
     }
   },
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(gameStateQuery(context.scope, params.gameId)).catch(() => undefined),
+    context.queryClient.query({ ...gameStateQuery(context.scope, params.gameId), staleTime: 'static' }).catch(() => undefined),
   component: GameRoute,
 })
 

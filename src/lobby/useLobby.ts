@@ -85,6 +85,46 @@ function confirmedOwnPlayerId(view: LobbyResponse, knownOwnPlayerId: string | nu
   return candidate && view.members.some((member) => member.playerId === candidate) ? candidate : null
 }
 
+type LobbyAction = Extract<LobbyPhase, { kind: 'working' }>['action']
+
+function pendingActionOf(pending: {
+  readonly createPending: boolean
+  readonly joinPending: boolean
+  readonly startPending: boolean
+  readonly leavePending: boolean
+}): LobbyAction | null {
+  if (pending.createPending) return 'creating'
+  if (pending.joinPending) return 'joining'
+  if (pending.startPending) return 'starting'
+  return pending.leavePending ? 'leaving' : null
+}
+
+/** A command in flight wins, then a failure to report, then recovery, then membership. */
+function lobbyPhase(pendingAction: LobbyAction | null, failure: Failure | null, loading: boolean, isMember: boolean): LobbyPhase {
+  if (pendingAction) return { kind: 'working', action: pendingAction }
+  if (failure) return { kind: 'failed', ...failure }
+  // Recovery reads the lobby before anything can be shown for it.
+  if (loading) return { kind: 'working', action: 'loading' }
+  return isMember ? { kind: 'ready' } : { kind: 'idle' }
+}
+
+/** The game a start on this client created, else the one a started lobby names. */
+function lastGameIdOf(
+  started: { readonly lobbyId: string; readonly gameId: string } | null,
+  memberView: LobbyResponse | null,
+): string | null {
+  if (started && started.lobbyId === memberView?.lobbyId) {
+    return started.gameId
+  }
+  return memberView?.status === 'STARTED' ? memberView.gameId : null
+}
+
+function hostRights(memberView: LobbyResponse | null, ownPlayerId: string | null): { readonly isHost: boolean; readonly canStart: boolean } {
+  const isHost = memberView !== null && memberView.hostPlayerId === ownPlayerId
+  const memberCount = memberView?.members.length ?? 0
+  return { isHost, canStart: isHost && memberView?.status === 'WAITING' && memberCount >= 3 && memberCount <= 5 }
+}
+
 /**
  * Owns recoverable lobby membership against the authoritative session
  * contracts. The lobby is a query (polled while waiting, backing off on
@@ -133,13 +173,13 @@ export function useLobby(options: UseLobbyOptions) {
   const isGone = (error: unknown) =>
     problemCode(error) === '404-01' || (problemCode(error) === '403-01' && lobbyId !== routedLobbyId)
 
+  const waitingPollInterval = pollWhileWaitingMs > 0 && pollWhileWaitingMs
   const query = useQuery({
     ...lobbyQuery(scope, lobbyId ?? ''),
     enabled: (current) => lobbyId !== null && !isGone(current.state.error),
     // While waiting, poll the authoritative read; a failing read retries with capped backoff,
     // except for the answers that mean the lobby is gone or hidden.
-    refetchInterval: (current) =>
-      pollWhileWaitingMs > 0 && current.state.data?.status === 'WAITING' ? pollWhileWaitingMs : false,
+    refetchInterval: (current) => current.state.data?.status === 'WAITING' && waitingPollInterval,
     retry: (_failureCount, error) => pollWhileWaitingMs > 0 && problemCode(error) !== '404-01' && problemCode(error) !== '403-01',
     retryDelay: (failureCount) => backoffDelayMs(failureCount + 1, { baseDelayMs: pollWhileWaitingMs, maxDelayMs: MAX_POLL_INTERVAL_MS }),
   })
@@ -165,7 +205,7 @@ export function useLobby(options: UseLobbyOptions) {
   const readMembership = useCallback(
     async (target: string): Promise<string | null> => {
       try {
-        const fresh = await queryClient.fetchQuery(lobbyQuery(scope, target))
+        const fresh = await queryClient.query(lobbyQuery(scope, target))
         return confirmedOwnPlayerId(fresh, knownOwnPlayerId)
       } catch {
         return null
@@ -182,7 +222,7 @@ export function useLobby(options: UseLobbyOptions) {
       setLobbyId(created.lobbyId)
       // The create may have succeeded even when this read does not: the lobby query keeps
       // retrying the safe read with the server-issued identifiers.
-      await queryClient.prefetchQuery(lobbyQuery(scope, created.lobbyId))
+      await queryClient.query(lobbyQuery(scope, created.lobbyId)).catch(() => undefined)
     },
     onError: (error) => setFailure(failureOf(error)),
   })
@@ -195,7 +235,7 @@ export function useLobby(options: UseLobbyOptions) {
       setStarted(null)
       setLobbyId(joined.lobbyId)
       // Authoritative membership wins over the join echo.
-      await queryClient.prefetchQuery(lobbyQuery(scope, joined.lobbyId))
+      await queryClient.query(lobbyQuery(scope, joined.lobbyId)).catch(() => undefined)
     },
     // A 409-02 (already joined) or a lost response may both mean the join landed: reconcile
     // against the lobby actually being joined, never a stale prior reference. Identity is
@@ -218,12 +258,12 @@ export function useLobby(options: UseLobbyOptions) {
     mutationFn: (target: string) => apiStartGame(fetchFn, apiBaseUrl, target),
     onSuccess: async (result, target) => {
       setStarted({ lobbyId: target, gameId: result.gameId })
-      await queryClient.prefetchQuery(lobbyQuery(scope, target))
+      await queryClient.query(lobbyQuery(scope, target)).catch(() => undefined)
     },
     onError: async (error, target) => {
       if (!(error instanceof ApiProblemError)) {
         // A lost start response may still have started the lobby.
-        const fresh = await queryClient.fetchQuery(lobbyQuery(scope, target)).catch(() => null)
+        const fresh = await queryClient.query(lobbyQuery(scope, target)).catch(() => null)
         if (fresh?.status === 'STARTED') {
           return
         }
@@ -286,7 +326,7 @@ export function useLobby(options: UseLobbyOptions) {
       return null
     }
     try {
-      const fresh = await queryClient.fetchQuery(lobbyQuery(scope, activeLobbyId))
+      const fresh = await queryClient.query(lobbyQuery(scope, activeLobbyId))
       return confirmedOwnPlayerId(fresh, knownOwnPlayerId) ? fresh : null
     } catch (error) {
       setFailure(failureOf(error))
@@ -312,39 +352,18 @@ export function useLobby(options: UseLobbyOptions) {
     setDismissedRecoveryFor(activeLobbyId)
   }, [activeLobbyId])
 
-  const pendingAction = ((): 'creating' | 'joining' | 'starting' | 'leaving' | null => {
-    if (createPending) return 'creating'
-    if (joinPending) return 'joining'
-    if (startPending) return 'starting'
-    return leavePending ? 'leaving' : null
-  })()
+  const pendingAction = pendingActionOf({ createPending, joinPending, startPending, leavePending })
+  const shownFailure = failure ?? recoveryFailure
   const loading = recovering && query.isPending
-
-  const phase = useMemo((): LobbyPhase => {
-    if (pendingAction) return { kind: 'working', action: pendingAction }
-    const shownFailure = failure ?? recoveryFailure
-    if (shownFailure) return { kind: 'failed', ...shownFailure }
-    // Recovery reads the lobby before anything can be shown for it.
-    if (loading) return { kind: 'working', action: 'loading' }
-    return memberView ? { kind: 'ready' } : { kind: 'idle' }
-  }, [pendingAction, failure, recoveryFailure, loading, memberView])
-
-  const isHost = memberView !== null && memberView.hostPlayerId === ownPlayerId
-  const memberCount = memberView?.members.length ?? 0
-  const lastGameId =
-    (started && started.lobbyId === memberView?.lobbyId ? started.gameId : null) ??
-    (memberView?.status === 'STARTED' ? memberView.gameId : null)
+  const phase = useMemo(
+    () => lobbyPhase(pendingAction, shownFailure, loading, memberView !== null),
+    [pendingAction, shownFailure, loading, memberView],
+  )
+  const lastGameId = lastGameIdOf(started, memberView)
 
   const state = useMemo(
-    (): LobbySessionState => ({
-      phase,
-      lobby: memberView,
-      ownPlayerId,
-      lastGameId,
-      isHost,
-      canStart: isHost && memberView?.status === 'WAITING' && memberCount >= 3 && memberCount <= 5,
-    }),
-    [phase, memberView, ownPlayerId, lastGameId, isHost, memberCount],
+    (): LobbySessionState => ({ phase, lobby: memberView, ownPlayerId, lastGameId, ...hostRights(memberView, ownPlayerId) }),
+    [phase, memberView, ownPlayerId, lastGameId],
   )
 
   return useMemo(

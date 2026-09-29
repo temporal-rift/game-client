@@ -76,7 +76,7 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
   /** The phase status as it is now, read past any cached answer. */
   const readStatus = useCallback(
     async ({ gameId, eraNumber }: PhaseCoordinates, atRevision: number | null) =>
-      queryClient.fetchQuery(paradoxStatusQuery(scope, gameId, eraNumber, atRevision)).catch(() => null),
+      queryClient.query(paradoxStatusQuery(scope, gameId, eraNumber, atRevision)).catch(() => null),
     [queryClient, scope],
   )
 

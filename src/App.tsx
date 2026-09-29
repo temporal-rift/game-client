@@ -61,7 +61,7 @@ function SignedInSessionView({ config, playerSession, authSession }: SignedInVie
   const [router] = useState(() => createAppRouter({ queryClient, scope }))
   // The lobby named by the page the player opened (its own page or a legacy
   // invitation) wins over a lobby remembered from an earlier visit.
-  const [initialLobbyId] = useState(() => lobbyIdFromLocation(window.location.pathname, window.location.search))
+  const [initialLobbyId] = useState(() => lobbyIdFromLocation(globalThis.location.pathname, globalThis.location.search))
 
   const handleLobbyIdChange = useCallback(
     (lobbyId: string | null) => {
