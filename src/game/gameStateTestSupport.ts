@@ -16,7 +16,7 @@ export function createGameStateSession(overrides: {
 } = {}): GameStateSession {
   const state = overrides.state ?? null
   const status = overrides.status ?? { kind: state ? 'ready' : 'idle' }
-  const refresh = vi.fn(overrides.refresh ?? (async () => state))
+  const refresh = vi.fn(overrides.refresh ?? (() => Promise.resolve(state)))
   return {
     state,
     status,
