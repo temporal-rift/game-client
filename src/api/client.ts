@@ -152,7 +152,8 @@ export function invalidRequestError(action: string): Error {
 export async function callApi<T>(action: string, run: () => Promise<{ readonly data?: T }>): Promise<T> {
   let data: T | undefined
   try {
-    ;({ data } = await run())
+    const answer = await run()
+    data = answer.data
   } catch (error) {
     if (!(error instanceof ApiFailure)) {
       throw isAbortError(error) ? error : new Error(`Could not ${action}. Try again.`, { cause: error })
