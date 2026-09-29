@@ -1,5 +1,6 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderHookWithQueries } from '../test/renderWithQueries'
 import { uuid } from '../test/uuid'
 import { useLobby } from './useLobby'
 import type { LobbyResponse } from '../api/session'
@@ -122,8 +123,8 @@ async function createHostedLobby(
   playerName: string,
 ): Promise<{ lobbyId: string; hostPlayerId: string }> {
   const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
-  const host = renderHook(() =>
-    useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+  const host = renderHookWithQueries(() =>
+    useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
   )
   await act(async () => {
     await host.result.current.create(playerName)
@@ -141,8 +142,8 @@ describe('useLobby', () => {
     const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
     const onLobbyIdChange = vi.fn()
 
-    const first = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0, onLobbyIdChange }),
+    const first = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0, onLobbyIdChange }),
     )
     await act(async () => {
       await first.result.current.create('host-one')
@@ -153,8 +154,8 @@ describe('useLobby', () => {
     first.unmount()
 
     // Reload with the same reference recovers authoritative membership.
-    const second = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
+    const second = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
     )
     await waitFor(() => expect(second.result.current.state.lobby?.members).toHaveLength(1))
     expect(second.result.current.state.lobby?.hostPlayerId).toBe(second.result.current.state.lobby?.members[0]?.playerId)
@@ -182,8 +183,8 @@ describe('useLobby', () => {
     const { lobbyId } = await createHostedLobby(server, 'host-one')
     sessionStorage.clear()
 
-    const guest = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn: guestFetch, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
+    const guest = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn: guestFetch, initialLobbyId: lobbyId, pollWhileWaitingMs: 0 }),
     )
     // Not a member yet: recovery must not fabricate membership from the
     // invited reference alone, so the guest sees the join view first.
@@ -221,8 +222,8 @@ describe('useLobby', () => {
       return response
     }
 
-    const hook = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    const hook = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
     )
     await act(async () => {
       await hook.result.current.create('host-one')
@@ -256,8 +257,9 @@ describe('useLobby', () => {
 
     // A fresh browser context opening the invitation link has never joined.
     const onLobbyIdChange = vi.fn()
-    const invited = renderHook(() =>
+    const invited = renderHookWithQueries(() =>
       useLobby({
+        perspectiveKey: 'player',
         apiBaseUrl: 'https://api.example.test',
         fetchFn,
         initialLobbyId: lobbyId,
@@ -284,8 +286,9 @@ describe('useLobby', () => {
         : server.fetch(input, init ?? {})
 
     const onLobbyIdChange = vi.fn()
-    const invited = renderHook(() =>
+    const invited = renderHookWithQueries(() =>
       useLobby({
+        perspectiveKey: 'player',
         apiBaseUrl: 'https://api.example.test',
         fetchFn,
         initialLobbyId: lobbyId,
@@ -303,8 +306,8 @@ describe('useLobby', () => {
     const fetchFn = () => Promise.resolve(problem(403, '403-01', 'not a member'))
 
     const onLobbyIdChange = vi.fn()
-    const recovered = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0, onLobbyIdChange }),
+    const recovered = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0, onLobbyIdChange }),
     )
     await waitFor(() => expect(onLobbyIdChange).toHaveBeenCalledWith(null))
     expect(recovered.result.current.state.phase).toMatchObject({ kind: 'idle' })
@@ -335,8 +338,9 @@ describe('useLobby', () => {
       return response
     }
 
-    const guest = renderHook(() =>
+    const guest = renderHookWithQueries(() =>
       useLobby({
+        perspectiveKey: 'player',
         apiBaseUrl: 'https://api.example.test',
         fetchFn: guestFetch,
         initialLobbyId: staleLobbyId,
@@ -367,8 +371,8 @@ describe('useLobby', () => {
     sessionStorage.clear()
 
     // A different, never-before-seen guest happens to share the host's name.
-    const guest = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    const guest = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
     )
     await act(async () => {
       await guest.result.current.join(lobbyId, 'same-name')
@@ -387,13 +391,76 @@ describe('useLobby', () => {
   it('surfaces invalid invitation and permission errors', async () => {
     const server = createFakeServer()
     const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init ?? {})
-    const hook = renderHook(() =>
-      useLobby({ apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
+    const hook = renderHookWithQueries(() =>
+      useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: null, pollWhileWaitingMs: 0 }),
     )
     await act(async () => {
       await hook.result.current.join(uuid('missing'), 'guest')
     })
     expect(hook.result.current.state.phase).toMatchObject({ kind: 'failed' })
     expect(hook.result.current.state.lobby).toBeNull()
+  })
+
+  it('polls while waiting, backs off while reads fail, and stops once the game starts', async () => {
+    vi.useFakeTimers()
+    try {
+      const server = createFakeServer()
+      const lobbyId = uuid('polled-lobby')
+      const hostPlayerId = uuid('polled-host')
+      server.lobbies.set(lobbyId, {
+        lobbyId,
+        gameId: uuid('polled-game'),
+        hostPlayerId,
+        status: 'WAITING',
+        members: [{ playerId: hostPlayerId, playerName: 'host', isHost: true }],
+      })
+      sessionStorage.setItem('temporal-rift.private.playerId', hostPlayerId)
+      let down = false
+      const reads = vi.fn()
+      const fetchFn = (input: RequestInfo | URL, init?: RequestInit) => {
+        reads()
+        return down ? Promise.reject(new TypeError('network down')) : server.fetch(input, init ?? {})
+      }
+      const settle = async (ms: number) => {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(ms)
+          for (let turn = 0; turn < 3; turn += 1) {
+            await vi.advanceTimersByTimeAsync(1)
+          }
+        })
+      }
+
+      const hook = renderHookWithQueries(() =>
+        useLobby({ perspectiveKey: 'player', apiBaseUrl: 'https://api.example.test', fetchFn, initialLobbyId: lobbyId, pollWhileWaitingMs: 1000 }),
+      )
+      await settle(0)
+      expect(hook.result.current.state.phase).toMatchObject({ kind: 'ready' })
+      expect(reads).toHaveBeenCalledTimes(1)
+
+      await settle(1000)
+      expect(reads).toHaveBeenCalledTimes(2)
+
+      // Failing reads back off (2s, then 4s) and keep the lobby on screen.
+      down = true
+      await settle(1000)
+      expect(reads).toHaveBeenCalledTimes(3)
+      await settle(1000)
+      expect(reads).toHaveBeenCalledTimes(3)
+      await settle(1000)
+      expect(reads).toHaveBeenCalledTimes(4)
+      expect(hook.result.current.state.phase).toMatchObject({ kind: 'ready' })
+
+      // Recovery resumes; a started lobby stops polling.
+      down = false
+      const lobby = server.lobbies.get(lobbyId)
+      if (lobby) lobby.status = 'STARTED'
+      await settle(4000)
+      expect(reads).toHaveBeenCalledTimes(5)
+      expect(hook.result.current.state.lastGameId).toBe(uuid('polled-game'))
+      await settle(10_000)
+      expect(reads).toHaveBeenCalledTimes(5)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

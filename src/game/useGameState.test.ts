@@ -1,7 +1,8 @@
-import { act, renderHook } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GameStateView } from '../api/projection'
 import { gameStatePayload } from '../test/gameStatePayload'
+import { renderHookWithQueries } from '../test/renderWithQueries'
 import { uuid } from '../test/uuid'
 import { useGameState } from './useGameState'
 
@@ -27,22 +28,28 @@ function deferred<T>(): Deferred<T> {
 
 const BASE_OPTIONS = { apiBaseUrl: 'https://api.example.test', pollIntervalMs: 1000, maxPollIntervalMs: 8000 }
 
+// The query cache follows the browser's own signals: connectivity events and page visibility.
 function setOnline(value: boolean): void {
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value })
+  window.dispatchEvent(new Event(value ? 'online' : 'offline'))
 }
 
 function setHidden(value: boolean): void {
   Object.defineProperty(document, 'hidden', { configurable: true, value })
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: value ? 'hidden' : 'visible' })
+  document.dispatchEvent(new Event('visibilitychange', { bubbles: true }))
 }
 
 /** Pumps the fake-timer microtask/macrotask queue so pending promise chains settle. */
 async function flush(ms = 0): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms)
-    // advanceTimersByTimeAsync(0) still needs an extra microtask turn for
-    // chained .then()/await continuations (e.g. setState after a resolved fetch).
-    await Promise.resolve()
-    await Promise.resolve()
+    // A fetch due exactly at the end of the window still needs to settle: its
+    // continuations (parsing, validation, cache update) and the query cache's
+    // batched notification, a 0ms timer that fake timers run a millisecond later.
+    for (let turn = 0; turn < 3; turn += 1) {
+      await vi.advanceTimersByTimeAsync(1)
+    }
   })
 }
 
@@ -59,12 +66,12 @@ describe('useGameState', () => {
   })
 
   it('starts idle without a game and polls once one is set', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(gameStateResponse())
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: null, perspectiveKey: 'alice' }))
+    const fetchFn = vi.fn().mockImplementation(async () => gameStateResponse())
+    const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: null, perspectiveKey: 'alice' }))
     expect(result.current.status.kind).toBe('idle')
     expect(fetchFn).not.toHaveBeenCalled()
 
-    const { result: withGame } = renderHook(() =>
+    const { result: withGame } = renderHookWithQueries(() =>
       useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }),
     )
     await flush()
@@ -73,8 +80,8 @@ describe('useGameState', () => {
   })
 
   it('polls again after the configured interval', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 1 }))
-    renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const fetchFn = vi.fn().mockImplementation(async () => gameStateResponse({ revision: 1 }))
+    renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -83,32 +90,47 @@ describe('useGameState', () => {
   })
 
   it('never regresses when a stale response arrives after a newer one', async () => {
-    const first = deferred<Response>()
-    const second = deferred<Response>()
-    const fetchFn = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(gameStateResponse({ revision: 3, phase: 'ACTION_ROUND_2' }))
+      // A delayed delivery of an older projection, e.g. from a lagging replica.
+      .mockResolvedValueOnce(gameStateResponse({ revision: 2, phase: 'ACTION_ROUND_1' }))
+      .mockImplementation(async () => gameStateResponse({ revision: 3, phase: 'ACTION_ROUND_2' }))
 
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
-    expect(fetchFn).toHaveBeenCalledTimes(1)
+    expect(result.current.state?.revision).toBe(3)
 
-    // A forced refresh starts a second, independent request while the first is still in flight,
-    // simulating a network layer that does not honor cancellation of the first request.
-    act(() => {
-      void result.current.refresh()
-    })
+    await flush(1000)
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    expect(result.current.state).toMatchObject({ revision: 3, phase: 'ACTION_ROUND_2' })
+    expect(result.current.status.kind).toBe('ready')
+  })
+
+  it('lets a forced refresh supersede a poll still in flight', async () => {
+    const lagging = deferred<Response>()
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(gameStateResponse({ revision: 1 }))
+      .mockReturnValueOnce(lagging.promise)
+      .mockImplementation(async () => gameStateResponse({ revision: 3 }))
+
+    const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
+    await flush(1000)
     expect(fetchFn).toHaveBeenCalledTimes(2)
 
-    // The newer request (revision 3) resolves first.
-    second.resolve(gameStateResponse({ revision: 3 }))
-    await flush()
-    expect(result.current.state?.revision).toBe(3)
+    let refreshed: unknown
+    await act(async () => {
+      refreshed = await result.current.refresh()
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(3)
+    expect(refreshed).toMatchObject({ revision: 3 })
 
-    // The older, delayed request (revision 2) resolves after it — must not regress.
-    first.resolve(gameStateResponse({ revision: 2 }))
+    // The superseded poll answers late with an older view; it must not regress the shown state.
+    lagging.resolve(gameStateResponse({ revision: 2 }))
     await flush()
     expect(result.current.state?.revision).toBe(3)
-    expect(result.current.status.kind).toBe('ready')
   })
 
   it('clears state on a perspective change and ignores a response from the old perspective', async () => {
@@ -116,7 +138,7 @@ describe('useGameState', () => {
     const bob = deferred<Response>()
     const fetchFn = vi.fn().mockReturnValueOnce(alice.promise).mockReturnValueOnce(bob.promise)
 
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHookWithQueries(
       (props: { perspectiveKey: string }) =>
         useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: props.perspectiveKey }),
       { initialProps: { perspectiveKey: 'alice' } },
@@ -144,9 +166,9 @@ describe('useGameState', () => {
       .fn()
       .mockRejectedValueOnce(new TypeError('network down'))
       .mockRejectedValueOnce(new TypeError('network down'))
-      .mockResolvedValue(gameStateResponse({ revision: 1 }))
+      .mockImplementation(async () => gameStateResponse({ revision: 1 }))
 
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
     expect(result.current.status.kind).toBe('failed')
@@ -175,7 +197,7 @@ describe('useGameState', () => {
       .mockResolvedValueOnce(gameStateResponse({ revision: 1 }))
       .mockRejectedValueOnce(new TypeError('network down'))
 
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(result.current.status.kind).toBe('ready')
 
@@ -185,39 +207,33 @@ describe('useGameState', () => {
   })
 
   it('pauses polling while offline or backgrounded and resumes immediately once connectivity/visibility return', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 1 }))
-    renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const fetchFn = vi.fn().mockImplementation(async () => gameStateResponse({ revision: 1 }))
+    renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
-    setOnline(false)
+    act(() => setOnline(false))
     await flush(1000)
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
-    setOnline(true)
-    await act(async () => {
-      window.dispatchEvent(new Event('online'))
-    })
+    await act(async () => setOnline(true))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(2)
 
-    setHidden(true)
+    act(() => setHidden(true))
     await flush(1000)
     expect(fetchFn).toHaveBeenCalledTimes(2)
 
-    setHidden(false)
-    await act(async () => {
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
+    await act(async () => setHidden(false))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(3)
   })
 
   it('stops polling after unmount even when a request was in flight at the time', async () => {
     const inFlight = deferred<Response>()
-    const fetchFn = vi.fn().mockReturnValueOnce(inFlight.promise).mockResolvedValue(gameStateResponse({ revision: 1 }))
+    const fetchFn = vi.fn().mockReturnValueOnce(inFlight.promise).mockImplementation(async () => gameStateResponse({ revision: 1 }))
 
-    const { unmount } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const { unmount } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -239,7 +255,7 @@ describe('useGameState', () => {
         mySubmissions: [{ eraNumber: 1, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }],
       }),
     )
-    const { result } = renderHook(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
+    const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(result.current.status.kind).toBe('ready')
 

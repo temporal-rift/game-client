@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, matchPath, useLocation, useNavigate } from 'react-router'
 import { checkApiConnectivity } from './api/connectivity'
+import { queryClient } from './api/queryClient'
 import { createAuthenticatedFetch } from './auth/authenticatedFetch'
 import { parseLegacyLobbyInvitation } from './auth/invitation'
 import type { PlayerSession } from './auth/usePlayerSession'
@@ -38,9 +40,11 @@ interface SignedInViewProps {
  */
 function SignedInView(props: SignedInViewProps) {
   return (
-    <BrowserRouter>
-      <SignedInRoutes {...props} />
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <SignedInRoutes {...props} />
+      </BrowserRouter>
+    </QueryClientProvider>
   )
 }
 
@@ -84,6 +88,7 @@ function SignedInRoutes({ config, playerSession, authSession }: SignedInViewProp
   )
   const lobby = useLobby({
     apiBaseUrl: config.apiBaseUrl,
+    perspectiveKey: authSession.identity.subject,
     fetchFn: fetchWithUnauthorized,
     initialLobbyId,
     onLobbyIdChange: handleLobbyIdChange,

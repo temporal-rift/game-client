@@ -1,9 +1,10 @@
-import { act, renderHook } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useActionSubmission } from '../action/useActionSubmission'
 import { useKnowledge } from '../knowledge/useKnowledge'
 import type { GameStateView } from '../api/projection'
 import { gameStatePayload } from '../test/gameStatePayload'
+import { renderHookWithQueries } from '../test/renderWithQueries'
 import { uuid } from '../test/uuid'
 import { useGameState } from './useGameState'
 
@@ -26,8 +27,11 @@ function gameStateResponse(overrides: Partial<GameStateView> = {}): Response {
 async function flush(ms = 0): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms)
-    await Promise.resolve()
-    await Promise.resolve()
+    // Lets a fetch due at the end of the window settle, including the query
+    // cache's batched notification (a 0ms timer fake timers run 1ms later).
+    for (let turn = 0; turn < 3; turn += 1) {
+      await vi.advanceTimersByTimeAsync(1)
+    }
   })
 }
 
@@ -59,8 +63,8 @@ describe('shared game-state poll across multiple consumers', () => {
   })
 
   it('issues exactly one HTTP request per poll interval regardless of consumer count', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 1 }))
-    renderHook(() => useSharedConsumers('alice', fetchFn))
+    const fetchFn = vi.fn().mockImplementation(async () => gameStateResponse({ revision: 1 }))
+    renderHookWithQueries(() => useSharedConsumers('alice', fetchFn))
     await flush()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
@@ -69,8 +73,8 @@ describe('shared game-state poll across multiple consumers', () => {
   })
 
   it('derives every consumer’s view from the same revision within the same render', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 7, phase: 'ACTION_ROUND_1' }))
-    const { result } = renderHook(() => useSharedConsumers('alice', fetchFn))
+    const fetchFn = vi.fn().mockImplementation(async () => gameStateResponse({ revision: 7, phase: 'ACTION_ROUND_1' }))
+    const { result } = renderHookWithQueries(() => useSharedConsumers('alice', fetchFn))
     await flush()
 
     expect(result.current.gameState.state?.revision).toBe(7)
@@ -87,7 +91,7 @@ describe('shared game-state poll across multiple consumers', () => {
       .fn()
       .mockResolvedValueOnce(gameStateResponse({ revision: 1 }))
       .mockRejectedValueOnce(new TypeError('network down'))
-    const { result } = renderHook(() => useSharedConsumers('alice', fetchFn))
+    const { result } = renderHookWithQueries(() => useSharedConsumers('alice', fetchFn))
     await flush()
     expect(result.current.knowledge.status).toBe('ready')
 
@@ -97,8 +101,8 @@ describe('shared game-state poll across multiple consumers', () => {
   })
 
   it('resets every consumer atomically on a perspective switch', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(gameStateResponse({ revision: 1, myFaction: 'ACTIVISTS' }))
-    const { result, rerender } = renderHook(
+    const fetchFn = vi.fn().mockImplementation(async () => gameStateResponse({ revision: 1, myFaction: 'ACTIVISTS' }))
+    const { result, rerender } = renderHookWithQueries(
       ({ perspectiveKey }: { perspectiveKey: string }) => useSharedConsumers(perspectiveKey, fetchFn),
       { initialProps: { perspectiveKey: 'alice' } },
     )

@@ -7,6 +7,9 @@
  * expiry or identity change.
  */
 
+import type { QueryClient } from '@tanstack/react-query'
+import { queryClient } from '../api/queryClient'
+
 export interface PlayerIdentity {
   readonly subject: string
   readonly displayName: string | null
@@ -63,11 +66,16 @@ function sessionStorageOrNull(): SessionStorageLike | null {
 }
 
 /**
- * Clears the client's own private cache entries. The SDK's token cache is
- * cleared through its logout; call this alongside for logout, session
- * failure or identity change.
+ * Clears the client's own private caches: its session-storage entries and
+ * every cached server response (lobby, game state, scores). The SDK's token
+ * cache is cleared through its logout; call this alongside for logout,
+ * session failure or identity change.
  */
-export function clearPrivateCaches(storage: SessionStorageLike | null = sessionStorageOrNull()): void {
+export function clearPrivateCaches(
+  storage: SessionStorageLike | null = sessionStorageOrNull(),
+  serverState: Pick<QueryClient, 'clear'> = queryClient,
+): void {
+  serverState.clear()
   if (!storage) {
     return
   }

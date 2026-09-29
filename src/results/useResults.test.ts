@@ -1,8 +1,9 @@
-import { act, renderHook } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
 import { createGameStateSession } from '../game/gameStateTestSupport'
 import { gameStatePayload } from '../test/gameStatePayload'
+import { renderHookWithQueries } from '../test/renderWithQueries'
 import { uuid } from '../test/uuid'
 import { useResults } from './useResults'
 
@@ -76,10 +77,10 @@ function fetchForTerminal(): AuthenticatedFetchFn {
 
 const BASE = { apiBaseUrl: 'https://api.example.test' }
 
+/** Settles pending reads, including the query cache's batched (0ms timer) notification. */
 async function flush(): Promise<void> {
   await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 5))
   })
 }
 
@@ -87,7 +88,7 @@ describe('useResults', () => {
   it('shows readiness while terminal awards are not yet complete', () => {
     const fetchFn = vi.fn() as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: terminalStateBody({ result: undefined }) })
-    const { result } = renderHook(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
+    const { result } = renderHookWithQueries(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
 
     expect(result.current.view.kind).toBe('waiting')
     expect(fetchFn).not.toHaveBeenCalled()
@@ -96,7 +97,7 @@ describe('useResults', () => {
   it('shows every authoritative winner with final scores once complete', async () => {
     const fetchFn = fetchForTerminal()
     const gameState = createGameStateSession({ state: terminalStateBody() })
-    const { result } = renderHook(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
+    const { result } = renderHookWithQueries(() => useResults({ ...BASE, fetchFn, gameState, ownPlayerId: P1, perspectiveKey: 'alice' }))
     await flush()
 
     expect(result.current.view.kind).toBe('complete')
@@ -123,7 +124,7 @@ describe('useResults', () => {
     })
     const fetchFn = fetchMock as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: terminalStateBody() })
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHookWithQueries(
       ({ perspectiveKey, ownPlayerId }: { perspectiveKey: string; ownPlayerId: string }) =>
         useResults({ ...BASE, fetchFn, gameState, ownPlayerId, perspectiveKey }),
       { initialProps: { perspectiveKey: 'alice', ownPlayerId: P1 } },
@@ -146,7 +147,7 @@ describe('useResults', () => {
   it('does not leave the refresh control stuck after the context changes mid-refresh', async () => {
     const hangingFetch = (async () => new Promise<Response>(() => {})) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({ state: terminalStateBody() })
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHookWithQueries(
       ({ perspectiveKey, ownPlayerId }: { perspectiveKey: string; ownPlayerId: string }) =>
         useResults({ ...BASE, fetchFn: hangingFetch, gameState, ownPlayerId, perspectiveKey }),
       { initialProps: { perspectiveKey: 'alice', ownPlayerId: P1 } },

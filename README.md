@@ -59,6 +59,12 @@ npm run check:api    # the same, then fail if the committed client differs (CI r
 changing its version in `contracts.json`, running `npm run generate:api` and committing both. Never edit
 `src/api/generated/` by hand: `check:api` fails on any difference.
 
+Server state (lobby, game state, scores, paradox status) lives in a [TanStack Query](https://tanstack.com/query)
+cache: polling, backoff on failure (paused while the tab is hidden or offline) and cancellation come from the
+query cache, every key is scoped to the signed-in player, and the cache is cleared on sign-out, session failure or
+identity change. Commands are mutations that never retry blindly: a lost join, start or submission response is
+reconciled against authoritative state before anything is retried or reported.
+
 Every request and every response is validated against its contract at the client boundary, so a response that
 breaks the pinned contract surfaces as a recoverable error instead of reaching the board. Requests go through
 the authenticated fetch (Bearer token, sign-out on `401`), and problem-detail codes (e.g. `409-02`) map to the

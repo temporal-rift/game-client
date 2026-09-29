@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ApiProblemError, isAbortError } from '../api/client'
+import { useCallback, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiProblemError } from '../api/client'
 import type { AuthenticatedFetchFn, GameStateView } from '../api/projection'
-import { gameStateErrorMessage, getGameState } from '../api/projection'
+import { gameStateErrorMessage } from '../api/projection'
+import { gameStateQuery } from '../api/queries'
 import type { SubmissionQuery } from './reconciliation'
-import { hasAcceptedSubmission as checkAcceptedSubmission, nextPollDelayMs, shouldApplyGameState } from './reconciliation'
+import { backoffDelayMs, hasAcceptedSubmission as checkAcceptedSubmission } from './reconciliation'
 
 export type { SubmissionQuery } from './reconciliation'
 
@@ -20,7 +22,7 @@ export interface UseGameStateOptions {
   readonly apiBaseUrl: string
   readonly fetchFn: AuthenticatedFetchFn
   readonly gameId: string | null
-  /** Identifies the current viewer (e.g. player subject); state clears whenever this or gameId changes. */
+  /** Identifies the current viewer (e.g. player subject); state is scoped to it and to gameId. */
   readonly perspectiveKey: string | null
   readonly pollIntervalMs?: number
   readonly maxPollIntervalMs?: number
@@ -29,7 +31,7 @@ export interface UseGameStateOptions {
 export interface GameStateSession {
   readonly status: GameStateStatus
   readonly state: GameStateView | null
-  /** Forces an immediate authoritative read, bypassing the poll timer. */
+  /** Forces an immediate authoritative read; resolves to null when that read fails. */
   readonly refresh: () => Promise<GameStateView | null>
   readonly hasAcceptedSubmission: (query: SubmissionQuery) => boolean
 }
@@ -37,38 +39,14 @@ export interface GameStateSession {
 const DEFAULT_POLL_INTERVAL_MS = 4000
 const DEFAULT_MAX_POLL_INTERVAL_MS = 32000
 
-function perspectiveId(gameId: string | null, perspectiveKey: string | null): string | null {
-  return gameId && perspectiveKey ? `${perspectiveKey}::${gameId}` : null
-}
-
-/** True while the tab is backgrounded or the browser reports no connectivity. */
-function isPollingPaused(): boolean {
-  if (typeof document !== 'undefined' && document.hidden) {
-    return true
-  }
-  return typeof navigator !== 'undefined' && navigator.onLine === false
-}
-
-type PollErrorOutcome =
-  | { readonly ignore: true }
-  | { readonly ignore: false; readonly message: string; readonly code: string | null }
-
-/** An aborted request is intentional cancellation, never a reported failure. */
-function classifyPollError(error: unknown): PollErrorOutcome {
-  if (isAbortError(error)) {
-    return { ignore: true }
-  }
-  return { ignore: false, message: gameStateErrorMessage(error), code: error instanceof ApiProblemError ? error.code : null }
-}
-
 /**
- * Owns authenticated polling of one participant's game state: freshness
- * reconciliation by revision, controlled backoff across network/tab
- * interruptions, and cancellation of in-flight reads that no longer belong
- * to the current identity/game perspective. Feature modules (hand, action,
- * paradox, results) read `state`/`state.raw` for their own slice and call
- * `hasAcceptedSubmission` to recover own-acceptance before a duplicate
- * retry after a lost command response.
+ * Polls one participant's game state through the shared query cache:
+ * freshness reconciliation by revision (in the query function), capped
+ * backoff while polls fail, a pause while the tab is hidden or offline
+ * with a prompt refresh on return, and state scoped to the viewer's
+ * perspective and game. Feature modules (hand, action, paradox, results)
+ * read `state` for their own slice and call `hasAcceptedSubmission` to
+ * recover own-acceptance before a duplicate retry after a lost response.
  */
 export function useGameState(options: UseGameStateOptions): GameStateSession {
   const {
@@ -79,182 +57,51 @@ export function useGameState(options: UseGameStateOptions): GameStateSession {
     pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
     maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL_MS,
   } = options
-
-  const [status, setStatus] = useState<GameStateStatus>({ kind: gameId ? 'loading' : 'idle' })
-  const [state, setState] = useState<GameStateView | null>(null)
-
-  const fetchRef = useRef(fetchFn)
-  const stateRef = useRef<GameStateView | null>(null)
-  const perspectiveRef = useRef<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
-  const timerRef = useRef<number | null>(null)
-  const delayRef = useRef(pollIntervalMs)
-
-  useEffect(() => {
-    fetchRef.current = fetchFn
-  }, [fetchFn])
-  useEffect(() => {
-    stateRef.current = state
-  }, [state])
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
-
-  const advanceDelay = useCallback(
-    (outcome: 'success' | 'failure') => {
-      delayRef.current = nextPollDelayMs(delayRef.current, outcome, {
-        baseDelayMs: pollIntervalMs,
-        maxDelayMs: maxPollIntervalMs,
-      })
-    },
-    [maxPollIntervalMs, pollIntervalMs],
+  const enabled = Boolean(gameId && perspectiveKey)
+  const queryClient = useQueryClient()
+  const query = useMemo(
+    () => gameStateQuery({ perspective: perspectiveKey ?? '', apiBaseUrl, fetchFn }, gameId ?? ''),
+    [perspectiveKey, apiBaseUrl, fetchFn, gameId],
   )
 
-  const runPoll = useCallback(
-    async (activePerspective: string, activeGameId: string): Promise<GameStateView | null> => {
-      if (isPollingPaused()) {
-        return null
-      }
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-      try {
-        const next = await getGameState(fetchRef.current, apiBaseUrl, activeGameId, { signal: controller.signal })
-        if (perspectiveRef.current !== activePerspective) {
-          return null
-        }
-        advanceDelay('success')
-        if (!shouldApplyGameState(stateRef.current, next)) {
-          setStatus({ kind: 'ready' })
-          return stateRef.current
-        }
-        stateRef.current = next
-        setState(next)
-        setStatus({ kind: 'ready' })
-        return next
-      } catch (error) {
-        const outcome = classifyPollError(error)
-        if (outcome.ignore || perspectiveRef.current !== activePerspective) {
-          return null
-        }
-        advanceDelay('failure')
-        setStatus(stateRef.current ? { kind: 'stalled', ...outcome } : { kind: 'failed', ...outcome })
-        return null
-      }
-    },
-    [apiBaseUrl, advanceDelay],
-  )
+  // Polls at the base interval; a failing poll retries with capped exponential backoff (paused
+  // while the tab is hidden or offline) until one succeeds, which resets the interval.
+  const { data, error, failureReason } = useQuery({
+    ...query,
+    enabled,
+    refetchInterval: pollIntervalMs,
+    retry: true,
+    // `failureCount` counts the failures before this retry: the first retry waits twice the interval.
+    retryDelay: (failureCount) => backoffDelayMs(failureCount + 1, { baseDelayMs: pollIntervalMs, maxDelayMs: maxPollIntervalMs }),
+  })
+  const state = enabled ? (data ?? null) : null
+  const failure = error ?? failureReason
 
-  const scheduleNextRef = useRef<(activePerspective: string, activeGameId: string) => void>(() => {})
-
-  const scheduleNext = useCallback(
-    (activePerspective: string, activeGameId: string) => {
-      clearTimer()
-      timerRef.current = window.setTimeout(() => {
-        void runPoll(activePerspective, activeGameId).finally(() => {
-          if (perspectiveRef.current === activePerspective) {
-            scheduleNextRef.current(activePerspective, activeGameId)
-          }
-        })
-      }, delayRef.current)
-    },
-    [clearTimer, runPoll],
-  )
-  useEffect(() => {
-    scheduleNextRef.current = scheduleNext
-  }, [scheduleNext])
-
-  // Perspective/game changes: abort in-flight reads and clear state before
-  // anything from the previous perspective can populate the new one.
-  useEffect(() => {
-    const current = perspectiveId(gameId, perspectiveKey)
-    perspectiveRef.current = current
-    abortRef.current?.abort()
-    clearTimer()
-    stateRef.current = null
-    setState(null)
-    delayRef.current = pollIntervalMs
-
-    if (!current || !gameId) {
-      setStatus({ kind: 'idle' })
-      return
+  const status = useMemo((): GameStateStatus => {
+    if (!enabled) {
+      return { kind: 'idle' }
     }
-
-    setStatus({ kind: 'loading' })
-    void runPoll(current, gameId).finally(() => {
-      if (perspectiveRef.current === current) {
-        scheduleNext(current, gameId)
-      }
-    })
-
-    return () => {
-      abortRef.current?.abort()
-      clearTimer()
-      // Invalidates any in-flight poll's perspective check. On a deps change
-      // (not unmount) the effect body above runs again synchronously right
-      // after this and immediately reassigns perspectiveRef.current, so this
-      // only actually matters — and only takes effect — on real unmount,
-      // where it stops a pending `.finally` from rescheduling a zombie loop.
-      perspectiveRef.current = null
+    if (failure) {
+      const reason = { message: gameStateErrorMessage(failure), code: failure instanceof ApiProblemError ? failure.code : null }
+      return data ? { kind: 'stalled', ...reason } : { kind: 'failed', ...reason }
     }
-  }, [gameId, perspectiveKey, runPoll, scheduleNext, clearTimer, pollIntervalMs])
-
-  // Resume promptly (with reset backoff) when the tab regains visibility or
-  // network connectivity returns, instead of waiting out the current backoff.
-  useEffect(() => {
-    function resume(): void {
-      const current = perspectiveRef.current
-      if (!current || !gameId) {
-        return
-      }
-      delayRef.current = pollIntervalMs
-      clearTimer()
-      void runPoll(current, gameId).finally(() => {
-        if (perspectiveRef.current === current) {
-          scheduleNext(current, gameId)
-        }
-      })
-    }
-
-    function onVisibilityChange(): void {
-      if (!document.hidden) {
-        resume()
-      }
-    }
-
-    window.addEventListener('online', resume)
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      window.removeEventListener('online', resume)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [gameId, pollIntervalMs, clearTimer, runPoll, scheduleNext])
+    return data ? { kind: 'ready' } : { kind: 'loading' }
+  }, [enabled, data, failure])
 
   const refresh = useCallback(async (): Promise<GameStateView | null> => {
-    const current = perspectiveRef.current
-    if (!current || !gameId) {
+    if (!enabled) {
       return null
     }
-    delayRef.current = pollIntervalMs
-    clearTimer()
-    const result = await runPoll(current, gameId)
-    if (perspectiveRef.current === current) {
-      scheduleNext(current, gameId)
+    // One immediate read, outside any backoff in progress: callers reconcile against its answer.
+    await queryClient.cancelQueries({ queryKey: query.queryKey })
+    try {
+      return await queryClient.fetchQuery({ ...query, retry: false })
+    } catch {
+      return null
     }
-    return result
-  }, [gameId, pollIntervalMs, clearTimer, runPoll, scheduleNext])
+  }, [enabled, queryClient, query])
 
-  const hasAcceptedSubmission = useCallback(
-    (query: SubmissionQuery) => checkAcceptedSubmission(stateRef.current, query),
-    [],
-  )
+  const hasAcceptedSubmission = useCallback((submission: SubmissionQuery) => checkAcceptedSubmission(state, submission), [state])
 
-  return useMemo(
-    () => ({ status, state, refresh, hasAcceptedSubmission }),
-    [status, state, refresh, hasAcceptedSubmission],
-  )
+  return useMemo(() => ({ status, state, refresh, hasAcceptedSubmission }), [status, state, refresh, hasAcceptedSubmission])
 }
