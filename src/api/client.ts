@@ -93,15 +93,12 @@ function classify(error: unknown, response: Response | undefined): unknown {
   if (response && !response.ok) {
     return new ApiFailure(problemFailure(error, response.status))
   }
-  if (error instanceof ZodError) {
-    // The client validates the request before sending it and the response after receiving it.
-    return new ApiFailure({ kind: response ? 'invalid-response' : 'invalid-request' })
-  }
   if (response) {
-    // An answered request whose body could not be read as the contract's JSON.
+    // An answered request whose body failed the contract's schema or could not be read as JSON.
     return new ApiFailure({ kind: 'invalid-response' })
   }
-  return new ApiFailure({ kind: 'unreachable' })
+  // Without an answer, a schema failure can only be the request, validated before it is sent.
+  return new ApiFailure({ kind: error instanceof ZodError ? 'invalid-request' : 'unreachable' })
 }
 
 // The generated client hands fetch one Request; the authenticated fetch (and the fakes in tests)
