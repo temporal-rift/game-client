@@ -9,7 +9,7 @@ export function uuid(label: string): string {
     .map((seed) => {
       let hash = seed
       for (const character of label) {
-        hash = Math.imul(hash ^ character.codePointAt(0)!, 0x01000193) >>> 0
+        hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 0x01000193) >>> 0
       }
       return hash.toString(16).padStart(8, '0')
     })

@@ -1,7 +1,6 @@
 import { vi } from 'vitest'
 import type { GameStateView } from '../api/projection'
-import type { SubmissionQuery } from './reconciliation'
-import { hasAcceptedSubmission as checkAcceptedSubmission } from './reconciliation'
+import { hasAcceptedSubmission as checkAcceptedSubmission, type SubmissionQuery } from './reconciliation'
 import type { GameStateSession, GameStateStatus } from './useGameState'
 
 /**
