@@ -24,13 +24,6 @@ type ConnectivityState =
   | { readonly status: 'connected' }
   | { readonly status: 'failed'; readonly reason: string }
 
-function defaultPlayerNameFor(identity: AuthSession['identity']): string {
-  if (identity.displayName && identity.displayName.trim().length > 0) {
-    return identity.displayName.trim()
-  }
-  return identity.subject.length > 12 ? `player-${identity.subject.slice(-4)}` : 'player'
-}
-
 interface SignedInViewProps {
   readonly config: AppConfig
   readonly playerSession: PlayerSession
@@ -101,7 +94,7 @@ function SignedInRoutes({ config, playerSession, authSession }: SignedInViewProp
   const lobbyPage = (
     <LobbyPage
       lobby={lobby}
-      defaultPlayerName={defaultPlayerNameFor(authSession.identity)}
+      defaultPlayerName={authSession.identity.displayName ?? ''}
       sessionBar={renderSessionBar(null)}
     />
   )

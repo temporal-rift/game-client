@@ -3,12 +3,12 @@ import { Link } from 'react-router'
 import { buildLobbyInvitationUrl, parseLobbyReference } from '../auth/invitation'
 import type { LobbyView } from '../api/lobbyClient'
 import type { LobbyPhase, LobbySession } from '../lobby/useLobby'
-import { gamePath } from '../routing/paths'
+import { LOBBY_PATH, gamePath } from '../routing/paths'
 
 interface LobbyPanelProps {
   readonly lobby: LobbySession;
   readonly defaultPlayerName: string;
-  /** The lobby this page's invitation link names, when the player is not a member yet. */
+  /** The lobby this page's invitation link names; a non-member gets the invitation view for it. */
   readonly invitedLobbyId: string | null;
 }
 
@@ -34,15 +34,51 @@ function FailureNotice({ failure, onDismiss }: { readonly failure: FailedPhase; 
   )
 }
 
-interface LobbyJoinViewProps {
+interface NonMemberViewProps {
   readonly lobby: LobbySession;
   readonly defaultPlayerName: string;
-  readonly invitedLobbyId: string | null;
   readonly isWorking: boolean;
   readonly failure: FailedPhase | null;
 }
 
-function LobbyJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorking, failure }: LobbyJoinViewProps) {
+interface InvitationJoinViewProps extends NonMemberViewProps {
+  readonly invitedLobbyId: string;
+}
+
+function InvitationJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorking, failure }: InvitationJoinViewProps) {
+  const [playerName, setPlayerName] = useState(defaultPlayerName)
+
+  return (
+    <section aria-label="Lobby invitation">
+      <h2>You're invited</h2>
+      <p>
+        Join lobby <code>{invitedLobbyId}</code> to take your seat.
+      </p>
+      {failure && <FailureNotice failure={failure} onDismiss={lobby.dismissError} />}
+      <label>
+        <span>Player name</span>
+        <input
+          aria-label="Player name"
+          value={playerName}
+          onChange={(event) => setPlayerName(event.target.value)}
+          maxLength={64}
+        />
+      </label>
+      <button
+        type="button"
+        disabled={isWorking || !playerName.trim()}
+        onClick={() => void lobby.join(invitedLobbyId, playerName)}
+      >
+        {actionLabel(lobby.state.phase, 'joining', 'Joining…', 'Join game')}
+      </button>
+      <p>
+        <Link to={LOBBY_PATH}>Create or join a different game</Link>
+      </p>
+    </section>
+  )
+}
+
+function LobbyJoinView({ lobby, defaultPlayerName, isWorking, failure }: NonMemberViewProps) {
   const { state } = lobby
   const [createName, setCreateName] = useState(defaultPlayerName)
   const [joinName, setJoinName] = useState(defaultPlayerName)
@@ -51,7 +87,6 @@ function LobbyJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorking, fa
   return (
     <section aria-label="Game lobby">
       <h2>Game lobby</h2>
-      {invitedLobbyId && <output>You were invited to lobby {invitedLobbyId}. Join below to take your seat.</output>}
       {failure && <FailureNotice failure={failure} onDismiss={lobby.dismissError} />}
       <div>
         <h3>Create a game</h3>
@@ -75,7 +110,7 @@ function LobbyJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorking, fa
           <input
             aria-label="Invitation link or lobby reference"
             value={joinInput}
-            placeholder={invitedLobbyId ?? 'Paste invitation link'}
+            placeholder="Paste invitation link"
             onChange={(event) => setJoinInput(event.target.value)}
           />
         </label>
@@ -90,14 +125,11 @@ function LobbyJoinView({ lobby, defaultPlayerName, invitedLobbyId, isWorking, fa
         </label>
         <button
           type="button"
-          disabled={isWorking || !joinName.trim()}
+          disabled={isWorking || !joinInput.trim() || !joinName.trim()}
           onClick={() => {
             // Accept a pasted invitation URL or a bare lobby reference; the join
             // itself rejects anything that is neither.
-            const target = joinInput.trim() ? (parseLobbyReference(joinInput)?.lobbyId ?? joinInput.trim()) : invitedLobbyId
-            if (target) {
-              void lobby.join(target, joinName)
-            }
+            void lobby.join(parseLobbyReference(joinInput)?.lobbyId ?? joinInput.trim(), joinName)
           }}
         >
           {actionLabel(state.phase, 'joining', 'Joining…', 'Join game')}
@@ -243,14 +275,16 @@ export function LobbyPanel({ lobby, defaultPlayerName, invitedLobbyId }: LobbyPa
   const failure = state.phase.kind === 'failed' ? state.phase : null
 
   if (!state.lobby) {
-    return (
-      <LobbyJoinView
+    return invitedLobbyId ? (
+      <InvitationJoinView
         lobby={lobby}
         defaultPlayerName={defaultPlayerName}
         invitedLobbyId={invitedLobbyId}
         isWorking={isWorking}
         failure={failure}
       />
+    ) : (
+      <LobbyJoinView lobby={lobby} defaultPlayerName={defaultPlayerName} isWorking={isWorking} failure={failure} />
     )
   }
 

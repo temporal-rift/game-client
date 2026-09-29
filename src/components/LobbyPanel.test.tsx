@@ -122,16 +122,74 @@ describe('LobbyPanel', () => {
       refresh: vi.fn(),
       dismissError: vi.fn(),
     }
-    render(<LobbyPanel lobby={idle} defaultPlayerName="player-one" invitedLobbyId="lobby-9" />)
-
-    expect(screen.getByText(/invited to lobby lobby-9/i)).toBeInTheDocument()
+    render(<LobbyPanel lobby={idle} defaultPlayerName="player-one" invitedLobbyId={null} />)
 
     await userEvent.click(screen.getByRole('button', { name: /create game/i }))
     expect(create).toHaveBeenCalledWith('player-one')
 
+    expect(screen.getByRole('button', { name: /join game/i })).toBeDisabled()
     await userEvent.type(screen.getByLabelText(/invitation link or lobby reference/i), 'lobby-9')
     await userEvent.click(screen.getByRole('button', { name: /join game/i }))
     expect(join).toHaveBeenCalledWith('lobby-9', 'player-one')
+  })
+
+  it('starts every name input empty and gates create and join without a display name', async () => {
+    const idle = session({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, isHost: false })
+    render(<LobbyPanel lobby={idle} defaultPlayerName="" invitedLobbyId={null} />)
+
+    expect(screen.getByLabelText('Player name for creating')).toHaveValue('')
+    expect(screen.getByLabelText('Player name for joining')).toHaveValue('')
+    expect(screen.getByRole('button', { name: /create game/i })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText(/invitation link or lobby reference/i), 'lobby-9')
+    expect(screen.getByRole('button', { name: /join game/i })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText('Player name for creating'), 'juanito')
+    expect(screen.getByRole('button', { name: /create game/i })).toBeEnabled()
+  })
+
+  it('offers only a name and a join for the invited lobby to a non-member', async () => {
+    const join = vi.fn()
+    const idle = session({ phase: { kind: 'idle' }, lobby: null, ownPlayerId: null, isHost: false }, { join })
+    render(
+      <MemoryRouter>
+        <LobbyPanel lobby={idle} defaultPlayerName="juanito" invitedLobbyId="lobby-9" />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('region', { name: 'Lobby invitation' })).toHaveTextContent(/lobby-9/)
+    expect(screen.queryByLabelText(/invitation link or lobby reference/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create game/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Player name')).toHaveValue('juanito')
+    expect(screen.getByRole('link', { name: /different game/i })).toHaveAttribute('href', '/lobby')
+
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }))
+    expect(join).toHaveBeenCalledWith('lobby-9', 'juanito')
+  })
+
+  it('keeps the invitation view and shows a rejected invitation join', () => {
+    const rejected = session({
+      phase: { kind: 'failed', message: 'This lobby is full (5 players maximum).', code: '422-01' },
+      lobby: null,
+      ownPlayerId: null,
+      isHost: false,
+    })
+    render(
+      <MemoryRouter>
+        <LobbyPanel lobby={rejected} defaultPlayerName="" invitedLobbyId="lobby-9" />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/full.*5 players/i)
+    expect(screen.getByRole('region', { name: 'Lobby invitation' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /join game/i })).toBeDisabled()
+  })
+
+  it('shows a member their lobby instead of its invitation', () => {
+    render(<LobbyPanel lobby={session()} defaultPlayerName="host-one" invitedLobbyId="lobby-1" />)
+
+    expect(screen.getByRole('region', { name: 'Game lobby' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Lobby invitation' })).not.toBeInTheDocument()
   })
 
   it('announces the started game and links to its page', () => {

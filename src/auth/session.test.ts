@@ -27,10 +27,15 @@ describe('identityFromUser', () => {
     })
   })
 
-  it('prefers username over email over name', () => {
-    expect(identityFromUser({ sub: 's', email: 'a@b.c', name: 'n' })?.displayName).toBe('a@b.c')
-    expect(identityFromUser({ sub: 's', name: 'n' })?.displayName).toBe('n')
+  it('prefers username over name', () => {
+    expect(identityFromUser({ sub: 's', preferred_username: 'u', name: 'n' })?.displayName).toBe('u')
+    expect(identityFromUser({ sub: 's', preferred_username: '  ', name: 'n' })?.displayName).toBe('n')
     expect(identityFromUser({ sub: 's' })?.displayName).toBeNull()
+  })
+
+  it('never uses the email claim as a display name', () => {
+    const profile = { sub: 's', email: 'a@b.c' }
+    expect(identityFromUser(profile)?.displayName).toBeNull()
   })
 
   it('rejects users without a subject instead of fabricating identity', () => {
