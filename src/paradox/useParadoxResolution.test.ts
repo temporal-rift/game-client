@@ -9,6 +9,7 @@ import { useParadoxResolution } from './useParadoxResolution'
 
 const GAME = uuid('game-1')
 const OFFER = uuid('offer-1')
+const NEXT_OFFER = uuid('offer-2')
 const EVENT = uuid('event-1')
 const OUTCOME = uuid('outcome-1')
 
@@ -32,6 +33,14 @@ function paradoxState(overrides: Partial<GameStateView> = {}): GameStateView {
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 function server(onSubmit: () => Promise<Response>) {
@@ -89,5 +98,53 @@ describe('useParadoxResolution', () => {
     expect(result.current.submitPhase).toMatchObject({ kind: 'rejected', code: '422-10' })
     expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: OFFER, targetEventId: EVENT, targetOutcomeId: OUTCOME })
     expect(fetchFn.mock.calls.map(([input]) => String(input))).toEqual([`https://api.example.test/api/v1/games/${GAME}/eras/2/paradox-resolution/actions`])
+  })
+
+  it.each(['success', 'error'] as const)('ignores a late %s refresh after a later resolution phase opens', async (completion) => {
+    const fetchFn = server(async () => {
+      if (completion === 'error') throw new TypeError('response lost')
+      return json({})
+    })
+    const refresh = deferred<GameStateView | null>()
+    const firstPhase = createGameStateSession({ state: paradoxState(), refresh: () => refresh.promise })
+    const laterPhase = createGameStateSession({
+      state: paradoxState({
+        revision: 3,
+        eraNumber: 3,
+        myEligibleResolutionCards: [{ cardInstanceId: NEXT_OFFER, cardType: 'STABILIZE', grade: 'I' }],
+      }),
+    })
+    const { result, rerender } = renderHookWithQueries(
+      ({ gameState }) => useParadoxResolution({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
+      { initialProps: { gameState: firstPhase } },
+    )
+
+    await waitFor(() => expect(result.current.view.kind).toBe('open'))
+    act(() => result.current.selectCard(OFFER))
+    act(() => result.current.selectTarget(EVENT, OUTCOME))
+    act(() => {
+      void result.current.confirm()
+    })
+    await waitFor(() => expect(firstPhase.refresh).toHaveBeenCalledTimes(1))
+
+    rerender({ gameState: laterPhase })
+    act(() => result.current.selectCard(NEXT_OFFER))
+    act(() => result.current.selectTarget(EVENT, OUTCOME))
+    const nextDraft = { kind: 'card', cardInstanceId: NEXT_OFFER, targetEventId: EVENT, targetOutcomeId: OUTCOME } as const
+    expect(result.current.draft).toEqual(nextDraft)
+
+    await act(async () => {
+      refresh.resolve(
+        paradoxState({
+          revision: 2,
+          mySubmissions: [{ eraNumber: 2, roundNumber: null, window: 'PARADOX_RESOLUTION', choice: 'CARD', status: 'ACCEPTED' }],
+        }),
+      )
+      await refresh.promise
+    })
+
+    expect(result.current.view).toMatchObject({ kind: 'open', eraNumber: 3 })
+    expect(result.current.draft).toEqual(nextDraft)
+    expect(result.current.submitPhase).toEqual({ kind: 'idle' })
   })
 })

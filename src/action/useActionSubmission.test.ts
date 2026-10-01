@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedFetchFn } from '../api/projection'
 import type { GameStateView } from '../api/projection'
@@ -11,6 +11,7 @@ import { useActionSubmission } from './useActionSubmission'
 const GAME = uuid('game-1')
 const ME = uuid('me')
 const CARD = uuid('card-1')
+const NEXT_CARD = uuid('card-2')
 const EVT = uuid('evt-1')
 const OUT = uuid('out-1')
 
@@ -36,6 +37,14 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 function problemResponse(status: number, code: string): Response {
   return new Response(JSON.stringify({ code, detail: 'rejected' }), { status, headers: { 'Content-Type': 'application/problem+json' } })
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 const BASE_OPTIONS = { apiBaseUrl: 'https://api.example.test', ownPlayerId: ME }
@@ -144,5 +153,45 @@ describe('useActionSubmission', () => {
       expect(result.current.view.hasSubmitted).toBe(true)
     }
     expect(result.current.draft).toEqual({ kind: 'none' })
+  })
+
+  it.each(['success', 'error'] as const)('ignores a late %s refresh after the next round opens', async (completion) => {
+    const fetchFn = vi.fn(async () => {
+      if (completion === 'error') throw new TypeError('network down')
+      return jsonResponse({ gameId: GAME, eraNumber: 2, roundNumber: 1, playerId: ME, status: 'SUBMITTED', roundClosed: false })
+    }) as unknown as AuthenticatedFetchFn
+    const refresh = deferred<GameStateView | null>()
+    const firstRound = createGameStateSession({ state: stateBody(), refresh: () => refresh.promise })
+    const laterRound = createGameStateSession({
+      state: stateBody({
+        phase: 'ACTION_ROUND_2',
+        roundNumber: 2,
+        myHand: [{ cardInstanceId: NEXT_CARD, cardType: 'PUSH', grade: 'II', isPlayableThisRound: true }],
+      }),
+    })
+    const { result, rerender } = renderHookWithQueries(
+      ({ gameState }) => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }),
+      { initialProps: { gameState: firstRound } },
+    )
+
+    act(() => result.current.selectCard(CARD, { targetEventId: EVT, targetOutcomeId: OUT }))
+    act(() => {
+      void result.current.confirm()
+    })
+    await waitFor(() => expect(firstRound.refresh).toHaveBeenCalledTimes(1))
+
+    rerender({ gameState: laterRound })
+    act(() => result.current.selectCard(NEXT_CARD, {}))
+    const nextDraft = { kind: 'card', cardInstanceId: NEXT_CARD, coordinates: {} } as const
+    expect(result.current.draft).toEqual(nextDraft)
+
+    await act(async () => {
+      refresh.resolve(stateBody({ revision: 2, mySubmissions: [{ eraNumber: 2, roundNumber: 1, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }] }))
+      await refresh.promise
+    })
+
+    expect(result.current.view).toMatchObject({ kind: 'open', roundNumber: 2 })
+    expect(result.current.draft).toEqual(nextDraft)
+    expect(result.current.submitPhase).toEqual({ kind: 'idle' })
   })
 })
