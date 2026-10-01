@@ -164,10 +164,10 @@ const EVENT_SCENES: Record<EventArtwork, () => React.JSX.Element> = {
 }
 
 /** Decorative event illustration; the adjacent title and outcome controls carry the meaning. */
-export function EventSceneArt({ artwork }: { readonly artwork: EventArtwork }) {
+export function EventSceneArt({ artwork, className = 'event-scene-art', catalogId }: { readonly artwork: EventArtwork; readonly className?: string; readonly catalogId?: string }) {
   const Scene = EVENT_SCENES[artwork]
   return (
-    <svg viewBox="0 0 340 155" className="event-scene-art" aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 340 155" className={className} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
       <Scene />
     </svg>
   )
@@ -231,10 +231,10 @@ const CARD_GLYPHS: Record<CardKind, () => React.JSX.Element> = {
 }
 
 /** Decorative card-face glyph; the card name, grade and description carry the meaning. */
-export function CardGlyph({ kind }: { readonly kind: CardKind }) {
+export function CardGlyph({ kind, className, catalogId }: { readonly kind: CardKind; readonly className?: string; readonly catalogId?: string }) {
   const Glyph = CARD_GLYPHS[kind]
   return (
-    <svg viewBox="0 0 100 100" className={`card-glyph card-glyph-${kind}`} aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 100 100" className={`card-glyph card-glyph-${kind}${className ? ` ${className}` : ''}`} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
       <g fill="none" stroke="currentColor" strokeWidth="2">
         <Glyph />
       </g>
@@ -242,9 +242,9 @@ export function CardGlyph({ kind }: { readonly kind: CardKind }) {
   )
 }
 
-export function FactionEmblem() {
+export function FactionEmblem({ className, catalogId }: { readonly className?: string; readonly catalogId?: string } = {}) {
   return (
-    <svg viewBox="0 0 100 100" className="faction-emblem" aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 100 100" className={`faction-emblem${className ? ` ${className}` : ''}`} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
       <g fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="50" cy="50" r="30" />
         <path d="M10 50q40-33 80 0-40 33-80 0Z" />
