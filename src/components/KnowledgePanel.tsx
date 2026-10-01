@@ -1,4 +1,4 @@
-import type { KnowledgeView, RevealedKnowledgeEntry } from '../knowledge/knowledgeView'
+import type { KnowledgeView, RevealedKnowledgeEntry, TraceInfluencer } from '../knowledge/knowledgeView'
 import { BandLabel } from './BandLabel'
 import { KnowledgeScopeIcon } from './icons'
 
@@ -25,6 +25,14 @@ function revealedKnowledgeKey(entry: RevealedKnowledgeEntry): string {
   }
 }
 
+function traceInfluencerLabel(influencer: TraceInfluencer): string {
+  return influencer.usedMimic ? `${influencer.playerName} (Revisionist via Mimic)` : influencer.playerName
+}
+
+function traceDetail(influencers: readonly TraceInfluencer[]): string {
+  return influencers.length > 0 ? `Influenced by ${influencers.map(traceInfluencerLabel).join(', ')}` : 'No player influenced this event.'
+}
+
 function revealedKnowledgeLabel(entry: RevealedKnowledgeEntry): { readonly label: string; readonly detail: string } {
   switch (entry.kind) {
     case 'PROBABILITY':
@@ -43,10 +51,7 @@ function revealedKnowledgeLabel(entry: RevealedKnowledgeEntry): { readonly label
     case 'INFLUENCE':
       return {
         label: `Trace · ${entry.eventTitle}`,
-        detail:
-          entry.influencers.length > 0
-            ? `Influenced by ${entry.influencers.map((influencer) => (influencer.usedMimic ? `${influencer.playerName} (Revisionist via Mimic)` : influencer.playerName)).join(', ')}`
-            : 'No player influenced this event.',
+        detail: traceDetail(entry.influencers),
       }
     case 'HAND_CARD':
       return {
