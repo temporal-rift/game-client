@@ -1,4 +1,4 @@
-import { endReasonLabel, type ResultsView, winTypeLabel } from '../results/resultsView'
+import { endReasonLabel, scoreReasonLabel, type ResultsView, winTypeLabel } from '../results/resultsView'
 
 interface ResultsPanelProps {
   readonly view: ResultsView
@@ -108,7 +108,7 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
                 {explanation.pointsDelta >= 0 ? `+${explanation.pointsDelta}` : explanation.pointsDelta} points
               </span>{' '}
               {explanation.reason ? (
-                <span>· {explanation.reason}</span>
+                <span>· {scoreReasonLabel(explanation.reason)}</span>
               ) : (
                 <span>· reason withheld to protect hidden information</span>
               )}

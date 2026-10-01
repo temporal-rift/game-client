@@ -384,6 +384,10 @@ export type RevealedIntel = {
     eventId: string;
     outcomes?: Array<RevealedProbabilityOutcome>;
     influencerPlayerIds?: Array<string>;
+    /**
+     * The influencers, also listed in influencerPlayerIds, whose influence on the traced event was a Revisionist Mimic. Only a Revisionist can play Mimic. Always present for an INFLUENCE entry; an empty list means no Mimic influencer.
+     */
+    mimicInfluencerPlayerIds?: Array<string>;
     targetPlayerId?: string;
     revealedCards?: Array<RevealedHandCard>;
 };

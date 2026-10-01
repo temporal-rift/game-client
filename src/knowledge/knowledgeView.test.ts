@@ -89,14 +89,14 @@ describe('selectKnowledgeView', () => {
     ])
   })
 
-  it('parses own earned influence knowledge with resolved player names', () => {
+  it('marks only Mimic influencers as revealed Revisionists in own earned Trace knowledge', () => {
     const state = baseState(
       {},
       {
         activeEvents: ACTIVE_EVENTS,
         players: PLAYERS,
         myRevealedIntel: [
-          { kind: 'INFLUENCE', observedInRound: 2, eventId: 'event-1', influencerPlayerIds: ['p-1'] },
+          { kind: 'INFLUENCE', observedInRound: 2, eventId: 'event-1', influencerPlayerIds: ['p-1', 'p-2'], mimicInfluencerPlayerIds: ['p-1'] },
         ],
       },
     )
@@ -109,7 +109,34 @@ describe('selectKnowledgeView', () => {
         eventTitle: 'The Delegate Arrives',
         observedInRound: 2,
         expiresAtEraEnd: 2,
-        influencerNames: ['Nora'],
+        influencers: [
+          { playerId: 'p-1', playerName: 'Nora', usedMimic: true },
+          { playerId: 'p-2', playerName: 'Eli', usedMimic: false },
+        ],
+      },
+    ])
+  })
+
+  it('retains an empty Trace without inventing an influencer or Mimic attribution', () => {
+    const state = baseState(
+      {},
+      {
+        activeEvents: ACTIVE_EVENTS,
+        myRevealedIntel: [
+          { kind: 'INFLUENCE', observedInRound: 2, eventId: 'event-1', influencerPlayerIds: [], mimicInfluencerPlayerIds: [] },
+        ],
+      },
+    )
+    const view = selectKnowledgeView(state)
+    if (view.kind !== 'ready') throw new Error('expected ready view')
+    expect(view.revealedKnowledge).toEqual([
+      {
+        kind: 'INFLUENCE',
+        eventId: 'event-1',
+        eventTitle: 'The Delegate Arrives',
+        observedInRound: 2,
+        expiresAtEraEnd: 2,
+        influencers: [],
       },
     ])
   })

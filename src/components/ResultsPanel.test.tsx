@@ -107,4 +107,15 @@ describe('ResultsPanel', () => {
 
     expect(screen.getByRole('list', { name: 'Winners' }).textContent).toContain('last player standing — everyone else left')
   })
+
+  it('uses player-facing text for the Mimic concealment score reason', () => {
+    const view: Extract<ResultsView, { kind: 'complete' }> = {
+      ...complete,
+      explanations: [{ playerId: 'p-1', playerName: 'Nora', eraNumber: 3, pointsDelta: 6, reason: 'MIMIC_NEVER_TRACED', isOwn: false }],
+    }
+    render(<ResultsPanel view={view} ownPlayerId="p-3" error={null} isRefreshing={false} onRefresh={() => {}} />)
+
+    expect(screen.getByText(/Mimic was never traced/)).toBeInTheDocument()
+    expect(screen.queryByText('MIMIC_NEVER_TRACED')).not.toBeInTheDocument()
+  })
 })

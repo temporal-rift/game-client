@@ -36,6 +36,15 @@ export function winTypeLabel(winType: WinType | null): string | null {
   }
 }
 
+export function scoreReasonLabel(reason: string): string {
+  switch (reason) {
+    case 'MIMIC_NEVER_TRACED':
+      return 'Mimic was never traced'
+    default:
+      return reason
+  }
+}
+
 export interface ResultsPlayerEntry {
   readonly playerId: string
   readonly playerName: string | null
