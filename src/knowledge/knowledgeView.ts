@@ -14,9 +14,7 @@ import { isCardType, type CardGrade, type CardType } from '../api/action'
 import type { ActiveEvent, ExposeFact, GameStateView, PublicBandEvent, PublicDeclaration, RevealedIntel } from '../api/projection'
 import { nameFor, playerNameLookup } from '../game/playerNames'
 import { cardDisplayName, specialDisplayName } from '../action/actionRules'
-import type { ProbabilityBand } from '../types/playerView'
-
-export type { ProbabilityBand }
+import { toProbabilityBand, type ProbabilityBand } from '../game/publicBands'
 
 export interface BandOutcomeEntry {
   readonly outcomeId: string
@@ -137,7 +135,7 @@ function bandEntries(bands: readonly PublicBandEvent[], eventLookup: ReadonlyMap
     outcomes: outcomes.map(({ outcomeId, band }) => ({
       outcomeId,
       outcomeDescription: outcomeDescriptionFor(eventId, outcomeId, eventLookup),
-      band: band.toLowerCase() as Lowercase<typeof band>,
+      band: toProbabilityBand(band),
     })),
   }))
 }

@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { useActionSubmission } from '../action/useActionSubmission'
+import { toBoardView } from '../board/boardView'
 import { ActionPanel } from '../components/ActionPanel'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
@@ -8,7 +10,6 @@ import { KnowledgePanel } from '../components/KnowledgePanel'
 import { ParadoxResolutionPanel } from '../components/ParadoxResolutionPanel'
 import { ResultsPanel } from '../components/ResultsPanel'
 import { RoundSummaryPanel } from '../components/RoundSummaryPanel'
-import { sampleFixturePlayerView } from '../fixtures/playerView'
 import { useGameState } from '../game/useGameState'
 import { useHandSelection } from '../hand/useHandSelection'
 import { useKnowledge } from '../knowledge/useKnowledge'
@@ -41,6 +42,7 @@ function GamePage({ gameId }: { readonly gameId: string }) {
   const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState })
   const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
+  const board = useMemo(() => (gameState.state ? toBoardView(gameState.state, ownPlayerId) : null), [gameState.state, ownPlayerId])
 
   return (
     <div className="game-page">
@@ -59,6 +61,7 @@ function GamePage({ gameId }: { readonly gameId: string }) {
           {gameState.state?.myFaction && <FactionIllustration faction={gameState.state.myFaction} skin={config.illustrationSkin} />}
         </span>
       </nav>
+      <AppShell view={board} status={gameState.status} onRetry={() => void gameState.refresh()} illustrationSkin={config.illustrationSkin} />
       <HandSelectionPanel
         illustrationSkin={config.illustrationSkin}
         view={handSelection.view}
@@ -110,7 +113,6 @@ function GamePage({ gameId }: { readonly gameId: string }) {
         isRefreshing={results.isRefreshing}
         onRefresh={() => void results.refresh()}
       />
-      <AppShell key={perspectiveKey} playerView={sampleFixturePlayerView} isSampleData illustrationSkin={config.illustrationSkin} />
     </div>
   )
 }

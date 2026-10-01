@@ -7,6 +7,10 @@ export function deadlineRemainingSeconds(deadline: string | null | undefined, no
   return Math.max(0, Math.ceil((expiresAt - now) / 1000))
 }
 
+export function formatCountdown(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 export function useDeadlineCountdown(deadline: string | null | undefined): number | null {
   const [now, setNow] = useState(() => Date.now())
 

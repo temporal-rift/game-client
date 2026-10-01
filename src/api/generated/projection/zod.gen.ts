@@ -288,6 +288,7 @@ export const zRevealedIntel = z.object({
     eventId: z.uuid(),
     outcomes: z.array(zRevealedProbabilityOutcome).optional(),
     influencerPlayerIds: z.array(z.uuid()).optional(),
+    mimicInfluencerPlayerIds: z.array(z.uuid()).optional(),
     targetPlayerId: z.uuid().optional(),
     revealedCards: z.array(zRevealedHandCard).optional()
 });
@@ -403,6 +404,7 @@ export const zSpecialBudget = z.object({
 export const zPlayerGameStateResponse = z.object({
     gameId: z.uuid(),
     eraNumber: z.int(),
+    winScoreThreshold: z.int().gte(1),
     revision: z.int().gte(0).optional(),
     lastUpdatedAt: z.iso.datetime({ offset: true }).optional(),
     phase: zPhase,

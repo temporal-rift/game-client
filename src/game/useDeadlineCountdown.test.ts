@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { deadlineRemainingSeconds, useDeadlineCountdown } from './useDeadlineCountdown'
+import { deadlineRemainingSeconds, formatCountdown, useDeadlineCountdown } from './useDeadlineCountdown'
 
 describe('deadlineRemainingSeconds', () => {
   it('converts a projected expiry timestamp to remaining seconds', () => {
@@ -11,6 +11,14 @@ describe('deadlineRemainingSeconds', () => {
     expect(deadlineRemainingSeconds(null)).toBeNull()
     expect(deadlineRemainingSeconds('not-a-date')).toBeNull()
     expect(deadlineRemainingSeconds('2026-01-01T00:00:00Z', Date.parse('2026-01-01T00:00:01Z'))).toBe(0)
+  })
+})
+
+describe('formatCountdown', () => {
+  it('formats remaining seconds as minutes and zero-padded seconds', () => {
+    expect(formatCountdown(90)).toBe('1:30')
+    expect(formatCountdown(605)).toBe('10:05')
+    expect(formatCountdown(0)).toBe('0:00')
   })
 })
 

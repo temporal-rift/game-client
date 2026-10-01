@@ -1,5 +1,14 @@
 import { useId } from 'react'
-import type { CardKind, EventArtwork, EventBoardEntry, KnowledgeItem } from '../types/playerView'
+import type { CardGrade } from '../api/action'
+import type { ActiveEvent } from '../api/projection'
+
+/** Hand-drawn board glyphs; other card types use the catalog illustration. */
+export type CardKind = 'push' | 'suppress' | 'scan' | 'nullify' | 'collide'
+
+/** Hand-drawn board event scenes; other events use the catalog scenes. */
+export type EventArtwork = 'delegate' | 'reactor' | 'pact'
+
+export type KnowledgeScope = 'public' | 'private'
 
 const ICON_PROPS = {
   width: 18,
@@ -21,16 +30,7 @@ export function RiftMark() {
   )
 }
 
-function ResolvedIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function InProgressIcon() {
+function FreshIcon() {
   return (
     <svg {...ICON_PROPS}>
       <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -39,23 +39,32 @@ function InProgressIcon() {
   )
 }
 
-function UpcomingIcon() {
+function CascadedIcon() {
   return (
     <svg {...ICON_PROPS}>
-      <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M5 6h9a4 4 0 0 1 0 8H7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="m10 11-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
 
-const STATUS_ICONS: Record<EventBoardEntry['status'], () => React.JSX.Element> = {
-  resolved: ResolvedIcon,
-  'in-progress': InProgressIcon,
-  upcoming: UpcomingIcon,
+function StalledIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 8.5v7M14 8.5v7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
 }
 
-export function EventStatusIcon({ status }: { readonly status: EventBoardEntry['status'] }) {
-  const Icon = STATUS_ICONS[status]
+const CARRY_OVER_ICONS: Record<ActiveEvent['carryOverState'], () => React.JSX.Element> = {
+  FRESH: FreshIcon,
+  CASCADED: CascadedIcon,
+  STALLED: StalledIcon,
+}
+
+export function CarryOverIcon({ state }: { readonly state: ActiveEvent['carryOverState'] }) {
+  const Icon = CARRY_OVER_ICONS[state]
   return <Icon />
 }
 
@@ -77,12 +86,12 @@ function PublicIcon() {
   )
 }
 
-const SCOPE_ICONS: Record<KnowledgeItem['scope'], () => React.JSX.Element> = {
+const SCOPE_ICONS: Record<KnowledgeScope, () => React.JSX.Element> = {
   private: PrivateIcon,
   public: PublicIcon,
 }
 
-export function KnowledgeScopeIcon({ scope }: { readonly scope: KnowledgeItem['scope'] }) {
+export function KnowledgeScopeIcon({ scope }: { readonly scope: KnowledgeScope }) {
   const Icon = SCOPE_ICONS[scope]
   return <Icon />
 }
@@ -257,20 +266,10 @@ export function FactionEmblem({ className, catalogId }: { readonly className?: s
   )
 }
 
-const ROMAN_GRADES = ['0', 'I', 'II', 'III', 'IV', 'V'] as const
-
-function normalizeGrade(grade: number): number {
-  if (!Number.isFinite(grade)) {
-    return 0
-  }
-  return Math.max(0, Math.min(Math.round(grade), 5))
-}
-
-export function GradeBadge({ grade }: { readonly grade: number }) {
-  const normalizedGrade = normalizeGrade(grade)
+export function GradeBadge({ grade }: { readonly grade: CardGrade }) {
   return (
-    <span className="grade-badge" aria-label={`Grade ${normalizedGrade}`}>
-      {ROMAN_GRADES[normalizedGrade]}
+    <span className="grade-badge" aria-label={`Grade ${grade}`}>
+      {grade}
     </span>
   )
 }

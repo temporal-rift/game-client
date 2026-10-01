@@ -1,54 +1,38 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
-import type { HandCard } from '../types/playerView'
+import { describe, expect, it } from 'vitest'
+import { toBoardView } from '../board/boardView'
+import { baseGameState } from '../game/gameStateFixtures'
 import { PrivateHand } from './PrivateHand'
 
-const hand: readonly HandCard[] = [
-  { id: 'card-1', name: 'Push', grade: 2, description: 'Shift an outcome.', kind: 'push', isAvailable: true },
-  { id: 'card-2', name: 'Scan', grade: 1, description: 'Earn intel.', kind: 'scan', isAvailable: false },
-]
+const hand = toBoardView(
+  baseGameState({
+    myHand: [
+      { cardInstanceId: 'card-1', cardType: 'PUSH', grade: 'II', isPlayableThisRound: true },
+      { cardInstanceId: 'card-2', cardType: 'SCAN', grade: 'I', isPlayableThisRound: false },
+    ],
+  }),
+  null,
+).hand
 
 describe('PrivateHand', () => {
-  it('renders the exact card name and grade as readable text', () => {
-    const { container } = render(<PrivateHand hand={hand} selectedCardId={null} onSelectCard={vi.fn()} />)
+  it('renders each real card with its name, grade and artwork', () => {
+    const { container } = render(<PrivateHand hand={hand} />)
 
     expect(screen.getByText('Push')).toBeInTheDocument()
-    expect(screen.getByLabelText('Grade 2')).toBeInTheDocument()
+    expect(screen.getByLabelText('Grade II')).toBeInTheDocument()
     expect(container.querySelector('.card-glyph-push')).toBeInTheDocument()
   })
 
-  it('selects an available card by pointer', async () => {
-    const onSelectCard = vi.fn()
-    render(<PrivateHand hand={hand} selectedCardId={null} onSelectCard={onSelectCard} />)
+  it('states round playability in text, not color alone', () => {
+    render(<PrivateHand hand={hand} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /Push/ }))
-
-    expect(onSelectCard).toHaveBeenCalledWith('card-1')
+    expect(screen.getByText('Playable')).toBeInTheDocument()
+    expect(screen.getByText('Not playable this round')).toBeInTheDocument()
   })
 
-  it('selects an available card by keyboard', async () => {
-    const onSelectCard = vi.fn()
-    render(<PrivateHand hand={hand} selectedCardId={null} onSelectCard={onSelectCard} />)
+  it('offers no selection controls until hand interaction moves onto the board', () => {
+    render(<PrivateHand hand={hand} />)
 
-    const card = screen.getByRole('button', { name: /Push/ })
-    card.focus()
-    await userEvent.keyboard('{Enter}')
-
-    expect(onSelectCard).toHaveBeenCalledWith('card-1')
-  })
-
-  it('marks the selected card without relying on color alone', () => {
-    render(<PrivateHand hand={hand} selectedCardId="card-1" onSelectCard={vi.fn()} />)
-
-    const card = screen.getByRole('button', { name: /Push/ })
-    expect(card).toHaveAttribute('aria-pressed', 'true')
-    expect(card).toHaveTextContent('Selected')
-  })
-
-  it('disables an unavailable card', () => {
-    render(<PrivateHand hand={hand} selectedCardId={null} onSelectCard={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: /Scan/ })).toBeDisabled()
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 })

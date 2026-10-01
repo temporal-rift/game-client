@@ -2,7 +2,7 @@ import type { ParadoxDraft, ParadoxSubmitPhase } from '../paradox/useParadoxReso
 import type { ParadoxResolutionView } from '../paradox/paradoxView'
 import { CardIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
-import { useDeadlineCountdown } from '../game/useDeadlineCountdown'
+import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
 
 interface ParadoxResolutionPanelProps {
   readonly view: ParadoxResolutionView
@@ -18,8 +18,7 @@ interface ParadoxResolutionPanelProps {
 
 function deadlineLabel(seconds: number | null): string {
   if (seconds === null) return 'Deadline is being refreshed.'
-  const minutes = Math.floor(seconds / 60)
-  return `${minutes}:${String(seconds % 60).padStart(2, '0')} remaining`
+  return `${formatCountdown(seconds)} remaining`
 }
 
 function progressLabel(submittedCount: number | null, totalPlayers: number | null): string {

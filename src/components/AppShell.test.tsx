@@ -1,157 +1,124 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
-import { sampleFixturePlayerView } from '../fixtures/playerView'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { GameStateView } from '../api/projection'
+import { toBoardView } from '../board/boardView'
+import { baseGameState } from '../game/gameStateFixtures'
+import type { GameStateStatus } from '../game/useGameState'
 import { AppShell } from './AppShell'
 
+const READY: GameStateStatus = { kind: 'ready' }
+
+function liveState(overrides: Partial<GameStateView> = {}): GameStateView {
+  return baseGameState({
+    eraNumber: 1,
+    phase: 'ACTION_ROUND_2',
+    roundNumber: 2,
+    myFaction: 'PROPHETS',
+    myScore: 8,
+    winScoreThreshold: 20,
+    players: [
+      { playerId: 'p-me', playerName: 'Ana', score: 8, isConnected: true, faction: null },
+      { playerId: 'p-bo', playerName: 'Bo', score: 6, isConnected: true, faction: null },
+      { playerId: 'p-cy', playerName: 'Cy', score: 5, isConnected: true, faction: null },
+    ],
+    activeEvents: [
+      {
+        eventId: 'evt-1',
+        title: 'Reactor ignition',
+        carryOverState: 'FRESH',
+        outcomes: [{ outcomeId: 'out-1', description: 'Ignition succeeds', initialProbability: 100 }],
+      },
+    ],
+    publicBands: [{ eventId: 'evt-1', observedInRound: 2, outcomes: [{ outcomeId: 'out-1', band: 'MEDIUM' }] }],
+    phaseContext: {
+      declarationOpen: false,
+      paradoxOpen: false,
+      actionRoundProgress: { submittedCount: 1, totalPlayers: 3, pendingPlayerIds: ['p-me', 'p-bo'] },
+    },
+    ...overrides,
+  })
+}
+
+function renderBoard(state: GameStateView | null, status: GameStateStatus = READY, onRetry = vi.fn()) {
+  const view = state ? toBoardView(state, 'p-me') : null
+  return { onRetry, ...render(<AppShell view={view} status={status} onRetry={onRetry} />) }
+}
+
 describe('AppShell', () => {
-  it('renders the tabletop regions and player strip', () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  afterEach(() => vi.useRealTimers())
 
-    expect(screen.getByRole('heading', { name: 'The active futures' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Your hand' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Your faction' })).toBeInTheDocument()
-    expect(screen.getByRole('complementary', { name: 'Action confirmation' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Player scores' })).toBeInTheDocument()
+  it('shows the live era, round, events, bands, roster names and own faction without a sample notice', () => {
+    renderBoard(liveState())
+
+    expect(screen.getByText('Era 1')).toBeInTheDocument()
+    expect(screen.getByText('Round 2 of 3')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reactor ignition' })).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Reactor ignition outcomes' })).getByText('Medium')).toBeInTheDocument()
+    const players = screen.getByRole('region', { name: 'Player scores' })
+    expect(within(players).getByText('Ana')).toBeInTheDocument()
+    expect(within(players).getByText('Bo')).toBeInTheDocument()
+    expect(within(players).getByText('Cy')).toBeInTheDocument()
+    expect(screen.getByText('You · Prophets')).toBeInTheDocument()
+    expect(screen.queryByText(/sample/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/fixture/i)).not.toBeInTheDocument()
   })
 
-  it('labels fixture state as sample data', () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('shows another player’s unrevealed faction as hidden', () => {
+    renderBoard(liveState())
 
-    expect(screen.getByRole('status')).toHaveTextContent('Sample board')
+    const players = screen.getByRole('region', { name: 'Player scores' })
+    expect(within(players).getAllByText('Faction hidden')).toHaveLength(2)
+    expect(within(players).queryByText(/Prophets/)).toHaveTextContent('You · Prophets')
   })
 
-  it('shows the current phase and deadline in the compact header', () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('shows round progress and that the current player has not submitted', () => {
+    renderBoard(liveState())
 
-    expect(screen.getByText('Round 3 of 3')).toBeInTheDocument()
-    expect(screen.getByText('Decision window')).toBeInTheDocument()
-    expect(screen.getByText('00:43')).toBeInTheDocument()
+    expect(screen.getByText('1 / 3 players submitted')).toBeInTheDocument()
+    expect(screen.getByText('You have not submitted')).toBeInTheDocument()
   })
 
-  it('seeds the exact action summary from the recovered selection and disables fixture submission', () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('counts down to the server deadline, stops at zero, and changes phase only with new state', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-10-02T10:00:00Z'))
+    const state = liveState({ deadlines: { actionRoundExpiresAt: '2026-10-02T10:01:30Z' } })
+    const { rerender } = renderBoard(state)
 
-    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
-    expect(within(actionPanel).getByText('Push')).toBeInTheDocument()
-    expect(within(actionPanel).getByText("The Quantum Reactor's First Ignition")).toBeInTheDocument()
-    expect(within(actionPanel).getByText('Ignition succeeds')).toBeInTheDocument()
-    expect(within(actionPanel).getByRole('button', { name: 'Confirm action' })).toBeDisabled()
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('1:30')
+    act(() => vi.advanceTimersByTime(30_000))
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('1:00')
+    act(() => vi.advanceTimersByTime(120_000))
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('0:00')
+    expect(screen.getByText('Action round')).toBeInTheDocument()
+
+    const next = liveState({ phase: 'PARADOX_RESOLUTION', roundNumber: 2, deadlines: {} })
+    rerender(<AppShell view={toBoardView(next, 'p-me')} status={READY} onRetry={vi.fn()} />)
+    expect(screen.getByText('Paradox resolution')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Time remaining')).not.toBeInTheDocument()
   })
 
-  it('updates the exact card and outcome summary when selection changes by pointer', async () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('shows a loading state and no board content before the first state arrives', () => {
+    renderBoard(null, { kind: 'loading' })
 
-    await userEvent.click(screen.getByRole('button', { name: /Suppress/ }))
-    await userEvent.click(screen.getByRole('button', { name: /A splinter agreement forms/ }))
-
-    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
-    expect(within(actionPanel).getByText('Suppress')).toBeInTheDocument()
-    expect(within(actionPanel).getByText('A splinter agreement forms')).toBeInTheDocument()
+    expect(screen.getByText('Loading the game…')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Player scores' })).not.toBeInTheDocument()
   })
 
-  it('updates the action summary when selection changes by keyboard', async () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('shows the recoverable error with retry and no board content when the state cannot be loaded', async () => {
+    const { onRetry } = renderBoard(null, { kind: 'failed', message: 'Game not found, or you are not a participant of it.', code: '404-01' })
 
-    const cardButton = screen.getByRole('button', { name: /Suppress/ })
-    cardButton.focus()
-    await userEvent.keyboard('{Enter}')
-
-    expect(cardButton).toHaveAttribute('aria-pressed', 'true')
-    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
-    expect(within(actionPanel).getByText('Suppress')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Game not found, or you are not a participant of it.')
+    expect(screen.queryByRole('heading', { name: 'The active futures' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Player scores' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetry).toHaveBeenCalledOnce()
   })
 
-  it('prompts for selection once the seeded card and outcome are both deselected', async () => {
-    render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
+  it('keeps the last state visible with the error while polls fail', () => {
+    renderBoard(liveState(), { kind: 'stalled', message: 'Could not reach the server.', code: null })
 
-    await userEvent.click(screen.getByRole('button', { name: /^Selected.*Push/s }))
-    await userEvent.click(screen.getByRole('button', { name: /Ignition succeeds/ }))
-
-    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
-  })
-
-  it('cannot select a resolved outcome', () => {
-    const resolvedView = {
-      ...sampleFixturePlayerView,
-      events: sampleFixturePlayerView.events.map((event, index) =>
-        index === 0
-          ? {
-              ...event,
-              status: 'resolved' as const,
-              outcomes: event.outcomes.map((outcome) => ({ ...outcome, isValidTarget: false })),
-            }
-          : event,
-      ),
-    }
-    render(<AppShell playerView={resolvedView} isSampleData />)
-
-    expect(screen.getByRole('button', { name: /Delegate survives/ })).toBeDisabled()
-  })
-
-  it('rehydrates selection from the new pending action when the game changes', () => {
-    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-    const nextGame = {
-      ...sampleFixturePlayerView,
-      gameId: 'fixture-game-2',
-      pendingAction: { cardId: 'card-suppress', targetId: 'evt-3-splinter', confirmLabel: 'Confirm action' },
-    }
-
-    rerender(<AppShell playerView={nextGame} isSampleData />)
-
-    const actionPanel = screen.getByRole('complementary', { name: 'Action confirmation' })
-    expect(within(actionPanel).getByText('Suppress')).toBeInTheDocument()
-    expect(within(actionPanel).getByText('A splinter agreement forms')).toBeInTheDocument()
-  })
-
-  it('clears a selected outcome that becomes illegal after a same-game refresh', () => {
-    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-    const refreshedView = {
-      ...sampleFixturePlayerView,
-      events: sampleFixturePlayerView.events.map((event) => ({
-        ...event,
-        outcomes: event.outcomes.map((outcome) =>
-          outcome.id === 'evt-2-success' ? { ...outcome, isValidTarget: false } : outcome,
-        ),
-      })),
-    }
-
-    rerender(<AppShell playerView={refreshedView} isSampleData />)
-
-    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Ignition succeeds/ })).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  it('clears a selected card that is no longer in hand after a same-game refresh', () => {
-    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-    const refreshedView = {
-      ...sampleFixturePlayerView,
-      hand: sampleFixturePlayerView.hand.filter((card) => card.id !== 'card-push'),
-    }
-
-    rerender(<AppShell playerView={refreshedView} isSampleData />)
-
-    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
-  })
-
-  it('does not silently reselect a target that becomes valid again after invalidation', () => {
-    const { rerender } = render(<AppShell playerView={sampleFixturePlayerView} isSampleData />)
-    const invalidated = {
-      ...sampleFixturePlayerView,
-      events: sampleFixturePlayerView.events.map((event) => ({
-        ...event,
-        outcomes: event.outcomes.map((outcome) =>
-          outcome.id === 'evt-2-success' ? { ...outcome, isValidTarget: false } : outcome,
-        ),
-      })),
-    }
-    rerender(<AppShell playerView={invalidated} isSampleData />)
-    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
-
-    const restored = sampleFixturePlayerView
-    rerender(<AppShell playerView={restored} isSampleData />)
-
-    expect(screen.getByText('Choose an available card and a legal outcome.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Ignition succeeds/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not reach the server.')
+    expect(screen.getByText('Round 2 of 3')).toBeInTheDocument()
   })
 })

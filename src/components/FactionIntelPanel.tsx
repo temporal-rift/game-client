@@ -1,11 +1,18 @@
-import type { FactionIntel } from '../types/playerView'
+import type { BoardFaction, BoardSpecial } from '../board/boardView'
 import { FactionIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
-import { FactionEmblem, KnowledgeScopeIcon } from './icons'
+import { FactionEmblem } from './icons'
 
 interface FactionIntelPanelProps {
-  readonly faction: FactionIntel
+  readonly faction: BoardFaction
   readonly illustrationSkin?: IllustrationSkin
+}
+
+function remainingUsesLabel({ remainingThisEra, remainingThisGame }: BoardSpecial): string | null {
+  if (remainingThisEra === null && remainingThisGame === null) {
+    return null
+  }
+  return `${remainingThisEra ?? '–'} this era · ${remainingThisGame ?? '–'} this game`
 }
 
 export function FactionIntelPanel({ faction, illustrationSkin = 'board' }: FactionIntelPanelProps) {
@@ -15,36 +22,32 @@ export function FactionIntelPanel({ faction, illustrationSkin = 'board' }: Facti
         <h2 id="faction-intel-heading" className="panel-eyebrow">
           Your faction
         </h2>
-        {illustrationSkin === 'board' ? <FactionEmblem /> : <FactionIllustration faction={faction.factionName} skin={illustrationSkin} />}
-        <p className="faction-name">{faction.factionName}</p>
-        <p className="faction-description">{faction.description}</p>
+        {faction.faction && illustrationSkin !== 'board' ? (
+          <FactionIllustration faction={faction.faction} skin={illustrationSkin} />
+        ) : (
+          <FactionEmblem />
+        )}
+        <p className="faction-name">{faction.factionName ?? 'No faction assigned yet'}</p>
         <div className="faction-score">
           <span>Your score</span>
           <p>
             <strong>{faction.score}</strong>
-            <span>/ {faction.scoreThreshold} threshold</span>
+            <span>/ {faction.winScoreThreshold} to win</span>
           </p>
         </div>
-        <p className="faction-special">
-          {faction.specialName} · {faction.specialRemainingUses} remaining
-        </p>
-        <ul className="knowledge-list">
-          {faction.knowledge.map((item) => (
-            <li key={item.id} className={`knowledge-card knowledge-${item.scope}`}>
-              <span className="knowledge-scope">
-                <KnowledgeScopeIcon scope={item.scope} />
-                {item.scope === 'private' ? 'Private intel' : 'Public intel'}
-              </span>
-              <strong>{item.label}</strong>
-              <span>{item.detail}</span>
-              <small>{item.ageLabel}</small>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section className="factions-in-game" aria-labelledby="factions-in-game-heading">
-        <h3 id="factions-in-game-heading">Factions in this game</h3>
-        <p>{faction.factionsInGame.join(' · ')}</p>
+        {faction.specials.length > 0 && (
+          <ul className="faction-specials" aria-label="Faction special uses">
+            {faction.specials.map((special) => {
+              const remaining = remainingUsesLabel(special)
+              return (
+                <li key={special.specialAction} className="faction-special">
+                  <strong>{special.name}</strong>
+                  {remaining && <span>{remaining}</span>}
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </section>
     </aside>
   )

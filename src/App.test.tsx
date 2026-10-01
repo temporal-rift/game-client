@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UserManager } from 'oidc-client-ts'
@@ -6,6 +6,7 @@ import App from './App'
 import { queryClient } from './api/queryClient'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
+import { gameStatePayload } from './test/gameStatePayload'
 import { uuid } from './test/uuid'
 
 const LOBBY = uuid('lobby-1')
@@ -183,6 +184,58 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => expect(window.location.pathname).toBe(`/games/${GAME}`))
+  })
+
+  it('shows the live game on the board, never the sample board', async () => {
+    rememberLobbyMembership()
+    sessionStorage.setItem('temporal-rift.private.lobbyId', LOBBY)
+    window.history.replaceState(null, '', `/games/${GAME}`)
+    const state = gameStatePayload({
+      gameId: GAME,
+      eraNumber: 1,
+      phase: 'ACTION_ROUND_2',
+      roundNumber: 2,
+      myFaction: 'ERASERS',
+      players: [1, 2, 3].map((seat) => ({ playerId: uuid(`p${seat}`), playerName: `player-${seat}`, score: seat, isConnected: true })),
+    })
+    vi.stubGlobal(
+      'fetch',
+      lobbyServer(() => lobbyView('STARTED', 3), (url) => (url.endsWith(`/api/v1/games/${GAME}/state`) ? state : null)),
+    )
+    sdk.client = signedInClient()
+
+    render(<App />)
+
+    expect(await screen.findByText('Round 2 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Era 1')).toBeInTheDocument()
+    const players = screen.getByRole('region', { name: 'Player scores' })
+    expect(await within(players).findByText('You · Erasers')).toBeInTheDocument()
+    expect(within(players).getAllByText('Faction hidden')).toHaveLength(2)
+    expect(screen.queryByText(/Sample board/)).not.toBeInTheDocument()
+  })
+
+  it('shows the recoverable game-state error instead of any board content', async () => {
+    rememberLobbyMembership()
+    window.history.replaceState(null, '', `/games/${GAME}`)
+    const notFound = new Response(JSON.stringify({ type: 'about:blank', title: 'Not Found', status: 404, code: '404-01' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/problem+json' },
+    })
+    const server = lobbyServer(() => lobbyView('STARTED'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith(`/api/v1/games/${GAME}/state`) ? notFound.clone() : server(input),
+      ),
+    )
+    sdk.client = signedInClient()
+
+    render(<App />)
+
+    const board = await screen.findByRole('region', { name: 'Game board' })
+    expect(await within(board).findByRole('alert')).toHaveTextContent('Game not found, or you are not a participant of it.')
+    expect(within(board).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Player scores' })).not.toBeInTheDocument()
   })
 
   it.each([

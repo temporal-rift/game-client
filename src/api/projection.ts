@@ -9,6 +9,7 @@
 
 import { apiClientsFor, apiErrorMessage, callApi, type AuthenticatedFetchFn } from './client'
 import { getGameState as getGameStateCall, type PlayerGameStateResponse } from './generated/projection'
+import { zPhase } from './generated/projection/zod.gen'
 
 export type { AuthenticatedFetchFn } from './client'
 export type {
@@ -24,10 +25,17 @@ export type {
   SubmissionWindow,
   PlayerInGame,
   PublicBandEvent,
+  PublicBandOutcome,
   PublicDeclaration,
   RevealedIntel,
   SpecialBudget,
+  SubmissionProgress,
 } from './generated/projection'
+
+export const PHASES = zPhase.options
+
+/** Action rounds per era, as many as the contract defines action-round phases. */
+export const ACTION_ROUNDS_PER_ERA = PHASES.filter((phase) => phase.startsWith('ACTION_ROUND_')).length
 
 /** One participant's authoritative game state, exactly as the contract defines it. */
 export type GameStateView = PlayerGameStateResponse
