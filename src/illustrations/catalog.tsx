@@ -25,22 +25,42 @@ const CATALOG_EVENT_SCENES = new Set<CatalogEventSceneKey>([
   'probe', 'convergence',
 ])
 
+function shapePath(index: number, wide: boolean) {
+  if (index >= 0) return (wide ? EVENT_FORMS : CARD_FORMS)[index % (wide ? EVENT_FORMS.length : CARD_FORMS.length)]
+  if (wide) return 'M125 85h90m-45-35v70m-25-53 50 36m0-36-50 36'
+  return 'M50 18v64m-32-32h64m-23-23 46 46m0-46L27 73'
+}
+
+function ShapeFrame({ family, cx, cy, radius, faint }: { readonly family: 'event' | 'card' | 'special' | 'faction'; readonly cx: number; readonly cy: number; readonly radius: number; readonly faint: string }) {
+  if (family === 'faction') return <path d="M50 7 87 28v44L50 93 13 72V28z" stroke={faint} strokeWidth="1.2" />
+  if (family === 'special') return <path d="m50 5 45 45-45 45L5 50z" stroke={faint} strokeWidth="1.2" />
+  return <circle cx={cx} cy={cy} r={radius} stroke={faint} strokeWidth="1" />
+}
+
+function ShapeMark({ index, cx, cy, wide, detail }: { readonly index: number; readonly cx: number; readonly cy: number; readonly wide: boolean; readonly detail: string }) {
+  if (index < 0 || index % 3 !== 0) return null
+  return <circle cx={cx + (wide ? 48 : 24)} cy={cy - (wide ? 42 : 24)} r={wide ? 3 : 2.2} fill={detail} stroke="none" />
+}
+
+function ShapeGuides({ skin, wide, cx, cy, faint, accent }: { readonly skin: IllustrationSkin; readonly wide: boolean; readonly cx: number; readonly cy: number; readonly faint: string; readonly accent: string }) {
+  return <>
+    <path d={wide ? `M${cx - 105} 139h210` : `M15 50h70M50 15v70`} stroke={faint} strokeWidth="1" />
+    {skin === 'engraving' && <path d={wide ? `M${cx - 48} ${cy + 47}h96M${cx - 42} ${cy + 52}h84` : 'M28 72h44M32 77h36'} stroke={accent} strokeWidth="1" />}
+  </>
+}
+
 function Shape({ index, skin, wide = false, family }: { readonly index: number; readonly skin: IllustrationSkin; readonly wide?: boolean; readonly family: 'event' | 'card' | 'special' | 'faction' }) {
   const colors = skin === 'board' ? BOARD : ENGRAVING
-  const forms = wide ? EVENT_FORMS : CARD_FORMS
-  const path = index < 0 ? (wide ? 'M125 85h90m-45-35v70m-25-53 50 36m0-36-50 36' : 'M50 18v64m-32-32h64m-23-23 46 46m0-46L27 73') : forms[index % forms.length]
+  const path = shapePath(index, wide)
   const cx = wide ? 170 : 50
   const cy = wide ? 85 : 50
   const r = wide ? 61 : 38
   return (
     <g fill="none" stroke={colors.ink} strokeWidth={wide ? 1.5 : 2} strokeLinecap="round" strokeLinejoin="round">
-      {family === 'faction' ? <path d="M50 7 87 28v44L50 93 13 72V28z" stroke={colors.faint} strokeWidth="1.2" /> :
-        family === 'special' ? <path d="m50 5 45 45-45 45L5 50z" stroke={colors.faint} strokeWidth="1.2" /> :
-          <circle cx={cx} cy={cy} r={r} stroke={colors.faint} strokeWidth="1" />}
+      <ShapeFrame family={family} cx={cx} cy={cy} radius={r} faint={colors.faint} />
       <path d={path} />
-      {index >= 0 && index % 3 === 0 && <circle cx={cx + (wide ? 48 : 24)} cy={cy - (wide ? 42 : 24)} r={wide ? 3 : 2.2} fill={colors.detail} stroke="none" />}
-      <path d={wide ? `M${cx - 105} 139h210` : `M15 50h70M50 15v70`} stroke={colors.faint} strokeWidth="1" />
-      {skin === 'engraving' && <path d={wide ? `M${cx - 48} ${cy + 47}h96M${cx - 42} ${cy + 52}h84` : 'M28 72h44M32 77h36'} stroke={colors.accent} strokeWidth="1" />}
+      <ShapeMark index={index} cx={cx} cy={cy} wide={wide} detail={colors.detail} />
+      <ShapeGuides skin={skin} wide={wide} cx={cx} cy={cy} faint={colors.faint} accent={colors.accent} />
     </g>
   )
 }
@@ -71,14 +91,18 @@ function IllustrationSvg({ id, index, skin, wide, family, className }: { readonl
 
 export function EventIllustration({ eventId, skin = 'board' }: { readonly eventId: string; readonly skin?: IllustrationSkin }) {
   const event = EVENT_CATALOG.find(([id]) => id === eventId)
-  const boardArtwork = event && BOARD_EVENT_ARTWORK[event[1]]
+  if (!event) {
+    return <IllustrationSvg id={eventId} index={-1} skin={skin} wide family="event" className="catalog-event-art" />
+  }
+  const eventKey = event[1]
+  const boardArtwork = BOARD_EVENT_ARTWORK[eventKey]
   if (skin === 'board' && boardArtwork) {
     return <EventSceneArt artwork={boardArtwork} className="catalog-event-art catalog-event-scene-art" catalogId={eventId} />
   }
-  if (skin === 'board' && event && CATALOG_EVENT_SCENES.has(event[1] as CatalogEventSceneKey)) {
-    return <CatalogEventScene scene={event[1] as CatalogEventSceneKey} className="catalog-event-art catalog-event-scene-art" catalogId={eventId} />
+  if (skin === 'board' && CATALOG_EVENT_SCENES.has(eventKey as CatalogEventSceneKey)) {
+    return <CatalogEventScene scene={eventKey as CatalogEventSceneKey} className="catalog-event-art catalog-event-scene-art" catalogId={eventId} />
   }
-  const index = event ? EVENT_FORM_INDEX[event[1]] : -1
+  const index = EVENT_FORM_INDEX[eventKey]
   return <IllustrationSvg id={eventId} index={index} skin={skin} wide family="event" className="catalog-event-art" />
 }
 

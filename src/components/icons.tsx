@@ -233,8 +233,9 @@ const CARD_GLYPHS: Record<CardKind, () => React.JSX.Element> = {
 /** Decorative card-face glyph; the card name, grade and description carry the meaning. */
 export function CardGlyph({ kind, className, catalogId }: { readonly kind: CardKind; readonly className?: string; readonly catalogId?: string }) {
   const Glyph = CARD_GLYPHS[kind]
+  const classes = ['card-glyph', `card-glyph-${kind}`, className].filter(Boolean).join(' ')
   return (
-    <svg viewBox="0 0 100 100" className={`card-glyph card-glyph-${kind}${className ? ` ${className}` : ''}`} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 100 100" className={classes} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
       <g fill="none" stroke="currentColor" strokeWidth="2">
         <Glyph />
       </g>
@@ -243,8 +244,9 @@ export function CardGlyph({ kind, className, catalogId }: { readonly kind: CardK
 }
 
 export function FactionEmblem({ className, catalogId }: { readonly className?: string; readonly catalogId?: string } = {}) {
+  const classes = ['faction-emblem', className].filter(Boolean).join(' ')
   return (
-    <svg viewBox="0 0 100 100" className={`faction-emblem${className ? ` ${className}` : ''}`} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 100 100" className={classes} data-catalog-id={catalogId} aria-hidden="true" focusable="false">
       <g fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="50" cy="50" r="30" />
         <path d="M10 50q40-33 80 0-40 33-80 0Z" />

@@ -268,7 +268,10 @@ export function CatalogEventScene({ scene, className, catalogId }: { readonly sc
   const city = ['archive', 'chancellor', 'ruins', 'parliament', 'heir', 'trial', 'burning-archive', 'resistance', 'quarantine', 'double-agent'].includes(scene)
   const interior = ['blueprints', 'coronation', 'oracle'].includes(scene)
   const temporal = ['gate', 'timeline', 'probe', 'convergence', 'null-bomb'].includes(scene)
-  const glowX = sea ? 282 : temporal ? 170 : city ? 254 : 225
+  let glowX = 225
+  if (sea) glowX = 282
+  else if (temporal) glowX = 170
+  else if (city) glowX = 254
   return (
     <svg viewBox="0 0 340 155" className={className} data-catalog-id={catalogId} data-scene-key={scene} aria-hidden="true" focusable="false">
       <defs>
