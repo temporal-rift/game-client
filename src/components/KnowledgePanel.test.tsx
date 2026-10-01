@@ -103,14 +103,60 @@ describe('KnowledgePanel', () => {
     const view: Extract<KnowledgeView, { kind: 'ready' }> = {
       ...READY_VIEW,
       revealedKnowledge: [
-        { kind: 'INFLUENCE', eventId: 'event-1', eventTitle: 'The Delegate Arrives', observedInRound: 1, expiresAtEraEnd: 2, influencerNames: ['Nora'] },
-        { kind: 'INFLUENCE', eventId: 'event-1', eventTitle: 'The Delegate Arrives', observedInRound: 2, expiresAtEraEnd: 2, influencerNames: ['Eli'] },
+        {
+          kind: 'INFLUENCE',
+          eventId: 'event-1',
+          eventTitle: 'The Delegate Arrives',
+          observedInRound: 1,
+          expiresAtEraEnd: 2,
+          influencers: [{ playerId: 'p-1', playerName: 'Nora', usedMimic: true }],
+        },
+        {
+          kind: 'INFLUENCE',
+          eventId: 'event-1',
+          eventTitle: 'The Delegate Arrives',
+          observedInRound: 2,
+          expiresAtEraEnd: 2,
+          influencers: [{ playerId: 'p-2', playerName: 'Eli', usedMimic: false }],
+        },
       ],
     }
     render(<KnowledgePanel view={view} {...NO_ERROR_PROPS} />)
 
-    expect(screen.getByText('Influenced by Nora')).toBeInTheDocument()
+    expect(screen.getByText('Influenced by Nora (Revisionist via Mimic)')).toBeInTheDocument()
     expect(screen.getByText('Influenced by Eli')).toBeInTheDocument()
+  })
+
+  it('distinguishes Mimic and card-only influencers without dropping an empty Trace', () => {
+    const view: Extract<KnowledgeView, { kind: 'ready' }> = {
+      ...READY_VIEW,
+      revealedKnowledge: [
+        {
+          kind: 'INFLUENCE',
+          eventId: 'event-1',
+          eventTitle: 'The Delegate Arrives',
+          observedInRound: 1,
+          expiresAtEraEnd: 2,
+          influencers: [
+            { playerId: 'p-1', playerName: 'Nora', usedMimic: true },
+            { playerId: 'p-2', playerName: 'Eli', usedMimic: false },
+          ],
+        },
+        {
+          kind: 'INFLUENCE',
+          eventId: 'event-2',
+          eventTitle: 'The Archive Opens',
+          observedInRound: 2,
+          expiresAtEraEnd: 2,
+          influencers: [],
+        },
+      ],
+    }
+    render(<KnowledgePanel view={view} {...NO_ERROR_PROPS} />)
+
+    expect(screen.getByText('Influenced by Nora (Revisionist via Mimic), Eli')).toBeInTheDocument()
+    expect(screen.getByText('No player influenced this event.')).toBeInTheDocument()
+    expect(screen.queryByText('Eli (Revisionist via Mimic)')).not.toBeInTheDocument()
   })
 
   it('surfaces a stalled poll as a retryable alert instead of silently showing stale data', () => {

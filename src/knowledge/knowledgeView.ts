@@ -44,6 +44,12 @@ export interface RevealedCard {
   readonly grade: CardGrade
 }
 
+export interface TraceInfluencer {
+  readonly playerId: string
+  readonly playerName: string
+  readonly usedMimic: boolean
+}
+
 export type RevealedKnowledgeEntry =
   | {
       readonly kind: 'PROBABILITY'
@@ -59,7 +65,7 @@ export type RevealedKnowledgeEntry =
       readonly eventTitle: string
       readonly observedInRound: number
       readonly expiresAtEraEnd: number
-      readonly influencerNames: readonly string[]
+      readonly influencers: readonly TraceInfluencer[]
     }
   | {
       readonly kind: 'HAND_CARD'
@@ -177,7 +183,11 @@ function revealedKnowledgeEntry(
         eventTitle: titleFor(eventId, eventLookup),
         observedInRound,
         expiresAtEraEnd: eraNumber,
-        influencerNames: (intel.influencerPlayerIds ?? []).map((id) => nameFor(id, playerLookup)),
+        influencers: (intel.influencerPlayerIds ?? []).map((playerId) => ({
+          playerId,
+          playerName: nameFor(playerId, playerLookup),
+          usedMimic: (intel.mimicInfluencerPlayerIds ?? []).includes(playerId),
+        })),
       }
     case 'HAND_CARD':
       // A hand reveal names whose hand it is; without that there is nothing to attribute.
