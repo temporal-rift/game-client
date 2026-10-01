@@ -2,6 +2,7 @@ import type { ParadoxDraft, ParadoxSubmitPhase } from '../paradox/useParadoxReso
 import type { ParadoxResolutionView } from '../paradox/paradoxView'
 import { CardIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import { useDeadlineCountdown } from '../game/useDeadlineCountdown'
 
 interface ParadoxResolutionPanelProps {
   readonly view: ParadoxResolutionView
@@ -21,6 +22,11 @@ function deadlineLabel(seconds: number | null): string {
   return `${minutes}:${String(seconds % 60).padStart(2, '0')} remaining`
 }
 
+function progressLabel(submittedCount: number | null, totalPlayers: number | null): string {
+  if (submittedCount === null || totalPlayers === null) return 'Phase progress is being refreshed.'
+  return `${submittedCount} / ${totalPlayers} participants have responded.`
+}
+
 export function ParadoxResolutionPanel({
   view,
   draft,
@@ -32,33 +38,29 @@ export function ParadoxResolutionPanel({
   onDismissRejection,
   illustrationSkin = 'board',
 }: ParadoxResolutionPanelProps) {
+  const secondsRemaining = useDeadlineCountdown(view.kind === 'open' || view.kind === 'submitted' ? view.deadline : null)
   if (view.kind === 'unavailable') return null
-  if (view.kind === 'loading') return <output>Loading paradox-resolution choices…</output>
-  if (view.kind === 'closed') return <output>{view.reason}</output>
   if (view.kind === 'submitted') {
     return (
       <section aria-label="Paradox resolution">
         <h2>Paradox resolution</h2>
         <output>Your resolution choice was accepted.</output>
-        <p>
-          {view.submittedCount} / {view.totalPlayers} participants have responded. Waiting for the authoritative phase result.
-        </p>
+        <p>{progressLabel(view.submittedCount, view.totalPlayers)}</p>
+        <p>{deadlineLabel(secondsRemaining)}</p>
       </section>
     )
   }
 
   const selectedCard = draft.kind === 'card' ? view.cards.find((card) => card.cardInstanceId === draft.cardInstanceId) : null
   const complete = Boolean(selectedCard && draft.kind === 'card' && draft.targetEventId && draft.targetOutcomeId)
-  const isSubmitting = submitPhase.kind === 'submitting'
+  const isSubmitting = submitPhase.kind === 'submitting' || submitPhase.kind === 'awaiting-projection'
   return (
     <section aria-label="Paradox resolution">
       <h2>Paradox resolution</h2>
       <p>
-        Choose one eligible card for an affected event. {deadlineLabel(view.timerRemainingSeconds)}
+        Choose one eligible card for an affected event. {deadlineLabel(secondsRemaining)}
       </p>
-      <p>
-        {view.submittedCount} / {view.totalPlayers} participants have responded.
-      </p>
+      <p>{progressLabel(view.submittedCount, view.totalPlayers)}</p>
 
       <h3>Your eligible choices</h3>
       {view.cards.length === 0 ? (
@@ -131,7 +133,7 @@ export function ParadoxResolutionPanel({
             </button>
           </p>
         )}
-        {submitPhase.kind === 'submitted' && <output>Resolution choice submitted.</output>}
+        {submitPhase.kind === 'awaiting-projection' && <output>Waiting for game state to reflect your choice.</output>}
       </section>
     </section>
   )

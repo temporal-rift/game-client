@@ -8,7 +8,7 @@ export type Phase = 'LOBBY' | 'ERA_START' | 'HAND_SELECTION' | 'ACTION_ROUND_1' 
 
 export type HandCard = {
     cardInstanceId: string;
-    cardType: string;
+    cardType: EnumsCardType;
     grade: EnumsCardGrade;
     /**
      * Whether this card can be played in the current round. Scoped to the current round only — it can change as rounds advance without a new HandDealt event. Advisory only: the authoritative check is game-service's rejection of the submission.
@@ -43,7 +43,7 @@ export type PlayerInGame = {
     /**
      * Null until FactionRevealed.
      */
-    faction?: string | null;
+    faction?: EnumsFaction | null;
 };
 
 export type ActionSummary = {
@@ -94,6 +94,30 @@ export type PhaseContext = {
      * Open paradox identifiers when paradoxOpen is true; absent otherwise.
      */
     paradoxIds?: Array<string>;
+    /**
+     * Events affected by the open paradox-resolution phase, its only valid resolution targets, when paradoxOpen is true; absent otherwise.
+     */
+    affectedEventIds?: Array<string>;
+    actionRoundProgress?: SubmissionProgress;
+    paradoxResolutionProgress?: SubmissionProgress;
+};
+
+/**
+ * Public progress of one open decision window, identical for every participant. It reports who has decided, never what anyone submitted.
+ */
+export type SubmissionProgress = {
+    /**
+     * Players who have submitted or passed in the window.
+     */
+    submittedCount: number;
+    /**
+     * Players expected to decide in the window.
+     */
+    totalPlayers: number;
+    /**
+     * Players who have neither submitted nor passed.
+     */
+    pendingPlayerIds: Array<string>;
 };
 
 export type PublicBandOutcome = {
@@ -139,28 +163,55 @@ export type ExposeFact = {
     behaviorChanged: boolean;
 };
 
+export type SubmissionWindow = 'HAND_SELECTION' | 'DECLARATION' | 'ACTION' | 'PARADOX_RESOLUTION';
+
+export type SubmissionChoice = 'CARD' | 'SPECIAL' | 'PASS';
+
+/**
+ * One of the caller's own accepted decisions. Declaration detail is already public in declarations and kept hand cards are myHand, so HAND_SELECTION and DECLARATION entries carry no choice or detail.
+ */
 export type MySubmission = {
     eraNumber: number;
     /**
-     * Action round for ordinary submissions; null for hand selection, declarations and paradox cards.
+     * Action round for ACTION entries; null for every other window.
      */
     roundNumber?: number | null;
-    /**
-     * Which accepted decision this entry recovers.
-     */
-    kind: 'HAND_SELECTION' | 'DECLARATION' | 'ACTION' | 'PARADOX_CARD';
+    window: SubmissionWindow;
     status: 'ACCEPTED';
-    /**
-     * Present for ACTION entries; identifies the caller's own accepted family without details.
-     */
-    actionType?: 'CARD' | 'SPECIAL';
+    choice?: SubmissionChoice;
+    card?: SubmittedCard;
+    specialAction?: EnumsSpecialAction;
+    targets?: SubmissionTargets;
+};
+
+export type SubmittedCard = {
+    cardInstanceId: string;
+    cardType: EnumsCardType;
+    grade: EnumsCardGrade;
+    disguiseCategory?: EnumsCardCategory;
+};
+
+/**
+ * The targets of an accepted card or special, in the target mode that decision used; only the fields it named are present. sourceEventId/sourceOutcomeId carry a Thread's current-era anchor or a Swing's source outcome.
+ */
+export type SubmissionTargets = {
+    targetEventId?: string;
+    targetEventIds?: Array<string>;
+    targetOutcomeId?: string;
+    sourceEventId?: string;
+    sourceOutcomeId?: string;
+    targetPlayerId?: string;
+    targetPlayerIds?: Array<string>;
+};
+
+export type EligibleResolutionCard = {
+    cardInstanceId: string;
+    cardType: EnumsCardType;
+    grade: EnumsCardGrade;
 };
 
 export type SpecialBudget = {
-    /**
-     * One of the caller's faction specials, including Seal when entitled.
-     */
-    specialAction: string;
+    specialAction: EnumsSpecialAction;
     remainingUsesThisEra: number;
     remainingUsesThisGame: number;
 };
@@ -169,10 +220,7 @@ export type SpecialBudget = {
  * The caller's own cumulative progress toward their faction objective, computed by the owning projection from consumed events. Scoped to the caller alone: no other player's counts, secret picks, or streak state is ever included. Absent until the owner computes it and while the caller has no assigned faction. Thresholds are owner-populated from the effective rules configuration; clients SHALL use the transmitted threshold rather than hard-coding a constant.
  */
 export type ObjectiveProgress = {
-    /**
-     * The caller's assigned faction; mirrors myFaction when present.
-     */
-    faction: 'ERASERS' | 'PROPHETS' | 'REVISIONISTS' | 'WEAVERS' | 'ACTIVISTS';
+    faction: EnumsFaction;
     /**
      * Caller-scoped cumulative progress. ERASERS: outcomes the caller annihilated. PROPHETS: events resolved as written. REVISIONISTS: eras the caller's secret outcome won. WEAVERS: current chain links (mirrors the public chain length). ACTIVISTS: current consecutive eras with a correct declaration. A stalled declaration breaks that streak. The owner computes streaks server-side so clients never reconstruct them from history.
      */
@@ -189,7 +237,7 @@ export type ObjectiveProgress = {
 
 export type GameWinner = {
     playerId: string;
-    faction?: string | null;
+    faction?: EnumsFaction | null;
     /**
      * How this winner met the win condition. Present for every winner of a WIN_CONDITION_MET ending and absent for every other ending.
      */
@@ -235,14 +283,18 @@ export type PlayerGameStateResponse = {
     roundNumber?: number | null;
     deadlines?: Deadlines;
     phaseContext?: PhaseContext;
-    myFaction?: string | null;
+    myFaction?: EnumsFaction | null;
     myHand: Array<HandCard>;
     pendingHandSelection?: PendingHandSelection;
+    /**
+     * The caller's own complete eligible resolution cards for the open paradox-resolution phase: eligible hand cards plus the dealt Stabilize and Detonate offer. Present, possibly empty, only while the phase is open and the caller has neither submitted nor passed; absent otherwise. Never carries another participant's cards.
+     */
+    myEligibleResolutionCards?: Array<EligibleResolutionCard>;
     myScore: number;
     /**
      * The authenticated player's static set of three faction special actions. Empty until a faction is assigned; availability is governed by game-service rules and is not represented here.
      */
-    mySpecialActions?: Array<string>;
+    mySpecialActions?: Array<EnumsSpecialAction>;
     /**
      * Round through which the authenticated player's faction specials are blocked. Null when that player is not jammed; private to that player, cleared after the round passes, and never carried across an era boundary.
      */
@@ -287,7 +339,7 @@ export type PlayerGameStateResponse = {
      */
     exposeFacts?: Array<ExposeFact>;
     /**
-     * The caller's own accepted decisions (hand selection, declaration, ordinary and paradox submissions) for recovery after reload. Never includes another player's decisions, resolved or not.
+     * The caller's own accepted decisions (hand selection, declaration, action-round and paradox-resolution choices, including passes) with the caller's own card or special detail, for recovery after reload. Never includes another player's decisions, resolved or not.
      */
     mySubmissions?: Array<MySubmission>;
     /**
@@ -304,7 +356,7 @@ export type PlayerGameStateResponse = {
 
 export type DealtHandCard = {
     cardInstanceId: string;
-    cardType: string;
+    cardType: EnumsCardType;
     grade: EnumsCardGrade;
     dealSlot: number;
 };
@@ -345,7 +397,7 @@ export type RevealedProbabilityOutcome = {
 
 export type RevealedHandCard = {
     cardInstanceId: string;
-    cardType: string;
+    cardType: EnumsCardType;
     grade: EnumsCardGrade;
 };
 
@@ -364,7 +416,13 @@ export type ForesightPreviewEvent = {
     outcomes: Array<ForesightPreviewOutcome>;
 };
 
+export type CardType = EnumsCardType;
+
 export type CardGrade = EnumsCardGrade;
+
+export type Faction = EnumsFaction;
+
+export type SpecialAction = EnumsSpecialAction;
 
 export type CardCategory = EnumsCardCategory;
 
@@ -435,6 +493,12 @@ export type EnumsActionFamily = 'CARD' | 'SPECIAL';
 export type EnumsCardCategory = 'PROBABILITY_SHIFTER' | 'INFORMATION' | 'DISRUPTION' | 'PARADOX';
 
 export type EnumsCardGrade = 'I' | 'II' | 'III';
+
+export type EnumsCardType = 'PUSH' | 'SUPPRESS' | 'SWING' | 'AMPLIFY' | 'INTERCEPT' | 'SCAN' | 'TRACE' | 'DECOY' | 'JAM' | 'STALL' | 'REDIRECT' | 'NULLIFY' | 'COLLIDE' | 'STABILIZE' | 'DETONATE';
+
+export type EnumsFaction = 'ERASERS' | 'PROPHETS' | 'REVISIONISTS' | 'WEAVERS' | 'ACTIVISTS';
+
+export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
 
 export type GetGameStateData = {
     body?: never;

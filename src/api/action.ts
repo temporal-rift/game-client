@@ -1,7 +1,6 @@
 /**
  * Participant-scoped submissions against the pinned `action-api` contract:
- * hand selection, action-round actions and paradox-resolution cards, plus
- * the paradox-resolution status read.
+ * hand selection, action-round actions and paradox-resolution cards.
  *
  * The server remains authoritative for card/special eligibility, target
  * legality and budgets; the generated schemas validate each request against
@@ -11,42 +10,34 @@
 import * as z from 'zod'
 import { apiClientsFor, apiErrorMessage, callApi, invalidRequestError, type AuthenticatedFetchFn } from './client'
 import {
-  getParadoxResolutionStatus as getParadoxResolutionStatusCall,
   selectHand as selectHandCall,
   submitAction as submitActionCall,
   submitParadoxResolutionCard as submitParadoxResolutionCardCall,
   type CardActionRequest,
-  type EnumsCardType as CardType,
   type EnumsSpecialAction as SpecialAction,
   type HandSelectionRequest,
   type HandSelectionResponse,
   type ParadoxResolutionCardResponse,
-  type ParadoxResolutionStatusResponse,
   type SpecialActionRequest,
   type SubmitActionResponse,
 } from './generated/action'
 import {
   zCardActionRequest,
-  zEnumsCardCategory,
-  zEnumsCardGrade,
-  zEnumsCardType,
   zEnumsSpecialAction,
   zSpecialActionRequest,
 } from './generated/action/zod.gen'
 import { zFaction } from './generated/scoring/zod.gen'
+import { zEnumsCardCategory, zEnumsCardGrade, zEnumsCardType } from './generated/projection/zod.gen'
 import type { Faction } from './generated/scoring'
+import type { CardType } from './generated/projection'
 
 export type { AuthenticatedFetchFn } from './client'
 export type {
   CardActionRequest,
-  EligibleResolutionCard,
-  EnumsCardCategory as CardCategory,
-  EnumsCardGrade as CardGrade,
-  EnumsCardType as CardType,
   EnumsSpecialAction as SpecialAction,
-  ParadoxResolutionStatusResponse,
   SpecialActionRequest,
 } from './generated/action'
+export type { CardCategory, CardGrade, CardType } from './generated/projection'
 export type { Faction } from './generated/scoring'
 
 export const CARD_TYPES = zEnumsCardType.options
@@ -158,23 +149,6 @@ export async function submitParadoxResolutionCard(
       path: { gameId, eraNumber },
       body: { actionType: 'CARD', cardInstanceId, targetEventId, targetOutcomeId },
     }),
-  )
-}
-
-/** Recovers phase-scoped targets, caller-owned eligible cards, deadline, and acceptance state. */
-export async function getParadoxResolutionStatus(
-  fetchFn: AuthenticatedFetchFn,
-  apiBaseUrl: string,
-  gameId: string,
-  eraNumber: number,
-  init: { readonly signal?: AbortSignal } = {},
-): Promise<ParadoxResolutionStatusResponse> {
-  if (!gameId.trim()) {
-    throw new Error('A game reference is needed to read paradox-resolution status.')
-  }
-  const client = apiClientsFor(fetchFn, apiBaseUrl).action
-  return callApi('read paradox-resolution status', () =>
-    getParadoxResolutionStatusCall({ client, path: { gameId, eraNumber }, signal: init.signal }),
   )
 }
 

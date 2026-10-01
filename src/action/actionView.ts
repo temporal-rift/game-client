@@ -70,6 +70,9 @@ export type ActionRoundView =
       readonly eraNumber: number
       readonly roundNumber: number
       readonly hasSubmitted: boolean
+      readonly submittedCount: number | null
+      readonly totalPlayers: number | null
+      readonly deadline: string | null
       readonly hand: readonly HandCardOption[]
       readonly specials: readonly SpecialActionOption[]
       readonly activeEvents: readonly ActiveEventOption[]
@@ -168,13 +171,17 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
 
   const faction = isFaction(state.myFaction) ? state.myFaction : null
   const mySpecialActions = (state.mySpecialActions ?? []).filter((action) => isSpecialAction(action))
+  const progress = state.phaseContext?.actionRoundProgress
 
   return {
     kind: 'open',
     gameId: state.gameId,
     eraNumber: state.eraNumber,
     roundNumber: state.roundNumber,
-    hasSubmitted: hasAcceptedSubmission(state, { eraNumber: state.eraNumber, kind: 'ACTION', roundNumber: state.roundNumber }),
+    hasSubmitted: hasAcceptedSubmission(state, { eraNumber: state.eraNumber, window: 'ACTION', roundNumber: state.roundNumber }),
+    submittedCount: progress?.submittedCount ?? null,
+    totalPlayers: progress?.totalPlayers ?? null,
+    deadline: state.deadlines?.actionRoundExpiresAt ?? null,
     hand: handOptions(state.myHand),
     specials: specialOptionsFor(faction, mySpecialActions, state.roundNumber, state.myJammedUntilRound ?? null, state.mySpecialBudgets ?? []),
     activeEvents: activeEventOptions(state.activeEvents),

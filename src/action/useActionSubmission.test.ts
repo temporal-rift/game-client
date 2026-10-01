@@ -57,7 +57,7 @@ describe('useActionSubmission', () => {
       await result.current.confirm()
     })
 
-    expect(result.current.submitPhase).toEqual({ kind: 'submitted' })
+    expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
     expect(result.current.draft).toEqual({ kind: 'none' })
     expect(gameState.refresh).toHaveBeenCalledTimes(1)
     const postCall = fetchMock.mock.calls[0]
@@ -84,7 +84,7 @@ describe('useActionSubmission', () => {
       await result.current.confirm()
     })
 
-    expect(result.current.submitPhase).toEqual({ kind: 'submitted' })
+    expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
     const postCall = fetchMock.mock.calls[0]
     expect(JSON.parse((postCall[1] as RequestInit).body as string)).toEqual({
       actionType: 'CARD',
@@ -99,7 +99,7 @@ describe('useActionSubmission', () => {
     }) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({
       state: stateBody(),
-      refresh: async () => stateBody({ revision: 2, mySubmissions: [{ eraNumber: 2, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }] }),
+      refresh: async () => stateBody({ revision: 2, mySubmissions: [{ eraNumber: 2, roundNumber: 1, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }] }),
     })
 
     const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
@@ -109,7 +109,7 @@ describe('useActionSubmission', () => {
       await result.current.confirm()
     })
 
-    expect(result.current.submitPhase).toEqual({ kind: 'submitted' })
+    expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
     expect(result.current.draft).toEqual({ kind: 'none' })
   })
 
@@ -134,7 +134,7 @@ describe('useActionSubmission', () => {
   it('clears a stale draft once the round already shows an accepted submission', () => {
     const fetchFn = vi.fn() as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({
-      state: stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }] }),
+      state: stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: 1, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }] }),
     })
 
     const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))

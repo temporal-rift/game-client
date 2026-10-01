@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetParadoxResolutionStatusData, GetParadoxResolutionStatusErrors, GetParadoxResolutionStatusResponses, GetRoundStatusData, GetRoundStatusErrors, GetRoundStatusResponses, RecordActivistDeclarationData, RecordActivistDeclarationErrors, RecordActivistDeclarationResponses, SelectHandData, SelectHandErrors, SelectHandResponses, SubmitActionData, SubmitActionErrors, SubmitActionResponses, SubmitParadoxResolutionCardData, SubmitParadoxResolutionCardErrors, SubmitParadoxResolutionCardResponses } from './types.gen';
-import { zGetParadoxResolutionStatusPath, zGetParadoxResolutionStatusResponse, zGetRoundStatusPath, zGetRoundStatusResponse, zRecordActivistDeclarationBody, zRecordActivistDeclarationPath, zRecordActivistDeclarationResponse, zSelectHandBody, zSelectHandPath, zSelectHandResponse, zSubmitActionBody, zSubmitActionPath, zSubmitActionResponse2, zSubmitParadoxResolutionCardBody, zSubmitParadoxResolutionCardPath, zSubmitParadoxResolutionCardResponse } from './zod.gen';
+import type { RecordActivistDeclarationData, RecordActivistDeclarationErrors, RecordActivistDeclarationResponses, SelectHandData, SelectHandErrors, SelectHandResponses, SubmitActionData, SubmitActionErrors, SubmitActionResponses, SubmitParadoxResolutionCardData, SubmitParadoxResolutionCardErrors, SubmitParadoxResolutionCardResponses } from './types.gen';
+import { zRecordActivistDeclarationBody, zRecordActivistDeclarationPath, zRecordActivistDeclarationResponse, zSelectHandBody, zSelectHandPath, zSelectHandResponse, zSubmitActionBody, zSubmitActionPath, zSubmitActionResponse2, zSubmitParadoxResolutionCardBody, zSubmitParadoxResolutionCardPath, zSubmitParadoxResolutionCardResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -104,37 +104,4 @@ export const submitParadoxResolutionCard = <ThrowOnError extends boolean = false
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-export const getRoundStatus = <ThrowOnError extends boolean = false>(options: Options<GetRoundStatusData, ThrowOnError>): RequestResult<GetRoundStatusResponses, GetRoundStatusErrors, ThrowOnError> => (options.client ?? client).get<GetRoundStatusResponses, GetRoundStatusErrors, ThrowOnError>({
-    requestValidator: async (data) => await z.object({
-        body: z.never().optional(),
-        path: zGetRoundStatusPath,
-        query: z.never().optional()
-    }).parseAsync(data),
-    responseValidator: async (data) => await zGetRoundStatusResponse.parseAsync(data),
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/v1/games/{gameId}/eras/{eraNumber}/rounds/{roundNumber}/status',
-    ...options
-});
-
-/**
- * Recovers the current paradox-resolution phase for the caller's era: whether reactive offers are open,
- * the authoritative deadline, aggregate submission progress, the caller's own submission flag, the
- * current phase's affected events, and the caller's own eligible resolution cards. Phase-scoped to
- * the era, so there is no roundNumber; the explicit eraNumber is a stale-state guard. The response
- * carries only the caller's own choices and offers and never another participant's; closed or expired
- * phases expose no active offers.
- *
- */
-export const getParadoxResolutionStatus = <ThrowOnError extends boolean = false>(options: Options<GetParadoxResolutionStatusData, ThrowOnError>): RequestResult<GetParadoxResolutionStatusResponses, GetParadoxResolutionStatusErrors, ThrowOnError> => (options.client ?? client).get<GetParadoxResolutionStatusResponses, GetParadoxResolutionStatusErrors, ThrowOnError>({
-    requestValidator: async (data) => await z.object({
-        body: z.never().optional(),
-        path: zGetParadoxResolutionStatusPath,
-        query: z.never().optional()
-    }).parseAsync(data),
-    responseValidator: async (data) => await zGetParadoxResolutionStatusResponse.parseAsync(data),
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/v1/games/{gameId}/eras/{eraNumber}/paradox-resolution/status',
-    ...options
 });

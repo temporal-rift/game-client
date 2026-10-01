@@ -32,14 +32,6 @@ export const zActiveEvent = z.object({
     outcomes: z.array(zEventOutcome)
 });
 
-export const zPlayerInGame = z.object({
-    playerId: z.uuid(),
-    playerName: z.string().nullish(),
-    score: z.int(),
-    isConnected: z.boolean(),
-    faction: z.string().nullish()
-});
-
 export const zChainState = z.object({
     status: z.enum([
         'ACTIVE',
@@ -58,10 +50,22 @@ export const zDeadlines = z.object({
     paradoxResolutionExpiresAt: z.iso.datetime({ offset: true }).nullish()
 });
 
+/**
+ * Public progress of one open decision window, identical for every participant. It reports who has decided, never what anyone submitted.
+ */
+export const zSubmissionProgress = z.object({
+    submittedCount: z.int().gte(0),
+    totalPlayers: z.int().gte(0),
+    pendingPlayerIds: z.array(z.uuid())
+});
+
 export const zPhaseContext = z.object({
     declarationOpen: z.boolean(),
     paradoxOpen: z.boolean(),
-    paradoxIds: z.array(z.uuid()).optional()
+    paradoxIds: z.array(z.uuid()).optional(),
+    affectedEventIds: z.array(z.uuid()).optional(),
+    actionRoundProgress: zSubmissionProgress.optional(),
+    paradoxResolutionProgress: zSubmissionProgress.optional()
 });
 
 export const zPublicBandOutcome = z.object({
@@ -106,71 +110,35 @@ export const zExposeFact = z.object({
     behaviorChanged: z.boolean()
 });
 
-export const zMySubmission = z.object({
-    eraNumber: z.int().gte(1),
-    roundNumber: z.int().nullish(),
-    kind: z.enum([
-        'HAND_SELECTION',
-        'DECLARATION',
-        'ACTION',
-        'PARADOX_CARD'
-    ]),
-    status: z.enum(['ACCEPTED']),
-    actionType: z.enum(['CARD', 'SPECIAL']).optional()
-});
+export const zSubmissionWindow = z.enum([
+    'HAND_SELECTION',
+    'DECLARATION',
+    'ACTION',
+    'PARADOX_RESOLUTION'
+]);
 
-export const zSpecialBudget = z.object({
-    specialAction: z.string(),
-    remainingUsesThisEra: z.int().gte(0),
-    remainingUsesThisGame: z.int().gte(0)
-});
+export const zSubmissionChoice = z.enum([
+    'CARD',
+    'SPECIAL',
+    'PASS'
+]);
 
 /**
- * The caller's own cumulative progress toward their faction objective, computed by the owning projection from consumed events. Scoped to the caller alone: no other player's counts, secret picks, or streak state is ever included. Absent until the owner computes it and while the caller has no assigned faction. Thresholds are owner-populated from the effective rules configuration; clients SHALL use the transmitted threshold rather than hard-coding a constant.
+ * The targets of an accepted card or special, in the target mode that decision used; only the fields it named are present. sourceEventId/sourceOutcomeId carry a Thread's current-era anchor or a Swing's source outcome.
  */
-export const zObjectiveProgress = z.object({
-    faction: z.enum([
-        'ERASERS',
-        'PROPHETS',
-        'REVISIONISTS',
-        'WEAVERS',
-        'ACTIVISTS'
-    ]),
-    progressCount: z.int().gte(0),
-    threshold: z.int().gte(1),
-    objectiveMet: z.boolean()
-});
-
-export const zGameWinner = z.object({
-    playerId: z.uuid(),
-    faction: z.string().nullish(),
-    winType: z.enum([
-        'SCORE_THRESHOLD',
-        'FACTION_OBJECTIVE',
-        'LAST_PLAYER_STANDING'
-    ]).optional()
+export const zSubmissionTargets = z.object({
+    targetEventId: z.uuid().optional(),
+    targetEventIds: z.array(z.uuid()).min(1).max(3).optional(),
+    targetOutcomeId: z.uuid().optional(),
+    sourceEventId: z.uuid().optional(),
+    sourceOutcomeId: z.uuid().optional(),
+    targetPlayerId: z.uuid().optional(),
+    targetPlayerIds: z.array(z.uuid()).min(1).max(2).optional()
 });
 
 export const zFinalScore = z.object({
     playerId: z.uuid(),
     score: z.int()
-});
-
-/**
- * Authoritative terminal facts, present only when phase is GAME_ENDED. Consistent with the scores and faction reveals already published; per-round private hands and intel remain caller-scoped even after the game ends.
- */
-export const zGameResult = z.object({
-    endReason: z.enum([
-        'WIN_CONDITION_MET',
-        'TIMELINE_COLLAPSED',
-        'TIMELINE_STABILIZED',
-        'DECK_EXHAUSTED',
-        'RESOLUTION_FAILED',
-        'ALL_PLAYERS_ABANDONED'
-    ]),
-    winners: z.array(zGameWinner),
-    finalScores: z.array(zFinalScore),
-    revealBoundary: z.enum(['FACTIONS_AND_SCORES_PUBLIC'])
 });
 
 export const zRevealedProbabilityOutcome = z.object({
@@ -243,16 +211,49 @@ export const zEnumsCardGrade = z.enum([
     'III'
 ]);
 
+export const zCardGrade = zEnumsCardGrade;
+
+export const zEnumsCardType = z.enum([
+    'PUSH',
+    'SUPPRESS',
+    'SWING',
+    'AMPLIFY',
+    'INTERCEPT',
+    'SCAN',
+    'TRACE',
+    'DECOY',
+    'JAM',
+    'STALL',
+    'REDIRECT',
+    'NULLIFY',
+    'COLLIDE',
+    'STABILIZE',
+    'DETONATE'
+]);
+
 export const zHandCard = z.object({
     cardInstanceId: z.uuid(),
-    cardType: z.string(),
+    cardType: zEnumsCardType,
     grade: zEnumsCardGrade,
     isPlayableThisRound: z.boolean()
 });
 
+export const zSubmittedCard = z.object({
+    cardInstanceId: z.uuid(),
+    cardType: zEnumsCardType,
+    grade: zEnumsCardGrade,
+    disguiseCategory: zEnumsCardCategory.optional()
+});
+
+export const zEligibleResolutionCard = z.object({
+    cardInstanceId: z.uuid(),
+    cardType: zEnumsCardType,
+    grade: zEnumsCardGrade
+});
+
 export const zDealtHandCard = z.object({
     cardInstanceId: z.uuid(),
-    cardType: z.string(),
+    cardType: zEnumsCardType,
     grade: zEnumsCardGrade,
     dealSlot: z.int().gte(1).lte(7)
 });
@@ -273,7 +274,7 @@ export const zPendingHandSelection = z.object({
 
 export const zRevealedHandCard = z.object({
     cardInstanceId: z.uuid(),
-    cardType: z.string(),
+    cardType: zEnumsCardType,
     grade: zEnumsCardGrade
 });
 
@@ -291,6 +292,114 @@ export const zRevealedIntel = z.object({
     revealedCards: z.array(zRevealedHandCard).optional()
 });
 
+export const zCardType = zEnumsCardType;
+
+export const zGameHistoryEra = z.object({
+    eraNumber: z.int().gte(1),
+    outcomes: z.array(zResolvedOutcome),
+    paradoxesCascaded: z.int().gte(0),
+    cascadedEvents: z.array(zCascadedEvent).min(1).optional(),
+    myHand: z.array(zDealtHandCard)
+});
+
+export const zGameHistoryResponse = z.object({
+    gameId: z.uuid(),
+    eras: z.array(zGameHistoryEra)
+});
+
+export const zEnumsFaction = z.enum([
+    'ERASERS',
+    'PROPHETS',
+    'REVISIONISTS',
+    'WEAVERS',
+    'ACTIVISTS'
+]);
+
+export const zPlayerInGame = z.object({
+    playerId: z.uuid(),
+    playerName: z.string().nullish(),
+    score: z.int(),
+    isConnected: z.boolean(),
+    faction: zEnumsFaction.nullish()
+});
+
+/**
+ * The caller's own cumulative progress toward their faction objective, computed by the owning projection from consumed events. Scoped to the caller alone: no other player's counts, secret picks, or streak state is ever included. Absent until the owner computes it and while the caller has no assigned faction. Thresholds are owner-populated from the effective rules configuration; clients SHALL use the transmitted threshold rather than hard-coding a constant.
+ */
+export const zObjectiveProgress = z.object({
+    faction: zEnumsFaction,
+    progressCount: z.int().gte(0),
+    threshold: z.int().gte(1),
+    objectiveMet: z.boolean()
+});
+
+export const zGameWinner = z.object({
+    playerId: z.uuid(),
+    faction: zEnumsFaction.nullish(),
+    winType: z.enum([
+        'SCORE_THRESHOLD',
+        'FACTION_OBJECTIVE',
+        'LAST_PLAYER_STANDING'
+    ]).optional()
+});
+
+/**
+ * Authoritative terminal facts, present only when phase is GAME_ENDED. Consistent with the scores and faction reveals already published; per-round private hands and intel remain caller-scoped even after the game ends.
+ */
+export const zGameResult = z.object({
+    endReason: z.enum([
+        'WIN_CONDITION_MET',
+        'TIMELINE_COLLAPSED',
+        'TIMELINE_STABILIZED',
+        'DECK_EXHAUSTED',
+        'RESOLUTION_FAILED',
+        'ALL_PLAYERS_ABANDONED'
+    ]),
+    winners: z.array(zGameWinner),
+    finalScores: z.array(zFinalScore),
+    revealBoundary: z.enum(['FACTIONS_AND_SCORES_PUBLIC'])
+});
+
+export const zFaction = zEnumsFaction;
+
+export const zEnumsSpecialAction = z.enum([
+    'ANNIHILATE',
+    'CORRUPT',
+    'CASCADE',
+    'FORESIGHT',
+    'SEAL',
+    'FULFILLMENT',
+    'REWRITE',
+    'MIMIC',
+    'OBSCURE',
+    'THREAD',
+    'TAPESTRY',
+    'REWEAVE',
+    'RALLY',
+    'EXPOSE',
+    'MOMENTUM'
+]);
+
+/**
+ * One of the caller's own accepted decisions. Declaration detail is already public in declarations and kept hand cards are myHand, so HAND_SELECTION and DECLARATION entries carry no choice or detail.
+ */
+export const zMySubmission = z.object({
+    eraNumber: z.int().gte(1),
+    roundNumber: z.int().nullish(),
+    window: zSubmissionWindow,
+    status: z.enum(['ACCEPTED']),
+    choice: zSubmissionChoice.optional(),
+    card: zSubmittedCard.optional(),
+    specialAction: zEnumsSpecialAction.optional(),
+    targets: zSubmissionTargets.optional()
+});
+
+export const zSpecialBudget = z.object({
+    specialAction: zEnumsSpecialAction,
+    remainingUsesThisEra: z.int().gte(0),
+    remainingUsesThisGame: z.int().gte(0)
+});
+
 export const zPlayerGameStateResponse = z.object({
     gameId: z.uuid(),
     eraNumber: z.int(),
@@ -300,11 +409,12 @@ export const zPlayerGameStateResponse = z.object({
     roundNumber: z.int().nullish(),
     deadlines: zDeadlines.optional(),
     phaseContext: zPhaseContext.optional(),
-    myFaction: z.string().nullish(),
+    myFaction: zEnumsFaction.nullish(),
     myHand: z.array(zHandCard),
     pendingHandSelection: zPendingHandSelection.optional(),
+    myEligibleResolutionCards: z.array(zEligibleResolutionCard).optional(),
     myScore: z.int(),
-    mySpecialActions: z.array(z.string()).optional(),
+    mySpecialActions: z.array(zEnumsSpecialAction).optional(),
     myJammedUntilRound: z.int().nullish(),
     myRevealedIntel: z.array(zRevealedIntel),
     myForesightPreview: z.object({
@@ -325,20 +435,7 @@ export const zPlayerGameStateResponse = z.object({
     chain: zChainState.nullish()
 });
 
-export const zCardGrade = zEnumsCardGrade;
-
-export const zGameHistoryEra = z.object({
-    eraNumber: z.int().gte(1),
-    outcomes: z.array(zResolvedOutcome),
-    paradoxesCascaded: z.int().gte(0),
-    cascadedEvents: z.array(zCascadedEvent).min(1).optional(),
-    myHand: z.array(zDealtHandCard)
-});
-
-export const zGameHistoryResponse = z.object({
-    gameId: z.uuid(),
-    eras: z.array(zGameHistoryEra)
-});
+export const zSpecialAction = zEnumsSpecialAction;
 
 export const zGetGameStatePath = z.object({
     gameId: z.uuid()

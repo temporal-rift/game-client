@@ -49,7 +49,7 @@ describe('getGameState', () => {
       myFaction: 'WEAVERS',
       deadlines: { actionRoundExpiresAt: '2026-02-01T00:05:00Z' },
       phaseContext: { declarationOpen: false, paradoxOpen: true, paradoxIds: [paradoxId] },
-      mySubmissions: [{ eraNumber: 2, roundNumber: 2, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }],
+      mySubmissions: [{ eraNumber: 2, roundNumber: 2, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }],
       mySpecialBudgets: [{ specialAction: 'SEAL', remainingUsesThisEra: 1, remainingUsesThisGame: 2 }],
       phase: 'GAME_ENDED',
       result: {

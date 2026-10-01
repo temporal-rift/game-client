@@ -53,7 +53,7 @@ function offeredCards(cards: readonly DealtCard[]): readonly OfferedHandCard[] |
 export function selectHandSelectionView(state: GameStateView | null): HandSelectionView {
   if (!state) return { kind: 'unavailable', reason: 'Game state is not loaded yet.' }
 
-  const accepted = hasAcceptedSubmission(state, { eraNumber: state.eraNumber, kind: 'HAND_SELECTION' })
+  const accepted = hasAcceptedSubmission(state, { eraNumber: state.eraNumber, window: 'HAND_SELECTION' })
   // The accepted hand carries no deal slots: it keeps the order the server lists it in.
   const acceptedCards = offeredCards(state.myHand.map((card, index) => ({ ...card, dealSlot: index + 1 })))
   if (accepted) {

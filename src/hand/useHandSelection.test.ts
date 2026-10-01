@@ -55,7 +55,7 @@ describe('useHandSelection', () => {
     const fetchFn = vi.fn(async () => { throw new TypeError('network down') }) as unknown as AuthenticatedFetchFn
     const gameState = createGameStateSession({
       state: stateBody(),
-      refresh: async () => stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }] }),
+      refresh: async () => stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, window: 'HAND_SELECTION', status: 'ACCEPTED' }] }),
     })
     const { result } = renderHookWithQueries(() => useHandSelection({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
     act(() => [CARD_1, CARD_2, CARD_3, CARD_4, CARD_5].forEach(result.current.toggleCard))

@@ -5,7 +5,7 @@
  * for a coordinate was already accepted (lost-response recovery).
  */
 
-import type { GameStateView, SubmissionKind } from '../api/projection'
+import type { GameStateView, SubmissionWindow } from '../api/projection'
 
 /**
  * A response without a revision cannot be confirmed current (the owner
@@ -40,7 +40,7 @@ export function backoffDelayMs(consecutiveFailures: number, options: BackoffOpti
 
 export interface SubmissionQuery {
   readonly eraNumber: number
-  readonly kind: SubmissionKind
+  readonly window: SubmissionWindow
   /** Required only for ACTION submissions, which are scoped to a round. */
   readonly roundNumber?: number | null
 }
@@ -55,7 +55,7 @@ export function hasAcceptedSubmission(state: GameStateView | null, query: Submis
     return false
   }
   return (state.mySubmissions ?? []).some((submission) => {
-    if (submission.kind !== query.kind || submission.eraNumber !== query.eraNumber) {
+    if (submission.window !== query.window || submission.eraNumber !== query.eraNumber) {
       return false
     }
     if (query.roundNumber === undefined) {

@@ -10,8 +10,6 @@ export const zActionType = z.enum([
 
 export const zActionSubmissionStatus = z.enum(['SUBMITTED']);
 
-export const zRoundStatus = z.enum(['OPEN', 'CLOSED']);
-
 export const zHandSelectionStatus = z.enum(['SELECTED']);
 
 export const zHandSelectionRequest = z.object({
@@ -88,25 +86,6 @@ export const zSubmitActionResponse = z.object({
     roundClosed: z.boolean()
 });
 
-/**
- * Caller-scoped recovery of the caller's own accepted round decision. Absent until the owner computes it; never carries another player's choice, resolved or not.
- */
-export const zMyRoundSubmission = z.object({
-    submitted: z.boolean(),
-    actionType: zActionType.optional()
-});
-
-export const zRoundStatusResponse = z.object({
-    eraNumber: z.int().gte(1),
-    roundNumber: z.int().gte(1),
-    status: zRoundStatus,
-    timerRemainingSeconds: z.int().gte(0),
-    submittedCount: z.int(),
-    totalPlayers: z.int(),
-    pendingPlayerIds: z.array(z.uuid()),
-    mySubmission: zMyRoundSubmission.optional()
-});
-
 export const zProblemDetail = z.object({
     type: z.url().max(1024).optional(),
     status: z.int().gte(100).lte(599).optional(),
@@ -144,55 +123,6 @@ export const zCardActionRequest = zSubmitActionRequest.and(z.intersection(z.unkn
 }))).and(z.object({
     actionType: z.literal('CARD')
 }));
-
-export const zEnumsCardGrade = z.enum([
-    'I',
-    'II',
-    'III'
-]);
-
-export const zCardGrade = zEnumsCardGrade;
-
-export const zEnumsCardType = z.enum([
-    'PUSH',
-    'SUPPRESS',
-    'SWING',
-    'AMPLIFY',
-    'INTERCEPT',
-    'SCAN',
-    'TRACE',
-    'DECOY',
-    'JAM',
-    'STALL',
-    'REDIRECT',
-    'NULLIFY',
-    'COLLIDE',
-    'STABILIZE',
-    'DETONATE'
-]);
-
-export const zCardType = zEnumsCardType;
-
-/**
- * One of the caller's own cards eligible for the current open paradox-resolution phase. Caller-scoped: never carries another participant's card.
- */
-export const zEligibleResolutionCard = z.object({
-    cardInstanceId: z.uuid(),
-    cardType: zEnumsCardType,
-    grade: zEnumsCardGrade
-});
-
-export const zParadoxResolutionStatusResponse = z.object({
-    eraNumber: z.int().gte(1),
-    phaseOpen: z.boolean(),
-    timerRemainingSeconds: z.int().gte(0).optional(),
-    submittedCount: z.int().gte(0),
-    totalPlayers: z.int().gte(0),
-    pendingPlayerIds: z.array(z.uuid()).optional(),
-    mySubmitted: z.boolean(),
-    affectedEventIds: z.array(z.uuid()).optional(),
-    eligibleResolutionCards: z.array(zEligibleResolutionCard).optional()
-});
 
 export const zEnumsSpecialAction = z.enum([
     'ANNIHILATE',
@@ -273,32 +203,8 @@ export const zSubmitParadoxResolutionCardPath = z.object({
 
 /**
  * Paradox-resolution card or explicit pass submitted. A pass returns the same `SUBMITTED` shape,
- * consumes the player's phase slot, spends no card, and recovers as `mySubmitted: true`.
+ * consumes the player's phase slot, spends no card, and resolves as the same neutral skip a timer expiry
+ * produces.
  *
  */
 export const zSubmitParadoxResolutionCardResponse = zParadoxResolutionCardResponse;
-
-export const zGetRoundStatusPath = z.object({
-    gameId: z.uuid(),
-    eraNumber: z.int().gte(1),
-    roundNumber: z.int().gte(1)
-});
-
-/**
- * Round submission status. `pendingPlayerIds` reports who has not submitted, never what anyone
- * submitted. The optional caller-scoped `mySubmission` recovers the caller's own accepted decision
- * after reload; it never carries another player's choice. Era/round coordinates are stale-state
- * guards: refresh the participant state and retry at most once when they are rejected elsewhere.
- *
- */
-export const zGetRoundStatusResponse = zRoundStatusResponse;
-
-export const zGetParadoxResolutionStatusPath = z.object({
-    gameId: z.uuid(),
-    eraNumber: z.int().gte(1)
-});
-
-/**
- * Paradox-resolution phase status with caller-scoped submission and choice recovery
- */
-export const zGetParadoxResolutionStatusResponse = zParadoxResolutionStatusResponse;

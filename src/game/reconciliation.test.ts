@@ -54,29 +54,37 @@ describe('backoffDelayMs', () => {
 
 describe('hasAcceptedSubmission', () => {
   it('reports false when there is no state yet', () => {
-    expect(hasAcceptedSubmission(null, { eraNumber: 1, kind: 'HAND_SELECTION' })).toBe(false)
+    expect(hasAcceptedSubmission(null, { eraNumber: 1, window: 'HAND_SELECTION' })).toBe(false)
   })
 
   it('finds an accepted hand selection by era and kind alone', () => {
     const state = gameState({
-      mySubmissions: [{ eraNumber: 1, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }],
+      mySubmissions: [{ eraNumber: 1, roundNumber: null, window: 'HAND_SELECTION', status: 'ACCEPTED' }],
     })
-    expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'HAND_SELECTION' })).toBe(true)
-    expect(hasAcceptedSubmission(state, { eraNumber: 2, kind: 'HAND_SELECTION' })).toBe(false)
+    expect(hasAcceptedSubmission(state, { eraNumber: 1, window: 'HAND_SELECTION' })).toBe(true)
+    expect(hasAcceptedSubmission(state, { eraNumber: 2, window: 'HAND_SELECTION' })).toBe(false)
   })
 
   it('scopes an ordinary action submission to its round', () => {
     const state = gameState({
-      mySubmissions: [{ eraNumber: 1, roundNumber: 2, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }],
+      mySubmissions: [{ eraNumber: 1, roundNumber: 2, window: 'ACTION', choice: 'PASS', status: 'ACCEPTED' }],
     })
-    expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'ACTION', roundNumber: 2 })).toBe(true)
-    expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'ACTION', roundNumber: 1 })).toBe(false)
+    expect(hasAcceptedSubmission(state, { eraNumber: 1, window: 'ACTION', roundNumber: 2 })).toBe(true)
+    expect(hasAcceptedSubmission(state, { eraNumber: 1, window: 'ACTION', roundNumber: 1 })).toBe(false)
   })
 
   it('never matches another kind at the same coordinate', () => {
     const state = gameState({
-      mySubmissions: [{ eraNumber: 1, roundNumber: null, kind: 'DECLARATION', status: 'ACCEPTED' }],
+      mySubmissions: [{ eraNumber: 1, roundNumber: null, window: 'DECLARATION', status: 'ACCEPTED' }],
     })
-    expect(hasAcceptedSubmission(state, { eraNumber: 1, kind: 'PARADOX_CARD' })).toBe(false)
+    expect(hasAcceptedSubmission(state, { eraNumber: 1, window: 'PARADOX_RESOLUTION' })).toBe(false)
+  })
+
+  it('recovers a paradox-resolution pass by window and era', () => {
+    const state = gameState({
+      mySubmissions: [{ eraNumber: 1, roundNumber: null, window: 'PARADOX_RESOLUTION', choice: 'PASS', status: 'ACCEPTED' }],
+    })
+    expect(hasAcceptedSubmission(state, { eraNumber: 1, window: 'PARADOX_RESOLUTION' })).toBe(true)
+    expect(hasAcceptedSubmission(state, { eraNumber: 2, window: 'PARADOX_RESOLUTION' })).toBe(false)
   })
 })

@@ -81,7 +81,7 @@ export function useHandSelection({
       if (selectionKeyRef.current !== submittedSelectionKey) return
       const reconciled = await gameState.refresh()
       if (selectionKeyRef.current !== submittedSelectionKey) return
-      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, kind: 'HAND_SELECTION' })) {
+      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, window: 'HAND_SELECTION' })) {
         setSubmitPhase({ kind: 'submitted' })
         setSelectedCardInstanceIds([])
         return

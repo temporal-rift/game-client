@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiProblemError } from './client'
 import {
   actionErrorMessage,
-  getParadoxResolutionStatus,
   submitAction,
   submitHandSelection,
   submitParadoxResolutionCard,
@@ -117,29 +116,6 @@ describe('submitAction', () => {
 })
 
 describe('paradox resolution', () => {
-  it('recovers only caller-safe eligible cards and affected event targets', async () => {
-    const offer = uuid('offer-1')
-    const fetchFn = vi.fn().mockResolvedValue(
-      jsonResponse({
-        eraNumber: 2,
-        phaseOpen: true,
-        timerRemainingSeconds: 30,
-        submittedCount: 1,
-        totalPlayers: 3,
-        pendingPlayerIds: [uuid('p2'), uuid('p3')],
-        mySubmitted: false,
-        affectedEventIds: [eventId],
-        eligibleResolutionCards: [{ cardInstanceId: offer, cardType: 'STABILIZE', grade: 'I' }],
-      }),
-    )
-
-    const view = await getParadoxResolutionStatus(fetchFn, apiBaseUrl, gameId, 2)
-
-    expect(fetchFn.mock.calls[0]?.[0]).toBe(`https://api.example.test/api/v1/games/${gameId}/eras/2/paradox-resolution/status`)
-    expect(view.affectedEventIds).toEqual([eventId])
-    expect(view.eligibleResolutionCards).toEqual([{ cardInstanceId: offer, cardType: 'STABILIZE', grade: 'I' }])
-  })
-
   it('posts a phase-scoped card choice without an ordinary action payload', async () => {
     const offer = uuid('offer-1')
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId, eraNumber: 2, playerId, status: 'SUBMITTED' }, 202))
