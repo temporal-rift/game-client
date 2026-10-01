@@ -1,4 +1,6 @@
 import type { EventBoardEntry } from '../types/playerView'
+import { EventIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 import { BandLabel } from './BandLabel'
 import { EventSceneArt, EventStatusIcon } from './icons'
 
@@ -7,6 +9,7 @@ interface EventBoardProps {
   readonly publicBandAgeLabel: string
   readonly selectedTargetId: string | null
   readonly onSelectTarget: (id: string) => void
+  readonly illustrationSkin?: IllustrationSkin
 }
 
 const STATUS_LABEL: Record<EventBoardEntry['status'], string> = {
@@ -25,7 +28,7 @@ function instructionFor(hasSelectedOutcome: boolean, status: EventBoardEntry['st
   return 'Choose an outcome to target'
 }
 
-export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSelectTarget }: EventBoardProps) {
+export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSelectTarget, illustrationSkin = 'board' }: EventBoardProps) {
   return (
     <section className="event-board" aria-labelledby="event-board-heading">
       <div className="section-heading-row">
@@ -38,7 +41,7 @@ export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSel
           return (
             <li key={event.id}>
               <article className={`event-card${hasSelectedOutcome ? ' is-selected' : ''}`}>
-                <EventSceneArt artwork={event.artwork} />
+                {illustrationSkin === 'board' ? <EventSceneArt artwork={event.artwork} /> : <EventIllustration eventId={event.id} skin={illustrationSkin} />}
                 <div className="event-card-body">
                   <div className="event-card-meta">
                     <span>Future {String(eventIndex + 1).padStart(2, '0')}</span>

@@ -47,7 +47,7 @@ function renderBoard(selectedTargetId: string | null, onSelectTarget = vi.fn()) 
 
 describe('EventBoard', () => {
   it('renders readable event titles, outcome labels, statuses and qualitative bands', () => {
-    renderBoard(null)
+    const { container } = renderBoard(null)
 
     expect(screen.getByText('Resolved Event')).toBeInTheDocument()
     expect(screen.getByText('Resolved branch')).toBeInTheDocument()
@@ -55,6 +55,14 @@ describe('EventBoard', () => {
     expect(screen.getByText('High')).toBeInTheDocument()
     expect(screen.getByText('Unknown')).toBeInTheDocument()
     expect(screen.getByText('Bands from round 2')).toBeInTheDocument()
+    expect(container.querySelector('.event-scene-art')).toBeInTheDocument()
+  })
+
+  it('renders decorative fallback artwork in the selected skin and keeps event titles readable', () => {
+    const { container } = render(<EventBoard events={events} publicBandAgeLabel="Bands" selectedTargetId={null} onSelectTarget={vi.fn()} illustrationSkin="engraving" />)
+    expect(container.querySelector('svg')).toHaveClass('skin-engraving')
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText('Open Event')).toBeInTheDocument()
   })
 
   it('never invents exact numbers for an unknown band', () => {

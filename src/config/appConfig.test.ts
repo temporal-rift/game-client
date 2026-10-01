@@ -5,7 +5,8 @@ const validConfig: RuntimeConfig = {
   apiBaseUrl: 'https://api.example.test',
   oidcIssuerUrl: 'https://issuer.example.test',
   oidcClientId: 'game-client',
-  oidcAudience: 'https://api.example.test',
+      oidcAudience: 'https://api.example.test',
+      illustrationSkin: 'board',
 }
 
 describe('resolveAppConfig', () => {
@@ -19,8 +20,22 @@ describe('resolveAppConfig', () => {
         oidcIssuerUrl: 'https://issuer.example.test',
         oidcClientId: 'game-client',
         oidcAudience: 'https://api.example.test',
+        illustrationSkin: 'board',
       },
     })
+  })
+
+  it('defaults the optional illustration skin to the established Board skin', () => {
+    const { illustrationSkin: _ignored, ...withoutSkin } = validConfig
+    expect(resolveAppConfig(withoutSkin)).toMatchObject({ ok: true, config: { illustrationSkin: 'board' } })
+  })
+
+  it('accepts Engraving and rejects unsupported illustration skins', () => {
+    expect(resolveAppConfig({ ...validConfig, illustrationSkin: 'engraving' })).toMatchObject({
+      ok: true,
+      config: { illustrationSkin: 'engraving' },
+    })
+    expect(resolveAppConfig({ ...validConfig, illustrationSkin: 'unknown' }).ok).toBe(false)
   })
 
   it('reports every missing value', () => {

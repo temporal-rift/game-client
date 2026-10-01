@@ -15,4 +15,6 @@ window.__APP_CONFIG__ = {
   // e.g. Auth0). The game services validate the issuer and signature independently of this
   // value.
   oidcAudience: 'https://temporal-rift.example.com/api',
+  // Optional: "board" (default) or "engraving".
+  illustrationSkin: 'board',
 }

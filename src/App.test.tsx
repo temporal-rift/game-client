@@ -29,6 +29,7 @@ const validRuntimeConfig = {
   oidcIssuerUrl: 'https://issuer.example.test',
   oidcClientId: 'game-client',
   oidcAudience: 'https://api.example.test',
+  illustrationSkin: 'board',
 }
 
 function stubClient(overrides: Record<string, unknown> = {}): Record<string, unknown> {

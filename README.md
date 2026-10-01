@@ -20,6 +20,8 @@ Windows, stop a running dev server before pulling such a change: it keeps `node_
 `public/config.js` is gitignored and read at startup as `window.__APP_CONFIG__` (see
 `src/config/appConfig.ts`) — this is the same mechanism the built image uses in production,
 generated there from environment variables instead of hand-edited.
+Set `illustrationSkin` to `board` or `engraving` to choose the catalog artwork treatment.
+It defaults to `board`. Container deployments can set `APP_ILLUSTRATION_SKIN` to the same values.
 
 The example targets the local stack started from the sibling `infrastructure` checkout
 (`docker compose up -d`): the API is the dev server's own origin, and sign-in goes through that stack's

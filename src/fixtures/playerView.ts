@@ -21,7 +21,7 @@ export const sampleFixturePlayerView: PlayerView = {
   ],
   events: [
     {
-      id: 'evt-1',
+      id: '12606191-eafe-4d1c-a014-b676bf094db0',
       era: 2,
       title: 'The Assassination Attempt on the Peace Delegate',
       artwork: 'delegate',
@@ -33,7 +33,7 @@ export const sampleFixturePlayerView: PlayerView = {
       ],
     },
     {
-      id: 'evt-2',
+      id: '400e3361-301f-4ec1-9edd-cb0c6e14fbc6',
       era: 2,
       title: "The Quantum Reactor's First Ignition",
       artwork: 'reactor',
@@ -45,7 +45,7 @@ export const sampleFixturePlayerView: PlayerView = {
       ],
     },
     {
-      id: 'evt-3',
+      id: 'ab0d99ea-6f75-4d8d-b1a7-7a1a063635a4',
       era: 2,
       title: 'The Collapse of the Northern Trade Pact',
       artwork: 'pact',

@@ -11,10 +11,11 @@ const hand: readonly HandCard[] = [
 
 describe('PrivateHand', () => {
   it('renders the exact card name and grade as readable text', () => {
-    render(<PrivateHand hand={hand} selectedCardId={null} onSelectCard={vi.fn()} />)
+    const { container } = render(<PrivateHand hand={hand} selectedCardId={null} onSelectCard={vi.fn()} />)
 
     expect(screen.getByText('Push')).toBeInTheDocument()
     expect(screen.getByLabelText('Grade 2')).toBeInTheDocument()
+    expect(container.querySelector('.card-glyph-push')).toBeInTheDocument()
   })
 
   it('selects an available card by pointer', async () => {

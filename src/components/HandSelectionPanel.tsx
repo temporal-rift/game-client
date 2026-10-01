@@ -1,5 +1,7 @@
 import type { HandSelectionSubmitPhase } from '../hand/useHandSelection'
 import type { HandSelectionView } from '../hand/handSelectionView'
+import { CardIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 
 function deadlineLabel(expiresAt: string): string {
   const timestamp = Date.parse(expiresAt)
@@ -13,6 +15,7 @@ export function HandSelectionPanel({
   onToggleCard,
   onConfirm,
   onDismissRejection,
+  illustrationSkin = 'board',
 }: {
   readonly view: HandSelectionView
   readonly selectedCardInstanceIds: readonly string[]
@@ -20,6 +23,7 @@ export function HandSelectionPanel({
   readonly onToggleCard: (cardInstanceId: string) => void
   readonly onConfirm: () => void
   readonly onDismissRejection: () => void
+  readonly illustrationSkin?: IllustrationSkin
 }) {
   if (view.kind === 'unavailable') {
     return (
@@ -37,6 +41,7 @@ export function HandSelectionPanel({
         <ul aria-label="Accepted hand">
           {view.cards.map((card) => (
             <li key={card.cardInstanceId}>
+              <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
               {card.name} · Grade {card.grade} — {card.effectSummary}
             </li>
           ))}
@@ -71,6 +76,7 @@ export function HandSelectionPanel({
                 disabled={submitPhase.kind === 'submitting' || (!isSelected && selected.size === view.requiredSelectionCount)}
                 onClick={() => onToggleCard(card.cardInstanceId)}
               >
+                <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
                 {isSelected ? 'Keeping' : 'Offer'} · {card.name} · Grade {card.grade} — {card.effectSummary}
               </button>
             </li>

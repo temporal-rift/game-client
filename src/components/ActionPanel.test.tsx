@@ -102,7 +102,7 @@ describe('ActionPanel', () => {
   })
 
   it('shows every legal card and special with grade, effect and availability', () => {
-    render(
+    const { container } = render(
       <ActionPanel
         view={openView}
         draft={idleDraft}
@@ -119,6 +119,28 @@ describe('ActionPanel', () => {
     expect(screen.getByRole('button', { name: 'Annihilate' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Cascade' })).toBeDisabled()
     expect(screen.getByText(/Jammed until round 1/)).toBeInTheDocument()
+    expect(container.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(5)
+    expect(screen.getByRole('button', { name: /Push · Grade II/ }).querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Annihilate' }).querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('shows event artwork when an event is offered as an action target and preserves its title', async () => {
+    const { container } = render(
+      <ActionPanel
+        illustrationSkin="engraving"
+        view={openView}
+        draft={{ kind: 'card', cardInstanceId: 'card-1', coordinates: {} }}
+        submitPhase={idlePhase}
+        onSelectCard={noop}
+        onSelectSpecial={noop}
+        onClearDraft={noop}
+        onConfirm={noop}
+        onDismissRejection={noop}
+      />,
+    )
+    const eventButton = screen.getByRole('button', { name: /The Reactor/ })
+    expect(eventButton.querySelector('svg')).toHaveClass('skin-engraving')
+    expect(container).toHaveTextContent('The Reactor')
   })
 
   it('selects a card, then an event, then an outcome, enabling confirm only once complete', async () => {

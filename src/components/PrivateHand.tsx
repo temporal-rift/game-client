@@ -1,10 +1,13 @@
 import type { HandCard } from '../types/playerView'
+import { CardIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 import { CardGlyph, GradeBadge } from './icons'
 
 interface PrivateHandProps {
   readonly hand: readonly HandCard[]
   readonly selectedCardId: string | null
   readonly onSelectCard: (id: string) => void
+  readonly illustrationSkin?: IllustrationSkin
 }
 
 function stateLabelFor(card: HandCard, isSelected: boolean): string {
@@ -17,7 +20,7 @@ function stateLabelFor(card: HandCard, isSelected: boolean): string {
   return card.unavailableReason ?? 'Unavailable'
 }
 
-export function PrivateHand({ hand, selectedCardId, onSelectCard }: PrivateHandProps) {
+export function PrivateHand({ hand, selectedCardId, onSelectCard, illustrationSkin = 'board' }: PrivateHandProps) {
   return (
     <section className="private-hand" aria-labelledby="private-hand-heading">
       <div className="section-heading-row">
@@ -41,7 +44,7 @@ export function PrivateHand({ hand, selectedCardId, onSelectCard }: PrivateHandP
                   <GradeBadge grade={card.grade} />
                 </span>
                 <span className="card-glyph-well">
-                  <CardGlyph kind={card.kind} />
+                  {illustrationSkin === 'board' ? <CardGlyph kind={card.kind} /> : <CardIllustration cardType={card.kind.toUpperCase()} skin={illustrationSkin} />}
                 </span>
                 <span className="hand-card-name">{card.name}</span>
                 <span className="hand-card-description">{card.description}</span>
