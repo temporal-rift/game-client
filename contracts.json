@@ -1,6 +1,6 @@
 {
   "session-api": "3.0.0",
-  "action-api": "6.1.0",
-  "projection-api": "8.0.0",
+  "action-api": "7.0.0",
+  "projection-api": "9.0.0",
   "scoring-api": "2.0.1"
 }

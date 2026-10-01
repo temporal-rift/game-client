@@ -38,7 +38,7 @@ function GamePage({ gameId }: { readonly gameId: string }) {
   const results = useResults({ apiBaseUrl, fetchFn, gameState, ownPlayerId, perspectiveKey })
   const action = useActionSubmission({ apiBaseUrl, fetchFn, gameState, ownPlayerId })
   const handSelection = useHandSelection({ apiBaseUrl, fetchFn, gameState })
-  const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState, perspectiveKey })
+  const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState })
   const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
 

@@ -252,14 +252,14 @@ describe('useGameState', () => {
     const fetchFn = vi.fn().mockResolvedValue(
       gameStateResponse({
         revision: 1,
-        mySubmissions: [{ eraNumber: 1, roundNumber: 1, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }],
+        mySubmissions: [{ eraNumber: 1, roundNumber: 1, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }],
       }),
     )
     const { result } = renderHookWithQueries(() => useGameState({ ...BASE_OPTIONS, fetchFn, gameId: GAME, perspectiveKey: 'alice' }))
     await flush()
     expect(result.current.status.kind).toBe('ready')
 
-    expect(result.current.hasAcceptedSubmission({ eraNumber: 1, kind: 'ACTION', roundNumber: 1 })).toBe(true)
-    expect(result.current.hasAcceptedSubmission({ eraNumber: 1, kind: 'ACTION', roundNumber: 2 })).toBe(false)
+    expect(result.current.hasAcceptedSubmission({ eraNumber: 1, window: 'ACTION', roundNumber: 1 })).toBe(true)
+    expect(result.current.hasAcceptedSubmission({ eraNumber: 1, window: 'ACTION', roundNumber: 2 })).toBe(false)
   })
 })

@@ -6,7 +6,6 @@
 
 import { queryOptions } from '@tanstack/react-query'
 import type { AuthenticatedFetchFn } from './client'
-import { getParadoxResolutionStatus } from './action'
 import { getGameState, type GameStateView } from './projection'
 import { getScores, getScoresHistory } from './scoring'
 import { getLobby } from './session'
@@ -26,8 +25,6 @@ export const queryKeys = {
   gameState: (perspective: string, gameId: string) => [...queryKeys.perspective(perspective), 'game-state', gameId] as const,
   scores: (perspective: string, gameId: string) => [...queryKeys.perspective(perspective), 'scores', gameId] as const,
   scoresHistory: (perspective: string, gameId: string) => [...queryKeys.perspective(perspective), 'scores-history', gameId] as const,
-  paradoxStatus: (perspective: string, gameId: string, eraNumber: number, revision: number | null) =>
-    [...queryKeys.perspective(perspective), 'paradox-status', gameId, eraNumber, revision] as const,
 }
 
 export function lobbyQuery(scope: QueryScope, lobbyId: string) {
@@ -65,13 +62,5 @@ export function scoresHistoryQuery(scope: QueryScope, gameId: string) {
   return queryOptions({
     queryKey: queryKeys.scoresHistory(scope.perspective, gameId),
     queryFn: ({ signal }) => getScoresHistory(scope.fetchFn, scope.apiBaseUrl, gameId, { signal }),
-  })
-}
-
-/** Keyed by revision too: every newer game state re-reads the phase status. */
-export function paradoxStatusQuery(scope: QueryScope, gameId: string, eraNumber: number, revision: number | null) {
-  return queryOptions({
-    queryKey: queryKeys.paradoxStatus(scope.perspective, gameId, eraNumber, revision),
-    queryFn: ({ signal }) => getParadoxResolutionStatus(scope.fetchFn, scope.apiBaseUrl, gameId, eraNumber, { signal }),
   })
 }

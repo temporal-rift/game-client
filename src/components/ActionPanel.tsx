@@ -4,6 +4,7 @@ import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption
 import { CARD_CATEGORIES, cardCategoryDisplayName, type TargetMode } from '../action/actionRules'
 import { CardIllustration, EventIllustration, SpecialIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import { useDeadlineCountdown } from '../game/useDeadlineCountdown'
 
 interface ActionPanelProps {
   readonly illustrationSkin?: IllustrationSkin
@@ -309,6 +310,17 @@ function confirmationStatusText(isComplete: boolean, needsDisguise: boolean): st
   return needsDisguise ? ' · choose a disguise' : ' · choose a target'
 }
 
+function deadlineLabel(seconds: number | null): string {
+  if (seconds === null) return 'Deadline is being refreshed.'
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}:${String(seconds % 60).padStart(2, '0')} remaining`
+}
+
+function roundProgressLabel(submittedCount: number | null, totalPlayers: number | null): string {
+  if (submittedCount === null || totalPlayers === null) return 'Round progress is being refreshed.'
+  return `${submittedCount} / ${totalPlayers} players submitted.`
+}
+
 /**
  * Renders the authoritative action-round options for one participant: legal
  * graded cards and faction specials (with server-supplied availability and
@@ -327,6 +339,8 @@ export function ActionPanel({
   onConfirm,
   onDismissRejection,
 }: ActionPanelProps) {
+  const secondsRemaining = useDeadlineCountdown(view.kind === 'open' ? view.deadline : null)
+
   if (view.kind === 'unavailable') {
     return (
       <section aria-label="Your action">
@@ -340,7 +354,20 @@ export function ActionPanel({
     return (
       <section aria-label="Your action">
         <h2>Your action</h2>
+        <p>{roundProgressLabel(view.submittedCount, view.totalPlayers)}</p>
+        <p>{deadlineLabel(secondsRemaining)}</p>
         <output>Your action is submitted for this round. Private until round closure.</output>
+      </section>
+    )
+  }
+
+  if (submitPhase.kind === 'awaiting-projection') {
+    return (
+      <section aria-label="Your action">
+        <h2>Your action</h2>
+        <p>{roundProgressLabel(view.submittedCount, view.totalPlayers)}</p>
+        <p>{deadlineLabel(secondsRemaining)}</p>
+        <output>Waiting for game state to reflect your action.</output>
       </section>
     )
   }
@@ -383,6 +410,8 @@ export function ActionPanel({
       <p>
         Era {view.eraNumber} · Round {view.roundNumber} · one card or one special this round
       </p>
+      <p>{roundProgressLabel(view.submittedCount, view.totalPlayers)}</p>
+      <p>{deadlineLabel(secondsRemaining)}</p>
 
       <h3>Your hand</h3>
       <ul aria-label="Hand">
@@ -471,7 +500,6 @@ export function ActionPanel({
             </button>
           </p>
         )}
-        {submitPhase.kind === 'submitted' && <output>Action submitted.</output>}
         <p>Exact live weights remain hidden. The server validates your action.</p>
       </section>
     </section>

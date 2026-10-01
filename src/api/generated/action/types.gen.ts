@@ -8,15 +8,9 @@ export type ActionType = 'CARD' | 'SPECIAL' | 'PASS';
 
 export type SpecialAction = EnumsSpecialAction;
 
-export type CardType = EnumsCardType;
-
-export type CardGrade = EnumsCardGrade;
-
 export type CardCategory = EnumsCardCategory;
 
 export type ActionSubmissionStatus = 'SUBMITTED';
-
-export type RoundStatus = 'OPEN' | 'CLOSED';
 
 export type HandSelectionStatus = 'SELECTED';
 
@@ -169,64 +163,6 @@ export type SubmitActionResponse = {
     roundClosed: boolean;
 };
 
-export type RoundStatusResponse = {
-    eraNumber: number;
-    roundNumber: number;
-    status: RoundStatus;
-    timerRemainingSeconds: number;
-    submittedCount: number;
-    totalPlayers: number;
-    pendingPlayerIds: Array<string>;
-    mySubmission?: MyRoundSubmission;
-};
-
-/**
- * Caller-scoped recovery of the caller's own accepted round decision. Absent until the owner computes it; never carries another player's choice, resolved or not.
- */
-export type MyRoundSubmission = {
-    submitted: boolean;
-    actionType?: ActionType;
-};
-
-export type ParadoxResolutionStatusResponse = {
-    eraNumber: number;
-    /**
-     * True while the era's paradox-resolution phase accepts reactive cards.
-     */
-    phaseOpen: boolean;
-    /**
-     * Authoritative seconds remaining while phaseOpen is true; absent once closed.
-     */
-    timerRemainingSeconds?: number;
-    submittedCount: number;
-    totalPlayers: number;
-    /**
-     * Players yet to submit while the phase is open; never reveals submitted card details.
-     */
-    pendingPlayerIds?: Array<string>;
-    /**
-     * Whether the caller has an accepted paradox-resolution submission for this era.
-     */
-    mySubmitted: boolean;
-    /**
-     * Identifiers of the events affected by the current paradox-resolution phase. Present while the phase is known; sufficient with eligibleResolutionCards to form a valid, reload-safe choice.
-     */
-    affectedEventIds?: Array<string>;
-    /**
-     * The caller's own eligible resolution cards for the current open phase. Present only while the phase is open and the caller has not yet submitted; absent once the phase is closed or expired and never carries another participant's choices or offers.
-     */
-    eligibleResolutionCards?: Array<EligibleResolutionCard>;
-};
-
-/**
- * One of the caller's own cards eligible for the current open paradox-resolution phase. Caller-scoped: never carries another participant's card.
- */
-export type EligibleResolutionCard = {
-    cardInstanceId: string;
-    cardType: EnumsCardType;
-    grade: EnumsCardGrade;
-};
-
 export type ProblemDetail = {
     /**
      * A URI reference that identifies the problem type.
@@ -280,10 +216,6 @@ export type ProblemDetail = {
 };
 
 export type EnumsCardCategory = 'PROBABILITY_SHIFTER' | 'INFORMATION' | 'DISRUPTION' | 'PARADOX';
-
-export type EnumsCardGrade = 'I' | 'II' | 'III';
-
-export type EnumsCardType = 'PUSH' | 'SUPPRESS' | 'SWING' | 'AMPLIFY' | 'INTERCEPT' | 'SCAN' | 'TRACE' | 'DECOY' | 'JAM' | 'STALL' | 'REDIRECT' | 'NULLIFY' | 'COLLIDE' | 'STABILIZE' | 'DETONATE';
 
 export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
 
@@ -447,77 +379,11 @@ export type SubmitParadoxResolutionCardError = SubmitParadoxResolutionCardErrors
 export type SubmitParadoxResolutionCardResponses = {
     /**
      * Paradox-resolution card or explicit pass submitted. A pass returns the same `SUBMITTED` shape,
-     * consumes the player's phase slot, spends no card, and recovers as `mySubmitted: true`.
+     * consumes the player's phase slot, spends no card, and resolves as the same neutral skip a timer expiry
+     * produces.
      *
      */
     202: ParadoxResolutionCardResponse;
 };
 
 export type SubmitParadoxResolutionCardResponse = SubmitParadoxResolutionCardResponses[keyof SubmitParadoxResolutionCardResponses];
-
-export type GetRoundStatusData = {
-    body?: never;
-    path: {
-        gameId: string;
-        eraNumber: number;
-        roundNumber: number;
-    };
-    query?: never;
-    url: '/api/v1/games/{gameId}/eras/{eraNumber}/rounds/{roundNumber}/status';
-};
-
-export type GetRoundStatusErrors = {
-    /**
-     * Game or round not found (`code: 404-01`). Also returned when the requesting player is
-     * not a participant of the game, so game and round existence is never disclosed to
-     * outsiders.
-     *
-     */
-    404: ProblemDetail;
-};
-
-export type GetRoundStatusError = GetRoundStatusErrors[keyof GetRoundStatusErrors];
-
-export type GetRoundStatusResponses = {
-    /**
-     * Round submission status. `pendingPlayerIds` reports who has not submitted, never what anyone
-     * submitted. The optional caller-scoped `mySubmission` recovers the caller's own accepted decision
-     * after reload; it never carries another player's choice. Era/round coordinates are stale-state
-     * guards: refresh the participant state and retry at most once when they are rejected elsewhere.
-     *
-     */
-    200: RoundStatusResponse;
-};
-
-export type GetRoundStatusResponse = GetRoundStatusResponses[keyof GetRoundStatusResponses];
-
-export type GetParadoxResolutionStatusData = {
-    body?: never;
-    path: {
-        gameId: string;
-        eraNumber: number;
-    };
-    query?: never;
-    url: '/api/v1/games/{gameId}/eras/{eraNumber}/paradox-resolution/status';
-};
-
-export type GetParadoxResolutionStatusErrors = {
-    /**
-     * Game or paradox-resolution phase not found (`code: 404-01`). Also returned when the requesting
-     * player is not a participant of the game, so game and phase existence is never disclosed to
-     * outsiders.
-     *
-     */
-    404: ProblemDetail;
-};
-
-export type GetParadoxResolutionStatusError = GetParadoxResolutionStatusErrors[keyof GetParadoxResolutionStatusErrors];
-
-export type GetParadoxResolutionStatusResponses = {
-    /**
-     * Paradox-resolution phase status with caller-scoped submission and choice recovery
-     */
-    200: ParadoxResolutionStatusResponse;
-};
-
-export type GetParadoxResolutionStatusResponse = GetParadoxResolutionStatusResponses[keyof GetParadoxResolutionStatusResponses];

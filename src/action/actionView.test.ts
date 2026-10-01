@@ -64,7 +64,7 @@ describe('selectActionRoundView', () => {
   })
 
   it('drops a hand card whose type the action contract does not know', () => {
-    const state = baseState({}, { myHand: [{ cardInstanceId: 'card-1', cardType: 'TELEPORT', grade: 'I', isPlayableThisRound: true }] })
+    const state = baseState({}, { myHand: [{ cardInstanceId: 'card-1', cardType: 'TELEPORT' as never, grade: 'I', isPlayableThisRound: true }] })
     const view = selectActionRoundView(state)
     if (view.kind !== 'open') throw new Error('expected open view')
     expect(view.hand).toEqual([])
@@ -165,9 +165,29 @@ describe('selectActionRoundView', () => {
   })
 
   it('reflects hasSubmitted from an accepted ACTION submission for the current era/round', () => {
-    const state = baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, kind: 'ACTION', status: 'ACCEPTED', actionType: 'CARD' }] })
+    const state = baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }] })
     const view = selectActionRoundView(state)
     if (view.kind !== 'open') throw new Error('expected open view')
     expect(view.hasSubmitted).toBe(true)
+  })
+
+  it('recovers an action-round pass after reload', () => {
+    const state = baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, window: 'ACTION', choice: 'PASS', status: 'ACCEPTED' }] })
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.hasSubmitted).toBe(true)
+  })
+
+  it('projects progress and the action-round deadline without filling missing values', () => {
+    const state = baseState(
+      { phaseContext: { declarationOpen: false, paradoxOpen: false, actionRoundProgress: { submittedCount: 1, totalPlayers: 3, pendingPlayerIds: ['p2', 'p3'] } }, deadlines: { actionRoundExpiresAt: '2026-01-01T00:00:30Z' } },
+    )
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view).toMatchObject({ submittedCount: 1, totalPlayers: 3, deadline: '2026-01-01T00:00:30Z' })
+
+    const missing = selectActionRoundView(baseState())
+    if (missing.kind !== 'open') throw new Error('expected open view')
+    expect(missing).toMatchObject({ submittedCount: null, totalPlayers: null, deadline: null })
   })
 })

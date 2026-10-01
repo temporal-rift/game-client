@@ -16,9 +16,12 @@ export type {
   ActionSummary,
   ActiveEvent,
   ExposeFact,
+  EligibleResolutionCard,
   GameResult,
   MySubmission,
   Phase,
+  SubmissionChoice,
+  SubmissionWindow,
   PlayerInGame,
   PublicBandEvent,
   PublicDeclaration,
@@ -28,8 +31,6 @@ export type {
 
 /** One participant's authoritative game state, exactly as the contract defines it. */
 export type GameStateView = PlayerGameStateResponse
-
-export type SubmissionKind = NonNullable<GameStateView['mySubmissions']>[number]['kind']
 
 /**
  * Recovers the caller's participant-scoped game state. The reload-safe,

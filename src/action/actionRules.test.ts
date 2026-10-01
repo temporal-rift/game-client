@@ -176,14 +176,14 @@ describe('specialActionAvailability', () => {
   })
 
   it('is unavailable once a budgeted special is exhausted for the era', () => {
-    const budgets = [{ specialAction: 'SEAL', remainingUsesThisEra: 0, remainingUsesThisGame: 1 }]
+    const budgets = [{ specialAction: 'SEAL', remainingUsesThisEra: 0, remainingUsesThisGame: 1 }] as const
     const result = specialActionAvailability('SEAL', { roundNumber: 1, myJammedUntilRound: null, budgets })
     expect(result.available).toBe(false)
     expect(result.reason).toMatch(/no remaining uses/i)
   })
 
   it('is available while a budgeted special still has remaining uses this era', () => {
-    const budgets = [{ specialAction: 'SEAL', remainingUsesThisEra: 1, remainingUsesThisGame: 1 }]
+    const budgets = [{ specialAction: 'SEAL', remainingUsesThisEra: 1, remainingUsesThisGame: 1 }] as const
     expect(specialActionAvailability('SEAL', { roundNumber: 1, myJammedUntilRound: null, budgets }).available).toBe(true)
   })
 

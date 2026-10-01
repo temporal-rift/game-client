@@ -11,6 +11,9 @@ const openView: Extract<ActionRoundView, { kind: 'open' }> = {
   eraNumber: 2,
   roundNumber: 1,
   hasSubmitted: false,
+  submittedCount: 1,
+  totalPlayers: 3,
+  deadline: '2030-01-01T00:00:00Z',
   hand: [
     {
       cardInstanceId: 'card-1',
@@ -119,9 +122,29 @@ describe('ActionPanel', () => {
     expect(screen.getByRole('button', { name: 'Annihilate' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Cascade' })).toBeDisabled()
     expect(screen.getByText(/Jammed until round 1/)).toBeInTheDocument()
+    expect(screen.getByText('1 / 3 players submitted.')).toBeInTheDocument()
+    expect(screen.getByText(/remaining$/)).toBeInTheDocument()
     expect(container.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(5)
     expect(screen.getByRole('button', { name: /Push · Grade II/ }).querySelector('svg')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Annihilate' }).querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('keeps missing progress and deadline unavailable', () => {
+    render(
+      <ActionPanel
+        view={{ ...openView, submittedCount: null, totalPlayers: null, deadline: null }}
+        draft={idleDraft}
+        submitPhase={idlePhase}
+        onSelectCard={noop}
+        onSelectSpecial={noop}
+        onClearDraft={noop}
+        onConfirm={noop}
+        onDismissRejection={noop}
+      />,
+    )
+
+    expect(screen.getByText('Round progress is being refreshed.')).toBeInTheDocument()
+    expect(screen.getByText('Deadline is being refreshed.')).toBeInTheDocument()
   })
 
   it('shows event artwork when an event is offered as an action target and preserves its title', async () => {

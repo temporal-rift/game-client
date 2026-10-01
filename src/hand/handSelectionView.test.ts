@@ -47,7 +47,7 @@ describe('selectHandSelectionView', () => {
 
   it('replaces the local offer with the server-accepted five-card hand after recovery', () => {
     const state = stateBody({
-      mySubmissions: [{ eraNumber: 2, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }],
+      mySubmissions: [{ eraNumber: 2, roundNumber: null, window: 'HAND_SELECTION', status: 'ACCEPTED' }],
       myHand: Array.from({ length: 5 }, (_, index) => ({ cardInstanceId: `kept-${index + 1}`, cardType: 'SCAN', grade: 'I', isPlayableThisRound: true })),
     })
     const view = selectHandSelectionView(state)
@@ -56,7 +56,7 @@ describe('selectHandSelectionView', () => {
   })
 
   it('fails closed while an accepted hand is not yet available', () => {
-    const state = stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, kind: 'HAND_SELECTION', status: 'ACCEPTED' }] })
+    const state = stateBody({ mySubmissions: [{ eraNumber: 2, roundNumber: null, window: 'HAND_SELECTION', status: 'ACCEPTED' }] })
     expect(selectHandSelectionView(state)).toEqual({ kind: 'unavailable', reason: 'Your accepted hand is being refreshed.' })
   })
 })

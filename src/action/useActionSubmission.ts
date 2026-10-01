@@ -21,7 +21,7 @@ export type ActionDraft =
 export type SubmitPhase =
   | { readonly kind: 'idle' }
   | { readonly kind: 'submitting' }
-  | { readonly kind: 'submitted' }
+  | { readonly kind: 'awaiting-projection' }
   | { readonly kind: 'rejected'; readonly message: string; readonly code: string | null }
 
 interface RoundSubmission {
@@ -105,25 +105,30 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
     setSubmitPhase((previous) => (previous.kind === 'rejected' ? { kind: 'idle' } : previous))
   }, [])
 
-  const accepted = useCallback(() => {
-    setSubmitPhase({ kind: 'submitted' })
+  const awaitingProjection = useCallback(() => {
+    setSubmitPhase({ kind: 'awaiting-projection' })
     setDraft({ kind: 'none' })
   }, [])
 
   const { mutateAsync: submit } = useMutation({
     mutationFn: ({ gameId, eraNumber, roundNumber, request }: RoundSubmission) =>
       submitAction(fetchFn, apiBaseUrl, gameId, eraNumber, roundNumber, request),
-    onSuccess: async () => {
-      accepted()
-      await gameState.refresh()
+    onSuccess: async (_result, { eraNumber, roundNumber }) => {
+      const refreshed = await gameState.refresh()
+      if (refreshed && hasAcceptedSubmission(refreshed, { eraNumber, window: 'ACTION', roundNumber })) {
+        setDraft({ kind: 'none' })
+        setSubmitPhase({ kind: 'idle' })
+      } else {
+        awaitingProjection()
+      }
     },
     // Every failure — an authoritative rejection, a stale phase, or an ambiguous (network-level)
     // response — reconciles acceptance before being reported: a lost response may still have
     // landed, and a stale-phase rejection means the round moved on.
     onError: async (error, { eraNumber, roundNumber }) => {
       const reconciled = await gameState.refresh()
-      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, kind: 'ACTION', roundNumber })) {
-        accepted()
+      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, window: 'ACTION', roundNumber })) {
+        awaitingProjection()
         return
       }
       setSubmitPhase({
