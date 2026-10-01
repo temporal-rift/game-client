@@ -5,7 +5,6 @@ import { toBoardView } from '../board/boardView'
 import { ActionPanel } from '../components/ActionPanel'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
-import { HandSelectionPanel } from '../components/HandSelectionPanel'
 import { KnowledgePanel } from '../components/KnowledgePanel'
 import { ParadoxResolutionPanel } from '../components/ParadoxResolutionPanel'
 import { ResultsPanel } from '../components/ResultsPanel'
@@ -61,15 +60,12 @@ function GamePage({ gameId }: { readonly gameId: string }) {
           {gameState.state?.myFaction && <FactionIllustration faction={gameState.state.myFaction} skin={config.illustrationSkin} />}
         </span>
       </nav>
-      <AppShell view={board} status={gameState.status} onRetry={() => void gameState.refresh()} illustrationSkin={config.illustrationSkin} />
-      <HandSelectionPanel
+      <AppShell
+        view={board}
+        status={gameState.status}
+        onRetry={() => void gameState.refresh()}
+        handSelection={handSelection}
         illustrationSkin={config.illustrationSkin}
-        view={handSelection.view}
-        selectedCardInstanceIds={handSelection.selectedCardInstanceIds}
-        submitPhase={handSelection.submitPhase}
-        onToggleCard={handSelection.toggleCard}
-        onConfirm={() => void handSelection.confirm()}
-        onDismissRejection={handSelection.dismissRejection}
       />
       {isLobbyGame && (
         <ActionPanel

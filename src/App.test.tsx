@@ -6,7 +6,7 @@ import App from './App'
 import { queryClient } from './api/queryClient'
 import { SessionBar } from './components/SessionBar'
 import { SignInPanel } from './components/SignInPanel'
-import { gameStatePayload } from './test/gameStatePayload'
+import { gameStatePayload, sevenCardDeal } from './test/gameStatePayload'
 import { uuid } from './test/uuid'
 
 const LOBBY = uuid('lobby-1')
@@ -212,6 +212,40 @@ describe('App', () => {
     expect(await within(players).findByText('You · Erasers')).toBeInTheDocument()
     expect(within(players).getAllByText('Faction hidden')).toHaveLength(2)
     expect(screen.queryByText(/Sample board/)).not.toBeInTheDocument()
+  })
+
+  it('hosts an open hand selection in the illustrated board hand area', async () => {
+    rememberLobbyMembership()
+    sessionStorage.setItem('temporal-rift.private.lobbyId', LOBBY)
+    window.history.replaceState(null, '', `/games/${GAME}`)
+    const state = gameStatePayload({
+      gameId: GAME,
+      phase: 'HAND_SELECTION',
+      deadlines: { handSelectionExpiresAt: '2030-01-01T00:01:30Z' },
+      pendingHandSelection: {
+        requiredSelectionCount: 5,
+        expiresAt: '2030-01-01T00:01:30Z',
+        cards: sevenCardDeal((slot) => ({
+          cardInstanceId: uuid(`offer-${slot}`),
+          cardType: 'PUSH',
+          grade: slot === 1 ? 'III' : 'II',
+          dealSlot: slot,
+        })),
+      },
+    })
+    vi.stubGlobal(
+      'fetch',
+      lobbyServer(() => lobbyView('STARTED', 3), (url) => (url.endsWith(`/api/v1/games/${GAME}/state`) ? state : null)),
+    )
+    sdk.client = signedInClient()
+
+    render(<App />)
+
+    const selection = await screen.findByRole('region', { name: 'Hand selection' })
+    expect(selection).toHaveClass('private-hand')
+    expect(within(selection).getByRole('list', { name: 'Private card offer' })).toBeInTheDocument()
+    expect(within(selection).getByRole('button', { name: 'Confirm five cards' })).toBeDisabled()
+    expect(screen.queryByRole('heading', { name: 'Your hand selection' })).not.toBeInTheDocument()
   })
 
   it('shows the recoverable game-state error instead of any board content', async () => {
