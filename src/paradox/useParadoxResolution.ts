@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
 import { actionErrorMessage, submitParadoxResolutionCard, type AuthenticatedFetchFn } from '../api/action'
@@ -38,6 +38,10 @@ interface PhaseCoordinates {
   readonly eraNumber: number
 }
 
+function phaseKeyFor({ gameId, eraNumber }: PhaseCoordinates): string {
+  return `${gameId}:${eraNumber}`
+}
+
 export function useParadoxResolution(options: UseParadoxResolutionOptions): ParadoxResolutionSession {
   const { apiBaseUrl, fetchFn, gameState } = options
   const [draft, setDraft] = useState<ParadoxDraft>({ kind: 'none' })
@@ -45,6 +49,10 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
 
   const state = gameState.state
   const phaseScope = state?.phase === 'PARADOX_RESOLUTION' && state.phaseContext?.paradoxOpen ? `${state.gameId}:${state.eraNumber}` : null
+  const activePhaseScopeRef = useRef(phaseScope)
+  useLayoutEffect(() => {
+    activePhaseScopeRef.current = phaseScope
+  }, [phaseScope])
 
   // A new phase (or none) drops the previous phase's draft and outcome.
   const [seenPhaseKey, setSeenPhaseKey] = useState<string | null>(null)
@@ -68,7 +76,10 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
     mutationFn: ({ coordinates, card }: { readonly coordinates: PhaseCoordinates; readonly card: Extract<ParadoxDraft, { kind: 'card' }> }) =>
       submitParadoxResolutionCard(fetchFn, apiBaseUrl, coordinates.gameId, coordinates.eraNumber, card),
     onSuccess: async (_result, { coordinates }) => {
+      const submittedPhaseKey = phaseKeyFor(coordinates)
+      if (activePhaseScopeRef.current !== submittedPhaseKey) return
       const refreshed = await gameState.refresh()
+      if (activePhaseScopeRef.current !== submittedPhaseKey) return
       if (hasAcceptedSubmission(refreshed, { eraNumber: coordinates.eraNumber, window: 'PARADOX_RESOLUTION' })) {
         setDraft({ kind: 'none' })
         setSubmitPhase({ kind: 'idle' })
@@ -78,7 +89,10 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
     },
     // A lost response or a rejection may still hide an accepted choice; reconcile against game state.
     onError: async (error, { coordinates }) => {
+      const submittedPhaseKey = phaseKeyFor(coordinates)
+      if (activePhaseScopeRef.current !== submittedPhaseKey) return
       const refreshed = await gameState.refresh()
+      if (activePhaseScopeRef.current !== submittedPhaseKey) return
       if (hasAcceptedSubmission(refreshed, { eraNumber: coordinates.eraNumber, window: 'PARADOX_RESOLUTION' })) {
         awaitingProjection()
         return

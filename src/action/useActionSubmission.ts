@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
 import {
@@ -29,6 +29,10 @@ interface RoundSubmission {
   readonly eraNumber: number
   readonly roundNumber: number
   readonly request: SubmitActionRequest
+}
+
+function roundKeyFor({ gameId, eraNumber, roundNumber }: Pick<RoundSubmission, 'gameId' | 'eraNumber' | 'roundNumber'>): string {
+  return `${gameId}:${eraNumber}:${roundNumber}`
 }
 
 export interface UseActionSubmissionOptions {
@@ -71,6 +75,10 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
   // keeps the reconciled value available on this same render, matching the
   // pattern already used for reconciling selection in AppShell.
   const roundKey = view.kind === 'open' ? `${view.gameId}:${view.eraNumber}:${view.roundNumber}` : null
+  const activeRoundKeyRef = useRef(roundKey)
+  useLayoutEffect(() => {
+    activeRoundKeyRef.current = roundKey
+  }, [roundKey])
   const [seenRoundKey, setSeenRoundKey] = useState<string | null>(null)
   const shouldResetForNewRound = seenRoundKey !== roundKey
   const shouldResetForAcceptedRound = view.kind === 'open' && view.hasSubmitted && draft.kind !== 'none'
@@ -113,9 +121,12 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
   const { mutateAsync: submit } = useMutation({
     mutationFn: ({ gameId, eraNumber, roundNumber, request }: RoundSubmission) =>
       submitAction(fetchFn, apiBaseUrl, gameId, eraNumber, roundNumber, request),
-    onSuccess: async (_result, { eraNumber, roundNumber }) => {
+    onSuccess: async (_result, submission) => {
+      const submittedRoundKey = roundKeyFor(submission)
+      if (activeRoundKeyRef.current !== submittedRoundKey) return
       const refreshed = await gameState.refresh()
-      if (refreshed && hasAcceptedSubmission(refreshed, { eraNumber, window: 'ACTION', roundNumber })) {
+      if (activeRoundKeyRef.current !== submittedRoundKey) return
+      if (refreshed && hasAcceptedSubmission(refreshed, { eraNumber: submission.eraNumber, window: 'ACTION', roundNumber: submission.roundNumber })) {
         setDraft({ kind: 'none' })
         setSubmitPhase({ kind: 'idle' })
       } else {
@@ -125,9 +136,12 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
     // Every failure — an authoritative rejection, a stale phase, or an ambiguous (network-level)
     // response — reconciles acceptance before being reported: a lost response may still have
     // landed, and a stale-phase rejection means the round moved on.
-    onError: async (error, { eraNumber, roundNumber }) => {
+    onError: async (error, submission) => {
+      const submittedRoundKey = roundKeyFor(submission)
+      if (activeRoundKeyRef.current !== submittedRoundKey) return
       const reconciled = await gameState.refresh()
-      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber, window: 'ACTION', roundNumber })) {
+      if (activeRoundKeyRef.current !== submittedRoundKey) return
+      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber: submission.eraNumber, window: 'ACTION', roundNumber: submission.roundNumber })) {
         awaitingProjection()
         return
       }
