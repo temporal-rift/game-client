@@ -13,4 +13,4 @@ The illustrations are rendered as inline SVG by `src/illustrations/catalog.tsx`.
 
 No image-generation service, external renderer, or model is used. Consequently, there are no style identifiers, prompts, or model settings to preserve. To adjust an illustration, update its motif mapping or SVG path directly and run `npm test -- src/illustrations/catalog.test.tsx` to verify catalog coverage, fallback behavior, skin support, and decorative accessibility.
 
-Board preserves the existing event scenes, five card glyphs, and faction emblem in the fixture board. New catalog entries use the same navy, teal, muted gold, and occasional coral linework. Engraving uses cream paper and one sepia ink, with fine parallel and cross-hatched strokes. Both skins share stable event, card, special, and faction identifiers.
+Board preserves the existing event scenes, five card glyphs, and faction emblem on the board. New catalog entries use the same navy, teal, muted gold, and occasional coral linework. Engraving uses cream paper and one sepia ink, with fine parallel and cross-hatched strokes. Both skins share stable event, card, special, and faction identifiers.

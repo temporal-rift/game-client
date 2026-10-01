@@ -1,6 +1,5 @@
 import type { CardType, Faction, SpecialAction } from '../api/action'
-import { CardGlyph, EventSceneArt, FactionEmblem } from '../components/icons'
-import type { CardKind, EventArtwork } from '../types/playerView'
+import { CardGlyph, EventSceneArt, FactionEmblem, type CardKind, type EventArtwork } from '../components/icons'
 import { CatalogEventScene, type CatalogEventSceneKey } from './eventSceneArt'
 import { BOARD, CARD_ART_KEYS, CARD_FORM_INDEX, CARD_FORMS, ENGRAVING, EVENT_CATALOG, EVENT_FORM_INDEX, EVENT_FORMS, FACTION_ART_KEYS, FACTION_FORM_INDEX, SPECIAL_ART_KEYS, SPECIAL_FORM_INDEX, type IllustrationSkin } from './catalogData'
 

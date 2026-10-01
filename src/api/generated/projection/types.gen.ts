@@ -269,6 +269,10 @@ export type PlayerGameStateResponse = {
     gameId: string;
     eraNumber: number;
     /**
+     * Total score at or above which a player qualifies for normal victory at an era boundary. Identical for every participant, present in every phase whether or not the caller has an assigned faction, and equal to the value carried by GameStarted for this game. Distinct from the per-faction objective threshold; consumers SHALL use this transmitted value and never hard-code it.
+     */
+    winScoreThreshold: number;
+    /**
      * Monotonic freshness marker for this game's projection. Clients SHALL use it only to detect staleness between polls of the same game (a larger value means a newer view) and SHALL NOT infer global or cross-topic event order from it. Absent until the owning service computes it; when absent, poll again rather than assuming the view is current.
      */
     revision?: number;

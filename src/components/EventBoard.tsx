@@ -1,82 +1,58 @@
-import type { EventBoardEntry } from '../types/playerView'
+import type { BoardEvent } from '../board/boardView'
 import { EventIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import { BandLabel } from './BandLabel'
-import { EventStatusIcon } from './icons'
+import { CarryOverIcon } from './icons'
 
 interface EventBoardProps {
-  readonly events: readonly EventBoardEntry[]
-  readonly publicBandAgeLabel: string
-  readonly selectedTargetId: string | null
-  readonly onSelectTarget: (id: string) => void
+  readonly events: readonly BoardEvent[]
   readonly illustrationSkin?: IllustrationSkin
 }
 
-const STATUS_LABEL: Record<EventBoardEntry['status'], string> = {
-  resolved: 'Resolved',
-  'in-progress': 'Active',
-  upcoming: 'Upcoming',
+const CARRY_OVER_LABEL: Record<BoardEvent['carryOverState'], string> = {
+  FRESH: 'Fresh',
+  CASCADED: 'Cascaded',
+  STALLED: 'Stalled',
 }
 
-function instructionFor(hasSelectedOutcome: boolean, status: EventBoardEntry['status']): string {
-  if (hasSelectedOutcome) {
-    return 'Selected target'
-  }
-  if (status === 'resolved') {
-    return 'Event resolved'
-  }
-  return 'Choose an outcome to target'
+function bandAgeLabel(observedInRound: number | null): string {
+  return observedInRound === null ? 'No public bands yet' : `Bands from round ${observedInRound}`
 }
 
-export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSelectTarget, illustrationSkin = 'board' }: EventBoardProps) {
+export function EventBoard({ events, illustrationSkin = 'board' }: EventBoardProps) {
   return (
     <section className="event-board" aria-labelledby="event-board-heading">
       <div className="section-heading-row">
         <h2 id="event-board-heading">The active futures</h2>
-        <span>{publicBandAgeLabel}</span>
+        <span>Public bands · exact weights stay hidden</span>
       </div>
       <ol className="event-grid">
-        {events.map((event, eventIndex) => {
-          const hasSelectedOutcome = event.outcomes.some((outcome) => outcome.id === selectedTargetId)
-          return (
-            <li key={event.id}>
-              <article className={`event-card${hasSelectedOutcome ? ' is-selected' : ''}`}>
-                <EventIllustration eventId={event.id} skin={illustrationSkin} />
-                <div className="event-card-body">
-                  <div className="event-card-meta">
-                    <span>Future {String(eventIndex + 1).padStart(2, '0')}</span>
-                    <span className="event-status">
-                      <EventStatusIcon status={event.status} />
-                      {STATUS_LABEL[event.status]}
-                    </span>
-                  </div>
-                  <h3>{event.title}</h3>
-                  <ul className="outcome-list" aria-label={`${event.title} outcomes`}>
-                    {event.outcomes.map((outcome) => {
-                      const isSelected = outcome.id === selectedTargetId
-                      return (
-                        <li key={outcome.id}>
-                          <button
-                            type="button"
-                            className="outcome-button"
-                            aria-pressed={isSelected}
-                            disabled={!outcome.isValidTarget}
-                            onClick={() => onSelectTarget(outcome.id)}
-                          >
-                            <span className="outcome-choice" aria-hidden="true" />
-                            <span className="outcome-label">{outcome.label}</span>
-                            <BandLabel band={outcome.publicBand} />
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                  <p className="event-card-instruction">{instructionFor(hasSelectedOutcome, event.status)}</p>
+        {events.map((event, eventIndex) => (
+          <li key={event.eventId}>
+            <article className="event-card">
+              <EventIllustration eventId={event.eventId} skin={illustrationSkin} />
+              <div className="event-card-body">
+                <div className="event-card-meta">
+                  <span>Future {String(eventIndex + 1).padStart(2, '0')}</span>
+                  <span className="event-status">
+                    <CarryOverIcon state={event.carryOverState} />
+                    {CARRY_OVER_LABEL[event.carryOverState]}
+                  </span>
                 </div>
-              </article>
-            </li>
-          )
-        })}
+                <h3>{event.title}</h3>
+                <ul className="outcome-list" aria-label={`${event.title} outcomes`}>
+                  {event.outcomes.map((outcome) => (
+                    <li key={outcome.outcomeId} className="outcome-row">
+                      <span className="outcome-label">{outcome.description}</span>
+                      <BandLabel band={outcome.band} />
+                    </li>
+                  ))}
+                </ul>
+                <p className="event-band-age">{bandAgeLabel(event.bandsObservedInRound)}</p>
+              </div>
+            </article>
+          </li>
+        ))}
       </ol>
     </section>
   )

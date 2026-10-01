@@ -17,6 +17,7 @@ export function baseGameState(overrides: Partial<GameStateView> = {}, slices: Pa
     roundNumber: 2,
     myFaction: 'ERASERS',
     myScore: 4,
+    winScoreThreshold: 20,
     myHand: [],
     myRevealedIntel: [],
     activeEvents: [],

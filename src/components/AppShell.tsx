@@ -1,70 +1,61 @@
-import { useState } from 'react'
-import type { PlayerView } from '../types/playerView'
+import type { BoardHeader, BoardPlayer, BoardView } from '../board/boardView'
+import type { GameStateStatus } from '../game/useGameState'
+import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
 import type { IllustrationSkin } from '../illustrations/catalogData'
-import { ActionConfirmationPanel, type SelectedTarget } from './ActionConfirmationPanel'
 import { EventBoard } from './EventBoard'
 import { FactionIntelPanel } from './FactionIntelPanel'
 import { PrivateHand } from './PrivateHand'
+import { RoundStatusPanel } from './RoundStatusPanel'
 import { RiftMark } from './icons'
 
 interface AppShellProps {
-  readonly playerView: PlayerView
-  readonly isSampleData: boolean
+  /** Null until a participant state has been loaded for this game. */
+  readonly view: BoardView | null
+  readonly status: GameStateStatus
+  readonly onRetry: () => void
   readonly illustrationSkin?: IllustrationSkin
 }
 
-interface SelectionState {
-  readonly gameId: string
-  readonly cardId: string | null
-  readonly targetId: string | null
+function LoadError({ message, onRetry }: { readonly message: string; readonly onRetry: () => void }) {
+  return (
+    <p className="board-error" role="alert">
+      {message}{' '}
+      <button type="button" onClick={onRetry}>
+        Retry
+      </button>
+    </p>
+  )
 }
 
-function selectionFrom(playerView: PlayerView): SelectionState {
-  return {
-    gameId: playerView.gameId,
-    cardId: playerView.pendingAction?.cardId ?? null,
-    targetId: playerView.pendingAction?.targetId ?? null,
-  }
+function PhaseDeadline({ header }: { readonly header: BoardHeader }) {
+  // Local expiry is display-only: the phase changes when the server reports it.
+  const secondsRemaining = useDeadlineCountdown(header.deadline)
+  return (
+    <div className="deadline-block">
+      <span>{header.phaseLabel}</span>
+      {secondsRemaining !== null && <strong aria-label="Time remaining">{formatCountdown(secondsRemaining)}</strong>}
+      <i aria-hidden="true" />
+    </div>
+  )
 }
 
-function findSelectedTarget(playerView: PlayerView, targetId: string | null): SelectedTarget | null {
-  if (!targetId) {
-    return null
-  }
-  for (const event of playerView.events) {
-    const outcome = event.outcomes.find((candidate) => candidate.id === targetId)
-    if (outcome?.isValidTarget) {
-      return { event, outcome }
-    }
-  }
-  return null
+function seatLabel(player: BoardPlayer): string {
+  const faction = player.factionName ?? 'Faction hidden'
+  return player.isCurrentPlayer ? `You · ${faction}` : faction
 }
 
-export function AppShell({ playerView, isSampleData, illustrationSkin = 'board' }: AppShellProps) {
-  const [selection, setSelection] = useState<SelectionState>(() => selectionFrom(playerView))
+export function AppShell({ view, status, onRetry, illustrationSkin = 'board' }: AppShellProps) {
+  const failure = status.kind === 'failed' || status.kind === 'stalled' ? status : null
 
-  const baseline = selection.gameId === playerView.gameId ? selection : selectionFrom(playerView)
-  const selectedCard = playerView.hand.find((card) => card.id === baseline.cardId && card.isAvailable) ?? null
-  const selectedTarget = findSelectedTarget(playerView, baseline.targetId)
-  const effectiveCardId = selectedCard?.id ?? null
-  const effectiveTargetId = selectedTarget?.outcome.id ?? null
-
-  // Persist the reconciled ids, not just the masked display values: an id that goes
-  // stale (removed card, invalidated target) must not silently reselect itself if it
-  // becomes valid again later without a new user action.
-  const reconciled: SelectionState = { gameId: playerView.gameId, cardId: effectiveCardId, targetId: effectiveTargetId }
-  if (selection.gameId !== reconciled.gameId || selection.cardId !== reconciled.cardId || selection.targetId !== reconciled.targetId) {
-    setSelection(reconciled)
+  if (!view) {
+    return (
+      <section className="app-shell board-unavailable" aria-label="Game board">
+        {failure ? <LoadError message={failure.message} onRetry={onRetry} /> : <p>Loading the game…</p>}
+      </section>
+    )
   }
 
-  const toggleCard = (cardId: string) => {
-    setSelection({ gameId: playerView.gameId, cardId: effectiveCardId === cardId ? null : cardId, targetId: effectiveTargetId })
-  }
-
-  const toggleTarget = (targetId: string) => {
-    setSelection({ gameId: playerView.gameId, cardId: effectiveCardId, targetId: effectiveTargetId === targetId ? null : targetId })
-  }
-
+  const { header } = view
   return (
     <div className="app-shell">
       <header className="game-header">
@@ -72,31 +63,29 @@ export function AppShell({ playerView, isSampleData, illustrationSkin = 'board' 
           <RiftMark />
           <div>
             <h1>Temporal Rift</h1>
-            <p>Multiplayer strategy / {playerView.gameLabel}</p>
+            <p>Multiplayer strategy</p>
           </div>
         </div>
         <div className="phase-pills" aria-label="Current game phase">
-          <span>Era {playerView.currentEra}</span>
-          <span>
-            Round {playerView.currentRound} of {playerView.roundsPerEra}
-          </span>
+          <span>Era {header.eraNumber}</span>
+          {header.round && (
+            <span>
+              Round {header.round.number} of {header.round.of}
+            </span>
+          )}
         </div>
-        <div className="deadline-block">
-          <span>{playerView.phaseLabel}</span>
-          {playerView.phaseDeadlineLabel && <strong>{playerView.phaseDeadlineLabel}</strong>}
-          <i aria-hidden="true" />
-        </div>
-        {isSampleData && <output className="sample-state">Sample board · actions are disabled</output>}
+        <PhaseDeadline header={header} />
       </header>
+      {failure && <LoadError message={failure.message} onRetry={onRetry} />}
 
       <section className="player-strip" aria-label="Player scores">
         <ul>
-          {playerView.players.map((player) => (
-            <li key={player.id} className={player.isCurrentPlayer ? 'is-current-player' : undefined}>
-              <span className="player-avatar" aria-hidden="true">{player.displayName.slice(0, 1)}</span>
+          {view.players.map((player) => (
+            <li key={player.playerId} className={player.isCurrentPlayer ? 'is-current-player' : undefined}>
+              <span className="player-avatar" aria-hidden="true">{player.name.slice(0, 1)}</span>
               <span className="player-identity">
-                <strong>{player.displayName}</strong>
-                <small>{player.isCurrentPlayer ? 'Your private seat' : 'Faction hidden'}</small>
+                <strong>{player.name}</strong>
+                <small>{seatLabel(player)}</small>
               </span>
               <span className="player-score">
                 <strong>{player.score}</strong>
@@ -108,28 +97,11 @@ export function AppShell({ playerView, isSampleData, illustrationSkin = 'board' 
       </section>
 
       <main className="game-board-layout">
-        <FactionIntelPanel faction={playerView.faction} illustrationSkin={illustrationSkin} />
-        <EventBoard
-          illustrationSkin={illustrationSkin}
-          events={playerView.events}
-          publicBandAgeLabel={playerView.publicBandAgeLabel}
-          selectedTargetId={effectiveTargetId}
-          onSelectTarget={toggleTarget}
-        />
-        <PrivateHand hand={playerView.hand} selectedCardId={effectiveCardId} onSelectCard={toggleCard} illustrationSkin={illustrationSkin} />
-        <ActionConfirmationPanel
-          illustrationSkin={illustrationSkin}
-          selectedCard={selectedCard}
-          selectedTarget={selectedTarget}
-          confirmLabel={playerView.pendingAction?.confirmLabel ?? 'Confirm action'}
-          roundStatus={playerView.roundStatus}
-          isSampleData={isSampleData}
-        />
+        <FactionIntelPanel faction={view.faction} illustrationSkin={illustrationSkin} />
+        <EventBoard events={view.events} illustrationSkin={illustrationSkin} />
+        <PrivateHand hand={view.hand} illustrationSkin={illustrationSkin} />
+        <RoundStatusPanel roundStatus={view.roundStatus} />
       </main>
-      <footer className="game-footer">
-        <span>Player-safe fixture preview</span>
-        <span>DOM controls · SVG artwork · no canvas renderer</span>
-      </footer>
     </div>
   )
 }

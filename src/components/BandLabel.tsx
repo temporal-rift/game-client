@@ -1,4 +1,4 @@
-import type { ProbabilityBand } from '../types/playerView'
+import type { ProbabilityBand } from '../game/publicBands'
 
 const LABELS: Record<ProbabilityBand, string> = {
   low: 'Low',

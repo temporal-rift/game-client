@@ -4,7 +4,7 @@ import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption
 import { CARD_CATEGORIES, cardCategoryDisplayName, type TargetMode } from '../action/actionRules'
 import { CardIllustration, EventIllustration, SpecialIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
-import { useDeadlineCountdown } from '../game/useDeadlineCountdown'
+import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
 
 interface ActionPanelProps {
   readonly illustrationSkin?: IllustrationSkin
@@ -312,8 +312,7 @@ function confirmationStatusText(isComplete: boolean, needsDisguise: boolean): st
 
 function deadlineLabel(seconds: number | null): string {
   if (seconds === null) return 'Deadline is being refreshed.'
-  const minutes = Math.floor(seconds / 60)
-  return `${minutes}:${String(seconds % 60).padStart(2, '0')} remaining`
+  return `${formatCountdown(seconds)} remaining`
 }
 
 function roundProgressLabel(submittedCount: number | null, totalPlayers: number | null): string {

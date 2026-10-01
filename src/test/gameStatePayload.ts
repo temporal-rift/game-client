@@ -12,6 +12,7 @@ export function gameStatePayload(overrides: Partial<GameStateView> = {}): GameSt
     eraNumber: 2,
     phase: 'ACTION_ROUND_2',
     myScore: 3,
+    winScoreThreshold: 20,
     myHand: [],
     myRevealedIntel: [],
     activeEvents: [],

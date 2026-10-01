@@ -404,6 +404,7 @@ export const zSpecialBudget = z.object({
 export const zPlayerGameStateResponse = z.object({
     gameId: z.uuid(),
     eraNumber: z.int(),
+    winScoreThreshold: z.int().gte(1),
     revision: z.int().gte(0).optional(),
     lastUpdatedAt: z.iso.datetime({ offset: true }).optional(),
     phase: zPhase,
