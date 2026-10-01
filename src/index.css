@@ -790,9 +790,6 @@ a:focus-visible {
   place-items: center;
   border-radius: 50%;
   background: rgb(31 44 69 / 65%);
-}
-
-.card-glyph-well {
   width: 7.3rem;
   max-width: 100%;
   aspect-ratio: 1;
