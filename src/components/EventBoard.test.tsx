@@ -2,11 +2,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EventBoardEntry } from '../types/playerView'
+import { EVENT_CATALOG } from '../illustrations/catalogData'
 import { EventBoard } from './EventBoard'
 
 const events: readonly EventBoardEntry[] = [
   {
-    id: 'evt-1',
+    id: '12606191-eafe-4d1c-a014-b676bf094db0',
     era: 2,
     title: 'Resolved Event',
     artwork: 'delegate',
@@ -14,7 +15,7 @@ const events: readonly EventBoardEntry[] = [
     outcomes: [{ id: 'resolved-outcome', label: 'Resolved branch', publicBand: 'medium', isValidTarget: false }],
   },
   {
-    id: 'evt-2',
+    id: '400e3361-301f-4ec1-9edd-cb0c6e14fbc6',
     era: 2,
     title: 'Open Event',
     artwork: 'reactor',
@@ -22,7 +23,7 @@ const events: readonly EventBoardEntry[] = [
     outcomes: [{ id: 'open-outcome', label: 'Open branch', publicBand: 'high', isValidTarget: true }],
   },
   {
-    id: 'evt-3',
+    id: 'ab0d99ea-6f75-4d8d-b1a7-7a1a063635a4',
     era: 2,
     title: 'Hidden Future',
     artwork: 'pact',
@@ -56,6 +57,19 @@ describe('EventBoard', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument()
     expect(screen.getByText('Bands from round 2')).toBeInTheDocument()
     expect(container.querySelector('.event-scene-art')).toBeInTheDocument()
+  })
+
+  it('uses catalog illustrations for catalog and unknown board event IDs', () => {
+    const catalogEventId = EVENT_CATALOG[3][0]
+    const nonFixtureEvents = [
+      { ...events[0], id: catalogEventId },
+      { ...events[1], id: 'unknown-event-id' },
+    ]
+    const { container } = render(<EventBoard events={nonFixtureEvents} publicBandAgeLabel="Bands" selectedTargetId={null} onSelectTarget={vi.fn()} />)
+
+    expect(container.querySelector(`[data-catalog-id="${catalogEventId}"]`)).toBeInTheDocument()
+    expect(container.querySelector('[data-catalog-id="unknown-event-id"]')).toBeInTheDocument()
+    expect(container.querySelector('.event-scene-art')).not.toBeInTheDocument()
   })
 
   it('renders decorative fallback artwork in the selected skin and keeps event titles readable', () => {
