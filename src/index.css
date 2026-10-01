@@ -725,6 +725,10 @@ a:focus-visible {
   gap: 0.6rem;
 }
 
+.hand-offer-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
 .hand-card {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
@@ -740,6 +744,97 @@ a:focus-visible {
   color: #e3e4dc;
   box-shadow: 0 0.55rem 1.45rem rgb(0 7 19 / 42%);
   text-align: center;
+}
+
+button.hand-offer-card {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.hand-offer-card:hover:not(:disabled) {
+  border-color: #82dccc;
+  transform: translateY(-0.2rem);
+}
+
+button.hand-offer-card.is-selected {
+  border-color: #d8bd87;
+  background:
+    linear-gradient(135deg, rgb(216 189 135 / 22%) 0 22%, transparent 22% 45%, rgb(77 174 168 / 18%) 45% 66%, transparent 66%),
+    linear-gradient(145deg, #34445b, #1b3a45 55%, #182235);
+  box-shadow: 0 0 0 2px rgb(216 189 135 / 28%), 0 0.55rem 1.45rem rgb(0 7 19 / 42%);
+}
+
+button.hand-offer-card:disabled:not(.is-selected) {
+  cursor: not-allowed;
+  filter: saturate(0.45);
+  opacity: 0.6;
+}
+
+.hand-selection-deadline,
+.hand-selection-instruction {
+  margin: 0 0 0.8rem;
+  color: #a5b4c7;
+  font-size: 0.85rem;
+}
+
+.hand-selection-deadline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.hand-selection-deadline span {
+  color: #8998b2;
+  font-size: 0.75rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.hand-selection-deadline strong {
+  color: #ead7b0;
+  font: 400 1.25rem/1 var(--serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.hand-selection-rejection {
+  margin: 0 0 0.8rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #9d665d;
+  border-radius: 0.5rem;
+  background: rgb(105 52 52 / 30%);
+  color: #f0c0b4;
+}
+
+.hand-selection-rejection p {
+  margin: 0 0 0.5rem;
+}
+
+.hand-selection-rejection button,
+.hand-selection-confirm {
+  border: 1px solid #3d6470;
+  border-radius: 0.45rem;
+  background: #214044;
+  color: #e8e3dc;
+  cursor: pointer;
+  font: inherit;
+}
+
+.hand-selection-rejection button {
+  padding: 0.3rem 0.65rem;
+}
+
+.hand-selection-confirm {
+  display: block;
+  margin: 1rem auto 0;
+  padding: 0.6rem 1rem;
+}
+
+.hand-selection-confirm:disabled {
+  border-color: #3d4c64;
+  background: #202a3a;
+  color: #8490a6;
+  cursor: not-allowed;
 }
 
 .hand-card.is-unplayable {
@@ -953,6 +1048,10 @@ a:focus-visible {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .hand-offer-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .round-status-panel {
     min-height: 0;
   }
@@ -1011,6 +1110,10 @@ a:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .hand-offer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .action-rail {
     grid-template-columns: 1fr;
   }
@@ -1038,6 +1141,10 @@ a:focus-visible {
   }
 
   .hand-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hand-offer-grid {
     grid-template-columns: 1fr;
   }
 

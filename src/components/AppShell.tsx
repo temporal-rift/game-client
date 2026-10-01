@@ -1,6 +1,7 @@
 import type { BoardHeader, BoardPlayer, BoardView } from '../board/boardView'
 import type { GameStateStatus } from '../game/useGameState'
 import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
+import type { HandSelectionSession } from '../hand/useHandSelection'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import { EventBoard } from './EventBoard'
 import { FactionIntelPanel } from './FactionIntelPanel'
@@ -13,6 +14,7 @@ interface AppShellProps {
   readonly view: BoardView | null
   readonly status: GameStateStatus
   readonly onRetry: () => void
+  readonly handSelection?: HandSelectionSession
   readonly illustrationSkin?: IllustrationSkin
 }
 
@@ -44,7 +46,7 @@ function seatLabel(player: BoardPlayer): string {
   return player.isCurrentPlayer ? `You · ${faction}` : faction
 }
 
-export function AppShell({ view, status, onRetry, illustrationSkin = 'board' }: AppShellProps) {
+export function AppShell({ view, status, onRetry, handSelection, illustrationSkin = 'board' }: AppShellProps) {
   const failure = status.kind === 'failed' || status.kind === 'stalled' ? status : null
 
   if (!view) {
@@ -99,7 +101,7 @@ export function AppShell({ view, status, onRetry, illustrationSkin = 'board' }: 
       <main className="game-board-layout">
         <FactionIntelPanel faction={view.faction} illustrationSkin={illustrationSkin} />
         <EventBoard events={view.events} illustrationSkin={illustrationSkin} />
-        <PrivateHand hand={view.hand} illustrationSkin={illustrationSkin} />
+        <PrivateHand hand={view.hand} handSelection={handSelection} illustrationSkin={illustrationSkin} />
         <RoundStatusPanel roundStatus={view.roundStatus} />
       </main>
     </div>
