@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 191" role="img" aria-label="Etched reactor illustration style reference">
+  <rect width="340" height="191" fill="#eee5d2"/>
+  <g fill="none" stroke="#624d3b" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="1.4" d="M0 150h340M18 159h304M45 137l38-26 35 14 42-33 39 25 37-28 62 38"/>
+    <circle cx="170" cy="82" r="49" stroke-width="1.2"/>
+    <ellipse cx="170" cy="82" rx="47" ry="17" transform="rotate(-34 170 82)" stroke-width="1.4"/>
+    <ellipse cx="170" cy="82" rx="47" ry="17" transform="rotate(34 170 82)" stroke-width="1.4"/>
+    <ellipse cx="170" cy="82" rx="17" ry="47" stroke-width="1.4"/>
+    <circle cx="170" cy="82" r="8" stroke-width="1.6"/>
+    <path stroke-width="1.1" d="M170 131v24m-34-31-15 25m83-25 15 25M84 140V96l15-12 15 12v44m112 0V96l15-12 15 12v44"/>
+    <path stroke-width=".7" d="M12 15 62 65m-44-50 50 50m-50-50 50 50m214 66 28 28m-20-31 28 28m-20-31 28 28M45 126l25 25m-18-28 25 25m-18-28 25 25"/>
+    <path stroke-width=".7" d="M12 15 62 65m-50-44 44 44m0 61 25 25m-18-28 25 25m147 1 28 28m-20-31 28 28" transform="translate(0 0)"/>
+  </g>
+</svg>

@@ -1,4 +1,6 @@
 import type { EventBoardEntry, EventOutcome, HandCard, RoundStatus } from '../types/playerView'
+import { CardIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 import { CardGlyph, GradeBadge } from './icons'
 
 export interface SelectedTarget {
@@ -13,6 +15,7 @@ interface ActionConfirmationPanelProps {
   readonly roundStatus: RoundStatus
   readonly isSampleData: boolean
   readonly onConfirm?: () => void
+  readonly illustrationSkin?: IllustrationSkin
 }
 
 export function ActionConfirmationPanel({
@@ -22,6 +25,7 @@ export function ActionConfirmationPanel({
   roundStatus,
   isSampleData,
   onConfirm,
+  illustrationSkin = 'board',
 }: ActionConfirmationPanelProps) {
   const hasCompleteSelection = Boolean(selectedCard && selectedTarget)
 
@@ -34,7 +38,7 @@ export function ActionConfirmationPanel({
         {selectedCard && selectedTarget ? (
           <div className="action-summary" aria-live="polite" aria-atomic="true">
             <span className="action-glyph-well">
-              <CardGlyph kind={selectedCard.kind} />
+              {illustrationSkin === 'board' ? <CardGlyph kind={selectedCard.kind} /> : <CardIllustration cardType={selectedCard.kind.toUpperCase()} skin={illustrationSkin} />}
             </span>
             <p className="action-name">{selectedCard.name}</p>
             <p className="action-grade">

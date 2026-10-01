@@ -22,6 +22,7 @@ const config: AppConfig = {
   oidcIssuerUrl: 'https://issuer.example.test/',
   oidcClientId: 'game-client',
   oidcAudience: 'https://api.example.test',
+  illustrationSkin: 'board',
 }
 
 describe('createGameOidcClient', () => {

@@ -2,8 +2,11 @@ import type { ActionCoordinates, CardCategory, SpecialAction } from '../api/acti
 import type { ActionDraft, SubmitPhase } from '../action/useActionSubmission'
 import type { ActionRoundView, ActiveEventOption, HandCardOption, OpponentOption, SpecialActionOption } from '../action/actionView'
 import { CARD_CATEGORIES, cardCategoryDisplayName, type TargetMode } from '../action/actionRules'
+import { CardIllustration, EventIllustration, SpecialIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 
 interface ActionPanelProps {
+  readonly illustrationSkin?: IllustrationSkin
   readonly view: ActionRoundView
   readonly draft: ActionDraft
   readonly submitPhase: SubmitPhase
@@ -75,14 +78,15 @@ interface EventOutcomeTargetProps {
   readonly onApply: (next: ActionCoordinates) => void
 }
 
-function EventOutcomeTarget({ targetMode, activeEvents, coordinates, onApply }: EventOutcomeTargetProps) {
+function EventOutcomeTarget({ targetMode, activeEvents, coordinates, onApply, illustrationSkin = 'board' }: EventOutcomeTargetProps & { readonly illustrationSkin?: IllustrationSkin }) {
   return (
     <ul aria-label="Events">
       {activeEvents.map((event) => {
         const isSelectedEvent = coordinates.targetEventId === event.eventId
         return (
           <li key={event.eventId}>
-            <button type="button" aria-pressed={isSelectedEvent} onClick={() => onApply({ targetEventId: event.eventId })}>
+            <button className="catalog-item-button" type="button" aria-pressed={isSelectedEvent} onClick={() => onApply({ targetEventId: event.eventId })}>
+              <EventIllustration eventId={event.eventId} skin={illustrationSkin} />
               {event.title}
             </button>
             {isSelectedEvent && targetMode === 'EVENT_OUTCOME' && (
@@ -147,7 +151,7 @@ interface EventListTargetProps {
   readonly onToggle: (eventId: string) => void
 }
 
-function EventListTarget({ activeEvents, requiredEventCount, coordinates, onToggle }: EventListTargetProps) {
+function EventListTarget({ activeEvents, requiredEventCount, coordinates, onToggle, illustrationSkin = 'board' }: EventListTargetProps & { readonly illustrationSkin?: IllustrationSkin }) {
   const selectedCount = coordinates.targetEventIds?.length ?? 0
   return (
     <>
@@ -157,7 +161,8 @@ function EventListTarget({ activeEvents, requiredEventCount, coordinates, onTogg
       <ul aria-label="Events">
         {activeEvents.map((event) => (
           <li key={event.eventId}>
-            <button type="button" aria-pressed={(coordinates.targetEventIds ?? []).includes(event.eventId)} onClick={() => onToggle(event.eventId)}>
+            <button className="catalog-item-button" type="button" aria-pressed={(coordinates.targetEventIds ?? []).includes(event.eventId)} onClick={() => onToggle(event.eventId)}>
+              <EventIllustration eventId={event.eventId} skin={illustrationSkin} />
               {event.title}
             </button>
           </li>
@@ -255,6 +260,7 @@ interface TargetPickerProps {
   readonly onApply: (next: ActionCoordinates) => void
   readonly onToggleListEvent: (eventId: string) => void
   readonly onToggleListPlayer: (playerId: string) => void
+  readonly illustrationSkin?: IllustrationSkin
 }
 
 function TargetPicker({
@@ -266,6 +272,7 @@ function TargetPicker({
   onApply,
   onToggleListEvent,
   onToggleListPlayer,
+  illustrationSkin,
 }: TargetPickerProps) {
   if (targetMode === 'NONE') {
     return null
@@ -282,10 +289,10 @@ function TargetPicker({
     <div aria-label="Choose a target">
       <h3>Choose a target</h3>
       {(targetMode === 'EVENT_OUTCOME' || targetMode === 'EVENT_OUTCOME_PAIR' || targetMode === 'EVENT_ONLY') && (
-        <EventOutcomeTarget targetMode={targetMode} activeEvents={activeEvents} coordinates={coordinates} onApply={onApply} />
+        <EventOutcomeTarget targetMode={targetMode} activeEvents={activeEvents} coordinates={coordinates} onApply={onApply} illustrationSkin={illustrationSkin} />
       )}
       {targetMode === 'EVENT_LIST' && (
-        <EventListTarget activeEvents={activeEvents} requiredEventCount={requiredListSize} coordinates={coordinates} onToggle={onToggleListEvent} />
+        <EventListTarget activeEvents={activeEvents} requiredEventCount={requiredListSize} coordinates={coordinates} onToggle={onToggleListEvent} illustrationSkin={illustrationSkin} />
       )}
       {targetMode === 'PLAYER' && <PlayerTarget opponents={opponents} coordinates={coordinates} onApply={onApply} />}
       {targetMode === 'PLAYER_LIST' && (
@@ -310,6 +317,7 @@ function confirmationStatusText(isComplete: boolean, needsDisguise: boolean): st
  * targeting — every option shown comes from the server-supplied state.
  */
 export function ActionPanel({
+  illustrationSkin = 'board',
   view,
   draft,
   submitPhase,
@@ -381,11 +389,13 @@ export function ActionPanel({
         {view.hand.map((card) => (
           <li key={card.cardInstanceId}>
             <button
+              className="catalog-item-button"
               type="button"
               aria-pressed={draft.kind === 'card' && draft.cardInstanceId === card.cardInstanceId}
               disabled={!card.isPlayableThisRound}
               onClick={() => onSelectCard(card.cardInstanceId, {})}
             >
+              <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
               {card.name} · Grade {card.grade}
             </button>
             <span> — {card.effectSummary}</span>
@@ -399,11 +409,13 @@ export function ActionPanel({
         {view.specials.map((special) => (
           <li key={special.specialAction}>
             <button
+              className="catalog-item-button"
               type="button"
               aria-pressed={draft.kind === 'special' && draft.specialAction === special.specialAction}
               disabled={!special.available}
               onClick={() => onSelectSpecial(special.specialAction, {})}
             >
+              <SpecialIllustration specialAction={special.specialAction} skin={illustrationSkin} />
               {special.name}
             </button>
             <span> — {special.effectSummary}</span>
@@ -429,6 +441,7 @@ export function ActionPanel({
           onApply={applyCoordinates}
           onToggleListEvent={toggleListEvent}
           onToggleListPlayer={toggleListPlayer}
+          illustrationSkin={illustrationSkin}
         />
       )}
 

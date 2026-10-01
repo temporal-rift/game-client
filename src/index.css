@@ -47,6 +47,39 @@ button {
   font: inherit;
 }
 
+.catalog-icon-art {
+  display: inline-block;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+
+.catalog-event-art {
+  display: block;
+  width: min(100%, 18rem);
+  aspect-ratio: 16 / 9;
+  margin: 0.25rem auto;
+}
+
+.catalog-item-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-align: left;
+}
+
+.current-player-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.current-player-session .catalog-icon-art {
+  width: 2rem;
+  height: 2rem;
+}
+
 .connection-status {
   display: block;
   margin: 1em 0;

@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import { ILLUSTRATION_SKINS, type IllustrationSkin } from '../illustrations/catalogData'
 
 declare global {
   interface Window {
@@ -11,6 +12,7 @@ export interface AppConfig {
   readonly oidcIssuerUrl: string
   readonly oidcClientId: string
   readonly oidcAudience: string
+  readonly illustrationSkin: IllustrationSkin
 }
 
 function isAbsoluteHttpUrl(value: string): boolean {
@@ -49,6 +51,7 @@ export const runtimeConfigSchema = z.preprocess(
     oidcIssuerUrl: absoluteHttpUrl('oidcIssuerUrl'),
     oidcClientId: configuredText('oidcClientId'),
     oidcAudience: configuredText('oidcAudience'),
+    illustrationSkin: z.enum(ILLUSTRATION_SKINS).default('board'),
   }),
 )
 

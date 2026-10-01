@@ -1,5 +1,7 @@
 import type { ParadoxDraft, ParadoxSubmitPhase } from '../paradox/useParadoxResolution'
 import type { ParadoxResolutionView } from '../paradox/paradoxView'
+import { CardIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 
 interface ParadoxResolutionPanelProps {
   readonly view: ParadoxResolutionView
@@ -10,6 +12,7 @@ interface ParadoxResolutionPanelProps {
   readonly onClearDraft: () => void
   readonly onConfirm: () => void
   readonly onDismissRejection: () => void
+  readonly illustrationSkin?: IllustrationSkin
 }
 
 function deadlineLabel(seconds: number | null): string {
@@ -27,6 +30,7 @@ export function ParadoxResolutionPanel({
   onClearDraft,
   onConfirm,
   onDismissRejection,
+  illustrationSkin = 'board',
 }: ParadoxResolutionPanelProps) {
   if (view.kind === 'unavailable') return null
   if (view.kind === 'loading') return <output>Loading paradox-resolution choices…</output>
@@ -69,6 +73,7 @@ export function ParadoxResolutionPanel({
                 disabled={isSubmitting}
                 onClick={() => onSelectCard(card.cardInstanceId)}
               >
+                <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
                 {card.name} · Grade {card.grade}
               </button>
               <span> — {card.effectSummary}</span>

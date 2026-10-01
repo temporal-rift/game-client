@@ -1,18 +1,21 @@
 import type { FactionIntel } from '../types/playerView'
+import { FactionIllustration } from '../illustrations/catalog'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 import { FactionEmblem, KnowledgeScopeIcon } from './icons'
 
 interface FactionIntelPanelProps {
   readonly faction: FactionIntel
+  readonly illustrationSkin?: IllustrationSkin
 }
 
-export function FactionIntelPanel({ faction }: FactionIntelPanelProps) {
+export function FactionIntelPanel({ faction, illustrationSkin = 'board' }: FactionIntelPanelProps) {
   return (
     <aside className="faction-rail" aria-labelledby="faction-intel-heading">
       <section className="faction-panel">
         <h2 id="faction-intel-heading" className="panel-eyebrow">
           Your faction
         </h2>
-        <FactionEmblem />
+        {illustrationSkin === 'board' ? <FactionEmblem /> : <FactionIllustration faction={faction.factionName} skin={illustrationSkin} />}
         <p className="faction-name">{faction.factionName}</p>
         <p className="faction-description">{faction.description}</p>
         <div className="faction-score">

@@ -42,6 +42,7 @@ const config: AppConfig = {
   oidcIssuerUrl: 'https://issuer.example.test',
   oidcClientId: 'game-client',
   oidcAudience: 'https://api.example.test',
+  illustrationSkin: 'board',
 }
 
 function stubUser(overrides: Partial<StubUser> = {}): StubUser {

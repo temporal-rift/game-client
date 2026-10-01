@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { PlayerView } from '../types/playerView'
+import type { IllustrationSkin } from '../illustrations/catalogData'
 import { ActionConfirmationPanel, type SelectedTarget } from './ActionConfirmationPanel'
 import { EventBoard } from './EventBoard'
 import { FactionIntelPanel } from './FactionIntelPanel'
@@ -9,6 +10,7 @@ import { RiftMark } from './icons'
 interface AppShellProps {
   readonly playerView: PlayerView
   readonly isSampleData: boolean
+  readonly illustrationSkin?: IllustrationSkin
 }
 
 interface SelectionState {
@@ -38,7 +40,7 @@ function findSelectedTarget(playerView: PlayerView, targetId: string | null): Se
   return null
 }
 
-export function AppShell({ playerView, isSampleData }: AppShellProps) {
+export function AppShell({ playerView, isSampleData, illustrationSkin = 'board' }: AppShellProps) {
   const [selection, setSelection] = useState<SelectionState>(() => selectionFrom(playerView))
 
   const baseline = selection.gameId === playerView.gameId ? selection : selectionFrom(playerView)
@@ -106,15 +108,17 @@ export function AppShell({ playerView, isSampleData }: AppShellProps) {
       </section>
 
       <main className="game-board-layout">
-        <FactionIntelPanel faction={playerView.faction} />
+        <FactionIntelPanel faction={playerView.faction} illustrationSkin={illustrationSkin} />
         <EventBoard
+          illustrationSkin={illustrationSkin}
           events={playerView.events}
           publicBandAgeLabel={playerView.publicBandAgeLabel}
           selectedTargetId={effectiveTargetId}
           onSelectTarget={toggleTarget}
         />
-        <PrivateHand hand={playerView.hand} selectedCardId={effectiveCardId} onSelectCard={toggleCard} />
+        <PrivateHand hand={playerView.hand} selectedCardId={effectiveCardId} onSelectCard={toggleCard} illustrationSkin={illustrationSkin} />
         <ActionConfirmationPanel
+          illustrationSkin={illustrationSkin}
           selectedCard={selectedCard}
           selectedTarget={selectedTarget}
           confirmLabel={playerView.pendingAction?.confirmLabel ?? 'Confirm action'}
