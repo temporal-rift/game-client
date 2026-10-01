@@ -1,5 +1,21 @@
 import type { CardType, Faction, SpecialAction } from '../api/action'
+import { CardGlyph, EventSceneArt, FactionEmblem } from '../components/icons'
+import type { CardKind, EventArtwork } from '../types/playerView'
 import { BOARD, CARD_ART_KEYS, CARD_FORM_INDEX, CARD_FORMS, ENGRAVING, EVENT_CATALOG, EVENT_FORM_INDEX, EVENT_FORMS, FACTION_ART_KEYS, FACTION_FORM_INDEX, SPECIAL_ART_KEYS, SPECIAL_FORM_INDEX, type IllustrationSkin } from './catalogData'
+
+const BOARD_EVENT_ARTWORK: Partial<Record<string, EventArtwork>> = {
+  delegate: 'delegate',
+  reactor: 'reactor',
+  pact: 'pact',
+}
+
+const BOARD_CARD_GLYPHS: Partial<Record<CardType, CardKind>> = {
+  PUSH: 'push',
+  SUPPRESS: 'suppress',
+  SCAN: 'scan',
+  NULLIFY: 'nullify',
+  COLLIDE: 'collide',
+}
 
 function Shape({ index, skin, wide = false, family }: { readonly index: number; readonly skin: IllustrationSkin; readonly wide?: boolean; readonly family: 'event' | 'card' | 'special' | 'faction' }) {
   const colors = skin === 'board' ? BOARD : ENGRAVING
@@ -47,12 +63,20 @@ function IllustrationSvg({ id, index, skin, wide, family, className }: { readonl
 
 export function EventIllustration({ eventId, skin = 'board' }: { readonly eventId: string; readonly skin?: IllustrationSkin }) {
   const event = EVENT_CATALOG.find(([id]) => id === eventId)
+  const boardArtwork = event && BOARD_EVENT_ARTWORK[event[1]]
+  if (skin === 'board' && boardArtwork) {
+    return <EventSceneArt artwork={boardArtwork} className="catalog-event-art catalog-event-scene-art" catalogId={eventId} />
+  }
   const index = event ? EVENT_FORM_INDEX[event[1]] : -1
   return <IllustrationSvg id={eventId} index={index} skin={skin} wide family="event" className="catalog-event-art" />
 }
 
 export function CardIllustration({ cardType, skin = 'board' }: { readonly cardType: string; readonly skin?: IllustrationSkin }) {
   const key = CARD_ART_KEYS[cardType as CardType]
+  const boardGlyph = BOARD_CARD_GLYPHS[cardType as CardType]
+  if (skin === 'board' && boardGlyph) {
+    return <CardGlyph kind={boardGlyph} className="catalog-icon-art" catalogId={key} />
+  }
   const index = key ? CARD_FORM_INDEX[key] : -1
   return <IllustrationSvg id={key ?? 'unknown-card'} index={index} skin={skin} wide={false} family="card" className="catalog-icon-art" />
 }
@@ -66,6 +90,9 @@ export function SpecialIllustration({ specialAction, skin = 'board' }: { readonl
 export function FactionIllustration({ faction, skin = 'board' }: { readonly faction: string; readonly skin?: IllustrationSkin }) {
   const normalizedFaction = faction.trim().toUpperCase().replace(/^THE\s+/, '') as Faction
   const key = FACTION_ART_KEYS[normalizedFaction]
+  if (skin === 'board' && key) {
+    return <FactionEmblem className="catalog-icon-art" catalogId={key} />
+  }
   const index = key ? FACTION_FORM_INDEX[key] : -1
   return <IllustrationSvg id={key ?? 'unknown-faction'} index={index} skin={skin} wide={false} family="faction" className="catalog-icon-art" />
 }

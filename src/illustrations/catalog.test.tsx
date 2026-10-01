@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { CARD_TYPES, FACTIONS, SPECIAL_ACTIONS } from '../api/action'
-import { CardIllustration, EventIllustration } from './catalog'
+import { CardIllustration, EventIllustration, FactionIllustration } from './catalog'
 import { CARD_ART_KEYS, CARD_FORM_INDEX, EVENT_CATALOG, EVENT_FORM_INDEX, FACTION_ART_KEYS, FACTION_FORM_INDEX, SPECIAL_ART_KEYS, SPECIAL_FORM_INDEX } from './catalogData'
 
 describe('catalog illustrations', () => {
@@ -30,5 +30,19 @@ describe('catalog illustrations', () => {
     rerender(<CardIllustration cardType="FUTURE_CARD" />)
     expect(container.querySelector('svg')).toHaveAttribute('data-catalog-id', 'unknown-card')
     expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('reuses the board event scenes, card glyphs, and faction emblem where they already exist', () => {
+    const { container, rerender } = render(<EventIllustration eventId={EVENT_CATALOG[0][0]} />)
+    expect(container.querySelector('svg')).toHaveClass('catalog-event-scene-art')
+
+    rerender(<CardIllustration cardType="PUSH" />)
+    expect(container.querySelector('svg')).toHaveClass('card-glyph-push')
+
+    rerender(<CardIllustration cardType="SUPPRESS" />)
+    expect(container.querySelector('svg')).toHaveClass('card-glyph-suppress')
+
+    rerender(<FactionIllustration faction="PROPHETS" />)
+    expect(container.querySelector('svg')).toHaveClass('faction-emblem')
   })
 })
