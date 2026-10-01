@@ -45,4 +45,45 @@ describe('catalog illustrations', () => {
     rerender(<FactionIllustration faction="PROPHETS" />)
     expect(container.querySelector('svg')).toHaveClass('faction-emblem')
   })
+
+  it('renders a scene-specific Board illustration for every remaining event', () => {
+    const expectedScenes = new Set([
+      'archive', 'general', 'plague-ship', 'radio', 'chancellor', 'ruins', 'ceasefire', 'volcano', 'heir',
+      'blueprints', 'parliament', 'bridge', 'oracle', 'soldier', 'frontier', 'trial', 'gate', 'fleet',
+      'burning-archive', 'resistance', 'null-bomb', 'coronation', 'quarantine', 'timeline', 'double-agent',
+      'probe', 'convergence',
+    ])
+
+    for (const [eventId, scene] of EVENT_CATALOG.slice(3)) {
+      const { container, unmount } = render(<EventIllustration eventId={eventId} />)
+      const svg = container.querySelector('svg')
+      expect(svg).toHaveClass('catalog-event-scene-art')
+      expect(svg).toHaveAttribute('data-scene-key', scene)
+      expectedScenes.delete(scene)
+      unmount()
+    }
+
+    expect(expectedScenes).toEqual(new Set())
+  })
+
+  it('keeps all event illustrations decorative and available in both skins', () => {
+    for (const [eventId, scene] of EVENT_CATALOG) {
+      const { container, unmount } = render(<EventIllustration eventId={eventId} />)
+      const boardSvg = container.querySelector('svg')
+      expect(boardSvg).toHaveAttribute('data-catalog-id', eventId)
+      expect(boardSvg).toHaveAttribute('aria-hidden', 'true')
+      expect(boardSvg).toHaveAttribute('focusable', 'false')
+      if (scene === 'delegate' || scene === 'reactor' || scene === 'pact') {
+        expect(boardSvg).toHaveClass('catalog-event-scene-art')
+      } else {
+        expect(boardSvg).toHaveAttribute('data-scene-key', scene)
+      }
+      unmount()
+
+      const engraving = render(<EventIllustration eventId={eventId} skin="engraving" />)
+      expect(engraving.container.querySelector('svg')).toHaveClass('skin-engraving')
+      expect(engraving.container.querySelector('svg')).toHaveAttribute('data-catalog-id', eventId)
+      engraving.unmount()
+    }
+  })
 })

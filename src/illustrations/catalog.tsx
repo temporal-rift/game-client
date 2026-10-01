@@ -1,6 +1,7 @@
 import type { CardType, Faction, SpecialAction } from '../api/action'
 import { CardGlyph, EventSceneArt, FactionEmblem } from '../components/icons'
 import type { CardKind, EventArtwork } from '../types/playerView'
+import { CatalogEventScene, type CatalogEventSceneKey } from './eventSceneArt'
 import { BOARD, CARD_ART_KEYS, CARD_FORM_INDEX, CARD_FORMS, ENGRAVING, EVENT_CATALOG, EVENT_FORM_INDEX, EVENT_FORMS, FACTION_ART_KEYS, FACTION_FORM_INDEX, SPECIAL_ART_KEYS, SPECIAL_FORM_INDEX, type IllustrationSkin } from './catalogData'
 
 const BOARD_EVENT_ARTWORK: Partial<Record<string, EventArtwork>> = {
@@ -16,6 +17,13 @@ const BOARD_CARD_GLYPHS: Partial<Record<CardType, CardKind>> = {
   NULLIFY: 'nullify',
   COLLIDE: 'collide',
 }
+
+const CATALOG_EVENT_SCENES = new Set<CatalogEventSceneKey>([
+  'archive', 'general', 'plague-ship', 'radio', 'chancellor', 'ruins', 'ceasefire', 'volcano', 'heir',
+  'blueprints', 'parliament', 'bridge', 'oracle', 'soldier', 'frontier', 'trial', 'gate', 'fleet',
+  'burning-archive', 'resistance', 'null-bomb', 'coronation', 'quarantine', 'timeline', 'double-agent',
+  'probe', 'convergence',
+])
 
 function Shape({ index, skin, wide = false, family }: { readonly index: number; readonly skin: IllustrationSkin; readonly wide?: boolean; readonly family: 'event' | 'card' | 'special' | 'faction' }) {
   const colors = skin === 'board' ? BOARD : ENGRAVING
@@ -66,6 +74,9 @@ export function EventIllustration({ eventId, skin = 'board' }: { readonly eventI
   const boardArtwork = event && BOARD_EVENT_ARTWORK[event[1]]
   if (skin === 'board' && boardArtwork) {
     return <EventSceneArt artwork={boardArtwork} className="catalog-event-art catalog-event-scene-art" catalogId={eventId} />
+  }
+  if (skin === 'board' && event && CATALOG_EVENT_SCENES.has(event[1] as CatalogEventSceneKey)) {
+    return <CatalogEventScene scene={event[1] as CatalogEventSceneKey} className="catalog-event-art catalog-event-scene-art" catalogId={eventId} />
   }
   const index = event ? EVENT_FORM_INDEX[event[1]] : -1
   return <IllustrationSvg id={eventId} index={index} skin={skin} wide family="event" className="catalog-event-art" />
