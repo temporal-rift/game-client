@@ -2,13 +2,7 @@ import type { EventBoardEntry } from '../types/playerView'
 import { EventIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import { BandLabel } from './BandLabel'
-import { EventSceneArt, EventStatusIcon } from './icons'
-
-const LEGACY_BOARD_EVENT_IDS = new Set([
-  '12606191-eafe-4d1c-a014-b676bf094db0',
-  '400e3361-301f-4ec1-9edd-cb0c6e14fbc6',
-  'ab0d99ea-6f75-4d8d-b1a7-7a1a063635a4',
-])
+import { EventStatusIcon } from './icons'
 
 interface EventBoardProps {
   readonly events: readonly EventBoardEntry[]
@@ -47,7 +41,7 @@ export function EventBoard({ events, publicBandAgeLabel, selectedTargetId, onSel
           return (
             <li key={event.id}>
               <article className={`event-card${hasSelectedOutcome ? ' is-selected' : ''}`}>
-                {illustrationSkin === 'board' && LEGACY_BOARD_EVENT_IDS.has(event.id) ? <EventSceneArt artwork={event.artwork} /> : <EventIllustration eventId={event.id} skin={illustrationSkin} />}
+                <EventIllustration eventId={event.id} skin={illustrationSkin} />
                 <div className="event-card-body">
                   <div className="event-card-meta">
                     <span>Future {String(eventIndex + 1).padStart(2, '0')}</span>

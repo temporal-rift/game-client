@@ -56,7 +56,7 @@ describe('EventBoard', () => {
     expect(screen.getByText('High')).toBeInTheDocument()
     expect(screen.getByText('Unknown')).toBeInTheDocument()
     expect(screen.getByText('Bands from round 2')).toBeInTheDocument()
-    expect(container.querySelector('.event-scene-art')).toBeInTheDocument()
+    expect(container.querySelector('.catalog-event-scene-art')).toBeInTheDocument()
   })
 
   it('uses catalog illustrations for catalog and unknown board event IDs', () => {
