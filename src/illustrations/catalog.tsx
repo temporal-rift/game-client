@@ -31,7 +31,9 @@ function shapePath(index: number, wide: boolean) {
   return 'M50 18v64m-32-32h64m-23-23 46 46m0-46L27 73'
 }
 
-function ShapeFrame({ family, cx, cy, radius, faint }: { readonly family: 'event' | 'card' | 'special' | 'faction'; readonly cx: number; readonly cy: number; readonly radius: number; readonly faint: string }) {
+type ShapeFamily = 'event' | 'card' | 'special' | 'faction'
+
+function ShapeFrame({ family, cx, cy, radius, faint }: { readonly family: ShapeFamily; readonly cx: number; readonly cy: number; readonly radius: number; readonly faint: string }) {
   if (family === 'faction') return <path d="M50 7 87 28v44L50 93 13 72V28z" stroke={faint} strokeWidth="1.2" />
   if (family === 'special') return <path d="m50 5 45 45-45 45L5 50z" stroke={faint} strokeWidth="1.2" />
   return <circle cx={cx} cy={cy} r={radius} stroke={faint} strokeWidth="1" />
@@ -49,7 +51,7 @@ function ShapeGuides({ skin, wide, cx, cy, faint, accent }: { readonly skin: Ill
   </>
 }
 
-function Shape({ index, skin, wide = false, family }: { readonly index: number; readonly skin: IllustrationSkin; readonly wide?: boolean; readonly family: 'event' | 'card' | 'special' | 'faction' }) {
+function Shape({ index, skin, wide = false, family }: { readonly index: number; readonly skin: IllustrationSkin; readonly wide?: boolean; readonly family: ShapeFamily }) {
   const colors = skin === 'board' ? BOARD : ENGRAVING
   const path = shapePath(index, wide)
   const cx = wide ? 170 : 50
