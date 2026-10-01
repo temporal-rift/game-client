@@ -288,6 +288,7 @@ export const zRevealedIntel = z.object({
     eventId: z.uuid(),
     outcomes: z.array(zRevealedProbabilityOutcome).optional(),
     influencerPlayerIds: z.array(z.uuid()).optional(),
+    mimicInfluencerPlayerIds: z.array(z.uuid()).optional(),
     targetPlayerId: z.uuid().optional(),
     revealedCards: z.array(zRevealedHandCard).optional()
 });

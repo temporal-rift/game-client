@@ -43,7 +43,10 @@ function revealedKnowledgeLabel(entry: RevealedKnowledgeEntry): { readonly label
     case 'INFLUENCE':
       return {
         label: `Trace · ${entry.eventTitle}`,
-        detail: entry.influencerNames.length > 0 ? `Influenced by ${entry.influencerNames.join(', ')}` : 'No player influenced this event.',
+        detail:
+          entry.influencers.length > 0
+            ? `Influenced by ${entry.influencers.map((influencer) => (influencer.usedMimic ? `${influencer.playerName} (Revisionist via Mimic)` : influencer.playerName)).join(', ')}`
+            : 'No player influenced this event.',
       }
     case 'HAND_CARD':
       return {

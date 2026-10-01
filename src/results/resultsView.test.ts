@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GameStateView } from '../api/projection'
 import type { ScoresHistoryResponse, ScoresResponse } from '../api/scoring'
 import { baseGameState } from '../game/gameStateFixtures'
-import { selectResultsView } from './resultsView'
+import { scoreReasonLabel, selectResultsView } from './resultsView'
 
 function terminalState(overrides: Partial<GameStateView> = {}): GameStateView {
   return baseGameState(
@@ -63,6 +63,11 @@ const history: ScoresHistoryResponse = {
 }
 
 describe('selectResultsView', () => {
+  it('uses readable text for the Mimic concealment score reason', () => {
+    expect(scoreReasonLabel('MIMIC_NEVER_TRACED')).toBe('Mimic was never traced')
+    expect(scoreReasonLabel('EVENT_RESOLVED_AS_WRITTEN')).toBe('EVENT_RESOLVED_AS_WRITTEN')
+  })
+
   it('shows every authoritative simultaneous winner with cause and final scores', () => {
     const view = selectResultsView(terminalState(), scores, history, 'p-3')
 

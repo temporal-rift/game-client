@@ -30,7 +30,14 @@ describe('useKnowledge', () => {
     expect(result.current.view.kind).toBe('ready')
     if (result.current.view.kind !== 'ready') return
     expect(result.current.view.revealedKnowledge).toEqual([
-      { kind: 'INFLUENCE', eventId: 'event-1', eventTitle: 'Event event-1', observedInRound: 2, expiresAtEraEnd: 2, influencerNames: ['Nora'] },
+      {
+        kind: 'INFLUENCE',
+        eventId: 'event-1',
+        eventTitle: 'Event event-1',
+        observedInRound: 2,
+        expiresAtEraEnd: 2,
+        influencers: [{ playerId: 'p-1', playerName: 'Nora', usedMimic: false }],
+      },
     ])
   })
 
