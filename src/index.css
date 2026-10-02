@@ -66,13 +66,6 @@ button {
   aspect-ratio: 340 / 155;
 }
 
-.catalog-item-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  text-align: left;
-}
-
 .current-player-session {
   display: inline-flex;
   align-items: center;
@@ -977,6 +970,328 @@ button.hand-offer-card:disabled:not(.is-selected) {
 .board-unavailable {
   padding-block: 2rem;
   color: #a5adbe;
+}
+
+/* Action round on the board: selectable cards, specials and targets, and the decision rail. */
+
+.action-prompt {
+  margin: 0;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--accent);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+button.hand-card,
+.event-select,
+.outcome-list.is-targetable .outcome-row,
+button.faction-special,
+.player-target {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+button.hand-card:disabled,
+.event-select:disabled,
+.outcome-list.is-targetable .outcome-row:disabled,
+button.faction-special:disabled,
+.player-target:disabled {
+  cursor: not-allowed;
+}
+
+button.hand-card:hover:not(:disabled),
+button.faction-special:hover:not(:disabled),
+.outcome-list.is-targetable .outcome-row:hover:not(:disabled),
+.player-target:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+}
+
+.hand-card.is-selected {
+  border-color: #8ad7c9;
+  box-shadow:
+    inset 0 0 0 1px #528c87,
+    0 0.55rem 1.45rem rgb(0 7 19 / 42%);
+}
+
+.hand-card.is-selected .hand-card-state {
+  color: #92e0ce;
+}
+
+.event-card.is-targetable {
+  border-color: #4a5a72;
+}
+
+.event-card.is-selected {
+  border-color: #5f9899;
+}
+
+.event-select {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.event-select[aria-pressed='true'] .event-scene-art {
+  border-bottom-color: #5f9899;
+}
+
+.outcome-list.is-targetable .outcome-row {
+  display: flex;
+  width: 100%;
+  text-align: left;
+}
+
+.outcome-list.is-targetable .outcome-label {
+  flex: 1 1 auto;
+}
+
+.outcome-radio {
+  flex: 0 0 auto;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1px solid #7987a2;
+  border-radius: 50%;
+}
+
+.outcome-list.is-targetable .outcome-row[aria-pressed='true'] {
+  border-color: #81c8bc;
+  background: var(--accent-deep);
+  color: #e1f8ec;
+}
+
+.outcome-row[aria-pressed='true'] .outcome-radio {
+  border-color: #c2ffec;
+  background: #8be1ce;
+}
+
+.outcome-list.is-targetable .outcome-row:disabled:not([aria-pressed='true']) {
+  opacity: 0.6;
+}
+
+.outcome-marker {
+  color: #92dccc;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.event-target-hint {
+  margin: 0.35rem 0 0;
+  color: #7e8ba4;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.event-card.is-selected .event-target-hint {
+  color: #92dccc;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+button.faction-special {
+  flex-wrap: wrap;
+  padding-block: 0.3rem;
+  text-align: left;
+}
+
+button.faction-special.is-selected {
+  border-color: #8ad7c9;
+  background: var(--accent-deep);
+}
+
+button.faction-special:disabled {
+  opacity: 0.65;
+}
+
+.faction-special-reason {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+}
+
+.player-strip li > .player-target {
+  grid-column: 1 / -1;
+}
+
+.player-target {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #3c4a63;
+  border-radius: 0.55rem;
+  background: #141c2f;
+  color: inherit;
+  text-align: left;
+}
+
+.player-target.is-selected {
+  border-color: #81c8bc;
+  background: var(--accent-deep);
+}
+
+.player-target:disabled {
+  opacity: 0.55;
+}
+
+.decision-panel {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.35rem;
+  border: 1px solid #3b4157;
+  border-radius: 0.85rem;
+  background: linear-gradient(180deg, #1e253a, #101729);
+}
+
+.decision-panel p {
+  margin: 0;
+}
+
+.decision-art {
+  display: grid;
+  place-items: center;
+  margin-top: 0.4rem;
+}
+
+.decision-art .catalog-icon-art {
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+.decision-name {
+  color: #e3e9e5;
+  font: 400 1.4rem/1.2 var(--serif);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.decision-grade {
+  color: #8ed8cc;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.decision-targets {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.4rem 0 0;
+  padding: 0.6rem 0 0;
+  border-top: 1px solid #3c4459;
+  color: #dddccf;
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.decision-hint,
+.decision-status {
+  color: #b0d5cc;
+  font-size: 0.85rem;
+}
+
+.decision-effect,
+.hidden-weights {
+  color: #a1adc0;
+  font-size: 0.8rem;
+}
+
+.hidden-weights {
+  color: #7f8ba2;
+}
+
+.target-group,
+.disguise-choice {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.disguise-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.disguise-choice button,
+.decision-secondary button,
+.decision-rejection button {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #182238;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.disguise-choice button[aria-pressed='true'],
+.decision-secondary button[aria-pressed='true'] {
+  border-color: #8ad7c9;
+  background: var(--accent-deep);
+  color: #e1f8ec;
+}
+
+.decision-controls {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.confirm-action {
+  min-height: 3rem;
+  border: 1px solid #82ddd3;
+  border-radius: 0.5rem;
+  background: linear-gradient(180deg, #8be1d6, #4daea8);
+  color: #112d35;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.confirm-action:disabled {
+  border-color: var(--border);
+  background: #1c253a;
+  color: var(--text-soft);
+  cursor: not-allowed;
+}
+
+.decision-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.decision-secondary button:disabled {
+  color: var(--text-soft);
+  cursor: not-allowed;
+}
+
+.decision-rule {
+  margin: 0;
+  color: #8d9bb0;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.decision-rejection {
+  margin: 0.9rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #6b4a4a;
+  border-radius: 0.55rem;
+  background: #2a1d24;
+  color: #e5c7c0;
+  font-size: 0.85rem;
 }
 
 @media (max-width: 75rem) {

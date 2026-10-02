@@ -22,7 +22,7 @@ describe('FactionIntelPanel', () => {
     expect(screen.getByText('Prophets')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
     expect(screen.getByText('/ 20 to win')).toBeInTheDocument()
-    const specials = screen.getByRole('list', { name: 'Faction special uses' })
+    const specials = screen.getByRole('list', { name: 'Faction specials' })
     expect(specials).toHaveTextContent('Seal1 this era · 2 this game')
     expect(specials).toHaveTextContent('Foresight')
     expect(container.querySelector('.faction-emblem')).toBeInTheDocument()
@@ -32,6 +32,6 @@ describe('FactionIntelPanel', () => {
     renderFaction({ myFaction: null, mySpecialActions: [] })
 
     expect(screen.getByText('No faction assigned yet')).toBeInTheDocument()
-    expect(screen.queryByRole('list', { name: 'Faction special uses' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Faction specials' })).not.toBeInTheDocument()
   })
 })

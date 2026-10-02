@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { useActionSubmission } from '../action/useActionSubmission'
 import { toBoardView } from '../board/boardView'
-import { ActionPanel } from '../components/ActionPanel'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
 import { KnowledgePanel } from '../components/KnowledgePanel'
@@ -66,20 +65,8 @@ function GamePage({ gameId }: { readonly gameId: string }) {
         onRetry={() => void gameState.refresh()}
         handSelection={handSelection}
         illustrationSkin={config.illustrationSkin}
+        action={isLobbyGame ? action : null}
       />
-      {isLobbyGame && (
-        <ActionPanel
-          illustrationSkin={config.illustrationSkin}
-          view={action.view}
-          draft={action.draft}
-          submitPhase={action.submitPhase}
-          onSelectCard={action.selectCard}
-          onSelectSpecial={action.selectSpecial}
-          onClearDraft={action.clearDraft}
-          onConfirm={() => void action.confirm()}
-          onDismissRejection={action.dismissRejection}
-        />
-      )}
       {isLobbyGame && (
         <ParadoxResolutionPanel
           illustrationSkin={config.illustrationSkin}

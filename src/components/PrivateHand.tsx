@@ -5,10 +5,20 @@ import { CardIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import { GradeBadge } from './icons'
 
+/** Present only while the caller can choose an action this round. */
+export interface HandActionControls {
+  readonly selectedCardInstanceId: string | null
+  /** Cards the open round offers; every other card stays unselectable. */
+  readonly selectableCardIds: ReadonlySet<string>
+  readonly disabled: boolean
+  readonly onSelect: (cardInstanceId: string) => void
+}
+
 interface PrivateHandProps {
   readonly hand: readonly BoardHandCard[]
   readonly handSelection?: HandSelectionSession
   readonly illustrationSkin?: IllustrationSkin
+  readonly action?: HandActionControls | null
 }
 
 function OpenHandOffer({
@@ -85,7 +95,16 @@ function OpenHandOffer({
   )
 }
 
-export function PrivateHand({ hand, handSelection, illustrationSkin = 'board' }: PrivateHandProps) {
+function stateLabel(card: BoardHandCard, isSelected: boolean): string {
+  if (!card.isPlayableThisRound) return 'Not playable this round'
+  return isSelected ? 'Selected' : 'Playable'
+}
+
+function cardClassName(card: BoardHandCard, isSelected: boolean): string {
+  return ['hand-card', card.isPlayableThisRound ? '' : 'is-unplayable', isSelected ? 'is-selected' : ''].filter(Boolean).join(' ')
+}
+
+export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', action = null }: PrivateHandProps) {
   if (handSelection) {
     const { view, selectedCardInstanceIds, submitPhase, toggleCard, confirm, dismissRejection } = handSelection
     if (view.kind === 'open') {
@@ -107,22 +126,42 @@ export function PrivateHand({ hand, handSelection, illustrationSkin = 'board' }:
     <section className="private-hand" aria-labelledby="private-hand-heading">
       <div className="section-heading-row">
         <h2 id="private-hand-heading">Your hand</h2>
-        <span>{hand.length} cards · private to you</span>
+        <span>{hand.length} cards · {action ? 'choose one action' : 'private to you'}</span>
       </div>
-      <ul className="hand-grid">
-        {hand.map((card) => (
-          <li key={card.cardInstanceId} className={`hand-card${card.isPlayableThisRound ? '' : ' is-unplayable'}`}>
-            <span className="hand-card-topline">
-              <span className="hand-card-state">{card.isPlayableThisRound ? 'Playable' : 'Not playable this round'}</span>
-              <GradeBadge grade={card.grade} />
-            </span>
-            <span className="card-glyph-well">
-              <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
-            </span>
-            <span className="hand-card-name">{card.name}</span>
-            <span className="hand-card-description">{card.effect}</span>
-          </li>
-        ))}
+      <ul className="hand-grid" aria-label="Hand">
+        {hand.map((card) => {
+          const isSelected = action?.selectedCardInstanceId === card.cardInstanceId
+          const content = (
+            <>
+              <span className="hand-card-topline">
+                <span className="hand-card-state">{stateLabel(card, isSelected)}</span>
+                <GradeBadge grade={card.grade} />
+              </span>
+              <span className="card-glyph-well">
+                <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
+              </span>
+              <span className="hand-card-name">{card.name}</span>
+              <span className="hand-card-description">{card.effect}</span>
+            </>
+          )
+          return (
+            <li key={card.cardInstanceId}>
+              {action ? (
+                <button
+                  type="button"
+                  className={cardClassName(card, isSelected)}
+                  aria-pressed={isSelected}
+                  disabled={action.disabled || !card.isPlayableThisRound || !action.selectableCardIds.has(card.cardInstanceId)}
+                  onClick={() => action.onSelect(card.cardInstanceId)}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className={cardClassName(card, false)}>{content}</div>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </section>
   )

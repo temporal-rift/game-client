@@ -18,12 +18,14 @@ import {
   type HandSelectionRequest,
   type HandSelectionResponse,
   type ParadoxResolutionCardResponse,
+  type PassActionRequest,
   type SpecialActionRequest,
   type SubmitActionResponse,
 } from './generated/action'
 import {
   zCardActionRequest,
   zEnumsSpecialAction,
+  zPassActionRequest,
   zSpecialActionRequest,
 } from './generated/action/zod.gen'
 import { zFaction } from './generated/scoring/zod.gen'
@@ -35,6 +37,7 @@ export type { AuthenticatedFetchFn } from './client'
 export type {
   CardActionRequest,
   EnumsSpecialAction as SpecialAction,
+  PassActionRequest,
   SpecialActionRequest,
 } from './generated/action'
 export type { CardCategory, CardGrade, CardType } from './generated/projection'
@@ -69,15 +72,15 @@ export function isFaction(value: string | null | undefined): value is Faction {
 export type ActionCoordinates = Omit<CardActionRequest, 'actionType' | 'cardInstanceId'> &
   Omit<SpecialActionRequest, 'actionType' | 'specialAction'>
 
-export type SubmitActionRequest = CardActionRequest | SpecialActionRequest
+export type SubmitActionRequest = CardActionRequest | SpecialActionRequest | PassActionRequest
 
 // The generated operation validates only the discriminator of its polymorphic body, so the
-// wrapper checks the whole card or special variant before sending it.
-const submitActionRequestSchema = z.union([zCardActionRequest, zSpecialActionRequest])
+// wrapper checks the whole card, special or pass variant before sending it.
+const submitActionRequestSchema = z.union([zCardActionRequest, zSpecialActionRequest, zPassActionRequest])
 
 /**
- * Submits the authenticated player's single card or faction-special action
- * for an open action round. A lost response does not imply failure: recover
+ * Submits the authenticated player's single card, faction-special or pass
+ * decision for an open action round. A lost response does not imply failure: recover
  * acceptance via game state before treating it as one.
  */
 export async function submitAction(
@@ -184,12 +187,14 @@ export function actionErrorMessage(error: unknown): string {
         return 'Your faction does not own that special action.'
       case '422-06':
         return "That target does not belong to the current game's era."
+      case '422-09':
+        return 'Expose is not available this round, or that player cannot be exposed.'
       case '422-10':
         return 'That card is not eligible during this phase.'
       case '422-11':
         return 'Choose five different cards from your offered hand.'
       case '422-12':
-        return 'That card cannot be played in this specific round.'
+        return 'That card or special cannot be played in this round.'
       default:
         return problem.status === 404 ? 'Round or target player not found.' : null
     }
