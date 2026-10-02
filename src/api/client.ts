@@ -101,13 +101,11 @@ function classify(error: unknown, response: Response | undefined): unknown {
   return new ApiFailure({ kind: error instanceof ZodError ? 'invalid-request' : 'unreachable' })
 }
 
-// The generated client hands fetch one Request; the authenticated fetch (and the fakes in tests)
-// take the classic (input, init) pair, whose headers and body it extends.
 function adaptFetch(fetchFn: AuthenticatedFetchFn) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init)
-    const body = request.body ? await request.text() : undefined
     // Server state is polled and reconciled here: a heuristically cached answer must never stand in for it.
+    const body = (await request.text()) || undefined
     return fetchFn(request.url, { method: request.method, headers: request.headers, body, signal: request.signal, cache: 'no-store' })
   }
 }
