@@ -1,8 +1,10 @@
+import type { CardGrade, CardType } from '../api/action'
 import type { BoardHandCard } from '../board/boardView'
 import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
 import type { HandSelectionSession } from '../hand/useHandSelection'
 import { CardIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import type { ParadoxCardOption } from '../paradox/paradoxView'
 import { GradeBadge } from './icons'
 
 /** Present only while the caller can choose an action this round. */
@@ -14,11 +16,86 @@ export interface HandActionControls {
   readonly onSelect: (cardInstanceId: string) => void
 }
 
+/** Present only while the caller can still choose in an open paradox-resolution phase. */
+export interface ResolutionCardControls {
+  readonly cards: readonly ParadoxCardOption[]
+  readonly selectedCardInstanceId: string | null
+  readonly disabled: boolean
+  readonly onSelect: (cardInstanceId: string) => void
+}
+
 interface PrivateHandProps {
   readonly hand: readonly BoardHandCard[]
   readonly handSelection?: HandSelectionSession
   readonly illustrationSkin?: IllustrationSkin
   readonly action?: HandActionControls | null
+  readonly resolution?: ResolutionCardControls | null
+}
+
+/** The face every hand, offer and resolution card shares: state, grade, artwork, name and effect. */
+function HandCardFace({
+  state,
+  card,
+  effect,
+  illustrationSkin,
+}: {
+  readonly state: string
+  readonly card: { readonly cardType: CardType; readonly grade: CardGrade; readonly name: string }
+  readonly effect: string
+  readonly illustrationSkin: IllustrationSkin
+}) {
+  return (
+    <>
+      <span className="hand-card-topline">
+        <span className="hand-card-state">{state}</span>
+        <GradeBadge grade={card.grade} />
+      </span>
+      <span className="card-glyph-well">
+        <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
+      </span>
+      <span className="hand-card-name">{card.name}</span>
+      <span className="hand-card-description">{effect}</span>
+    </>
+  )
+}
+
+function ResolutionOffer({ resolution, illustrationSkin }: { readonly resolution: ResolutionCardControls; readonly illustrationSkin: IllustrationSkin }) {
+  const { cards, selectedCardInstanceId, disabled, onSelect } = resolution
+  return (
+    <section className="private-hand resolution-offer" aria-labelledby="resolution-cards-heading">
+      <div className="section-heading-row">
+        <h2 id="resolution-cards-heading">Resolution cards</h2>
+        <span>{cards.length} eligible · choose one or pass</span>
+      </div>
+      {cards.length === 0 ? (
+        <p className="resolution-offer-empty">No eligible resolution cards this phase. You can still pass.</p>
+      ) : (
+        <ul className="hand-grid" aria-label="Eligible resolution cards">
+          {cards.map((card) => {
+            const isSelected = card.cardInstanceId === selectedCardInstanceId
+            return (
+              <li key={card.cardInstanceId}>
+                <button
+                  type="button"
+                  className={`hand-card${isSelected ? ' is-selected' : ''}`}
+                  aria-pressed={isSelected}
+                  disabled={disabled}
+                  onClick={() => onSelect(card.cardInstanceId)}
+                >
+                  <HandCardFace
+                    state={isSelected ? 'Selected' : 'Eligible'}
+                    card={card}
+                    effect={card.effectSummary}
+                    illustrationSkin={illustrationSkin}
+                  />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 function OpenHandOffer({
@@ -74,15 +151,12 @@ function OpenHandOffer({
                 disabled={isSubmitting || (!isSelected && selected.size === view.requiredSelectionCount)}
                 onClick={() => toggleCard(card.cardInstanceId)}
               >
-                <span className="hand-card-topline">
-                  <span className="hand-card-state">{isSelected ? 'Keeping' : 'Offer'}</span>
-                  <GradeBadge grade={card.grade} />
-                </span>
-                <span className="card-glyph-well">
-                  <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
-                </span>
-                <span className="hand-card-name">{card.name}</span>
-                <span className="hand-card-description">{card.effectSummary}</span>
+                <HandCardFace
+                  state={isSelected ? 'Keeping' : 'Offer'}
+                  card={card}
+                  effect={card.effectSummary}
+                  illustrationSkin={illustrationSkin}
+                />
               </button>
             </li>
           )
@@ -104,7 +178,10 @@ function cardClassName(card: BoardHandCard, isSelected: boolean): string {
   return ['hand-card', card.isPlayableThisRound ? '' : 'is-unplayable', isSelected ? 'is-selected' : ''].filter(Boolean).join(' ')
 }
 
-export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', action = null }: PrivateHandProps) {
+export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', action = null, resolution = null }: PrivateHandProps) {
+  if (resolution) {
+    return <ResolutionOffer resolution={resolution} illustrationSkin={illustrationSkin} />
+  }
   if (handSelection) {
     const { view, selectedCardInstanceIds, submitPhase, toggleCard, confirm, dismissRejection } = handSelection
     if (view.kind === 'open') {
@@ -132,17 +209,7 @@ export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', a
         {hand.map((card) => {
           const isSelected = action?.selectedCardInstanceId === card.cardInstanceId
           const content = (
-            <>
-              <span className="hand-card-topline">
-                <span className="hand-card-state">{stateLabel(card, isSelected)}</span>
-                <GradeBadge grade={card.grade} />
-              </span>
-              <span className="card-glyph-well">
-                <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
-              </span>
-              <span className="hand-card-name">{card.name}</span>
-              <span className="hand-card-description">{card.effect}</span>
-            </>
+            <HandCardFace state={stateLabel(card, isSelected)} card={card} effect={card.effect} illustrationSkin={illustrationSkin} />
           )
           return (
             <li key={card.cardInstanceId}>

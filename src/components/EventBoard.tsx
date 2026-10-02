@@ -4,6 +4,7 @@ import { isEventChosen, outcomeRole, targetsEvents, type OutcomeRole } from '../
 import type { BoardEvent, BoardOutcome } from '../board/boardView'
 import { EventIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import type { OpenParadoxView } from '../paradox/paradoxView'
 import { BandLabel } from './BandLabel'
 import { CarryOverIcon } from './icons'
 
@@ -16,10 +17,22 @@ export interface EventTargeting {
   readonly onPickOutcome: (eventId: string, outcomeId: string) => void
 }
 
+/** Present while a paradox-resolution phase is open: what is affected and, once a card is selected, its target choice. */
+export interface EventParadoxMarking {
+  readonly affectedEventIds: ReadonlySet<string>
+  readonly paradoxes: readonly OpenParadoxView[]
+  readonly targeting: {
+    readonly chosen: { readonly eventId: string; readonly outcomeId: string } | null
+    readonly disabled: boolean
+    readonly onPickOutcome: (eventId: string, outcomeId: string) => void
+  } | null
+}
+
 interface EventBoardProps {
   readonly events: readonly BoardEvent[]
   readonly illustrationSkin?: IllustrationSkin
   readonly targeting?: EventTargeting | null
+  readonly paradox?: EventParadoxMarking | null
 }
 
 const CARRY_OVER_LABEL: Record<BoardEvent['carryOverState'], string> = {
@@ -38,15 +51,33 @@ function bandAgeLabel(observedInRound: number | null): string {
   return observedInRound === null ? 'No public bands yet' : `Bands from round ${observedInRound}`
 }
 
-function OutcomeContent({ outcome, marker }: { readonly outcome: BoardOutcome; readonly marker: string | null }) {
+function OutcomeContent({ outcome, markers }: { readonly outcome: BoardOutcome; readonly markers: readonly string[] }) {
   return (
     <>
       <span className="outcome-label">{outcome.description}</span>
-      {marker && <span className="outcome-marker">{marker}</span>}
+      {markers.map((marker) => (
+        <span key={marker} className="outcome-marker">
+          {marker}
+        </span>
+      ))}
       <BandLabel band={outcome.band} />
     </>
   )
 }
+
+function PlainOutcomeList({ event, markersFor }: { readonly event: BoardEvent; readonly markersFor: (outcomeId: string) => readonly string[] }) {
+  return (
+    <ul className="outcome-list" aria-label={`${event.title} outcomes`}>
+      {event.outcomes.map((outcome) => (
+        <li key={outcome.outcomeId} className="outcome-row">
+          <OutcomeContent outcome={outcome} markers={markersFor(outcome.outcomeId)} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+const NO_MARKERS = (): readonly string[] => []
 
 function outcomeMarker(role: OutcomeRole, coordinates: ActionCoordinates, outcomeId: string): string | null {
   if (role === 'target' && coordinates.sourceOutcomeId === outcomeId) return 'From'
@@ -57,15 +88,7 @@ function outcomeMarker(role: OutcomeRole, coordinates: ActionCoordinates, outcom
 function OutcomeList({ event, targeting }: { readonly event: BoardEvent; readonly targeting: EventTargeting | null }) {
   const role = targeting ? outcomeRole(targeting.targetMode, targeting.coordinates, event.eventId) : null
   if (!targeting || !role) {
-    return (
-      <ul className="outcome-list" aria-label={`${event.title} outcomes`}>
-        {event.outcomes.map((outcome) => (
-          <li key={outcome.outcomeId} className="outcome-row">
-            <OutcomeContent outcome={outcome} marker={null} />
-          </li>
-        ))}
-      </ul>
-    )
+    return <PlainOutcomeList event={event} markersFor={NO_MARKERS} />
   }
   const { coordinates } = targeting
   const onThisEvent = coordinates.targetEventId === event.eventId
@@ -84,7 +107,7 @@ function OutcomeList({ event, targeting }: { readonly event: BoardEvent; readonl
               onClick={() => targeting.onPickOutcome(event.eventId, outcome.outcomeId)}
             >
               <span className="outcome-radio" aria-hidden="true" />
-              <OutcomeContent outcome={outcome} marker={marker} />
+              <OutcomeContent outcome={outcome} markers={marker ? [marker] : []} />
             </button>
           </li>
         )
@@ -98,23 +121,42 @@ function targetingFooter(event: BoardEvent, targeting: EventTargeting): string {
   return outcomeRole(targeting.targetMode, targeting.coordinates, event.eventId) ? 'Choose an outcome to target' : 'Choose this event to target'
 }
 
-export function EventBoard({ events, illustrationSkin = 'board', targeting = null }: EventBoardProps) {
-  const activeTargeting = targeting && targetsEvents(targeting.targetMode) ? targeting : null
-  const grid = (
-    <ol className="event-grid" aria-label={activeTargeting ? 'Events' : undefined}>
+function EventMeta({ event, eventIndex }: { readonly event: BoardEvent; readonly eventIndex: number }) {
+  return (
+    <div className="event-card-meta">
+      <span>Future {String(eventIndex + 1).padStart(2, '0')}</span>
+      <span className="event-status">
+        <CarryOverIcon state={event.carryOverState} />
+        {CARRY_OVER_LABEL[event.carryOverState]}
+      </span>
+    </div>
+  )
+}
+
+function ActionEventGrid({
+  events,
+  illustrationSkin,
+  targeting,
+}: {
+  readonly events: readonly BoardEvent[]
+  readonly illustrationSkin: IllustrationSkin
+  readonly targeting: EventTargeting | null
+}) {
+  return (
+    <ol className="event-grid" aria-label={targeting ? 'Events' : undefined}>
       {events.map((event, eventIndex) => {
-        const isChosen = activeTargeting ? isEventChosen(activeTargeting.targetMode, activeTargeting.coordinates, event.eventId) : false
-        const className = ['event-card', activeTargeting ? 'is-targetable' : '', isChosen ? 'is-selected' : ''].filter(Boolean).join(' ')
+        const isChosen = targeting ? isEventChosen(targeting.targetMode, targeting.coordinates, event.eventId) : false
+        const className = ['event-card', targeting ? 'is-targetable' : '', isChosen ? 'is-selected' : ''].filter(Boolean).join(' ')
         return (
           <li key={event.eventId} className={className}>
-            {activeTargeting ? (
+            {targeting ? (
               <button
                 type="button"
                 className="event-select"
                 aria-pressed={isChosen}
                 aria-label={`Target ${event.title}`}
-                disabled={activeTargeting.disabled}
-                onClick={() => activeTargeting.onPickEvent(event.eventId)}
+                disabled={targeting.disabled}
+                onClick={() => targeting.onPickEvent(event.eventId)}
               >
                 <EventIllustration eventId={event.eventId} skin={illustrationSkin} />
               </button>
@@ -122,36 +164,135 @@ export function EventBoard({ events, illustrationSkin = 'board', targeting = nul
               <EventIllustration eventId={event.eventId} skin={illustrationSkin} />
             )}
             <div className="event-card-body">
-              <div className="event-card-meta">
-                <span>Future {String(eventIndex + 1).padStart(2, '0')}</span>
-                <span className="event-status">
-                  <CarryOverIcon state={event.carryOverState} />
-                  {CARRY_OVER_LABEL[event.carryOverState]}
-                </span>
-              </div>
+              <EventMeta event={event} eventIndex={eventIndex} />
               <h3>{event.title}</h3>
-              <OutcomeList event={event} targeting={activeTargeting} />
+              <OutcomeList event={event} targeting={targeting} />
               <p className="event-band-age">{bandAgeLabel(event.bandsObservedInRound)}</p>
-              {activeTargeting && <p className="event-target-hint">{targetingFooter(event, activeTargeting)}</p>}
+              {targeting && <p className="event-target-hint">{targetingFooter(event, targeting)}</p>}
             </div>
           </li>
         )
       })}
     </ol>
   )
+}
+
+function ParadoxOutcomeList({
+  event,
+  affectedOutcomeIds,
+  targeting,
+}: {
+  readonly event: BoardEvent
+  readonly affectedOutcomeIds: ReadonlySet<string>
+  readonly targeting: NonNullable<EventParadoxMarking['targeting']>
+}) {
+  return (
+    <ul className="outcome-list is-targetable" aria-label={`${event.title} outcomes`}>
+      {event.outcomes.map((outcome) => {
+        const isTarget = targeting.chosen?.eventId === event.eventId && targeting.chosen.outcomeId === outcome.outcomeId
+        const markers = [affectedOutcomeIds.has(outcome.outcomeId) ? 'Affected' : null, isTarget ? 'Target' : null].filter((marker) => marker !== null)
+        return (
+          <li key={outcome.outcomeId}>
+            <button
+              type="button"
+              className="outcome-row"
+              aria-pressed={isTarget}
+              disabled={targeting.disabled}
+              onClick={() => targeting.onPickOutcome(event.eventId, outcome.outcomeId)}
+            >
+              <span className="outcome-radio" aria-hidden="true" />
+              <OutcomeContent outcome={outcome} markers={markers} />
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function ParadoxEventGrid({
+  events,
+  illustrationSkin,
+  paradox,
+}: {
+  readonly events: readonly BoardEvent[]
+  readonly illustrationSkin: IllustrationSkin
+  readonly paradox: EventParadoxMarking
+}) {
+  const { targeting } = paradox
+  return (
+    <ol className="event-grid">
+      {events.map((event, eventIndex) => {
+        const isAffected = paradox.affectedEventIds.has(event.eventId)
+        const eventParadoxes = isAffected ? paradox.paradoxes.filter((entry) => entry.affectedEventId === event.eventId) : []
+        const affectedOutcomeIds = new Set(eventParadoxes.flatMap((entry) => entry.affectedOutcomeIds))
+        const isChosen = targeting?.chosen?.eventId === event.eventId
+        const className = ['event-card', isAffected ? 'is-affected' : '', isChosen ? 'is-selected' : ''].filter(Boolean).join(' ')
+        return (
+          <li key={event.eventId} className={className}>
+            <EventIllustration eventId={event.eventId} skin={illustrationSkin} />
+            <div className="event-card-body">
+              <EventMeta event={event} eventIndex={eventIndex} />
+              {isAffected && (
+                <ul className="paradox-badges" aria-label={`${event.title} paradoxes`}>
+                  {eventParadoxes.length === 0 ? (
+                    <li className="paradox-badge">Paradox</li>
+                  ) : (
+                    eventParadoxes.map((entry) => (
+                      <li key={entry.paradoxId} className="paradox-badge">
+                        {entry.typeLabel}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+              <h3>{event.title}</h3>
+              {isAffected && targeting ? (
+                <ParadoxOutcomeList event={event} affectedOutcomeIds={affectedOutcomeIds} targeting={targeting} />
+              ) : (
+                <PlainOutcomeList event={event} markersFor={(outcomeId) => (affectedOutcomeIds.has(outcomeId) ? ['Affected'] : [])} />
+              )}
+              <p className="event-band-age">{bandAgeLabel(event.bandsObservedInRound)}</p>
+              {isAffected && targeting && (
+                <p className="event-target-hint">{isChosen ? 'Selected target' : 'Choose an outcome to target'}</p>
+              )}
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+export function EventBoard({ events, illustrationSkin = 'board', targeting = null, paradox = null }: EventBoardProps) {
+  const activeTargeting = targeting && targetsEvents(targeting.targetMode) ? targeting : null
+  let content
+  if (paradox) {
+    const grid = <ParadoxEventGrid events={events} illustrationSkin={illustrationSkin} paradox={paradox} />
+    content = paradox.targeting ? (
+      <fieldset className="target-group" aria-label="Affected events">
+        {grid}
+      </fieldset>
+    ) : (
+      grid
+    )
+  } else {
+    const grid = <ActionEventGrid events={events} illustrationSkin={illustrationSkin} targeting={activeTargeting} />
+    content = activeTargeting ? (
+      <fieldset className="target-group" aria-label="Choose a target">
+        {grid}
+      </fieldset>
+    ) : (
+      grid
+    )
+  }
   return (
     <section className="event-board" aria-labelledby="event-board-heading">
       <div className="section-heading-row">
         <h2 id="event-board-heading">The active futures</h2>
         <span>Public bands · exact weights stay hidden</span>
       </div>
-      {activeTargeting ? (
-        <fieldset className="target-group" aria-label="Choose a target">
-          {grid}
-        </fieldset>
-      ) : (
-        grid
-      )}
+      {content}
     </section>
   )
 }

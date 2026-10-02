@@ -6,11 +6,13 @@ import type { GameStateStatus } from '../game/useGameState'
 import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
 import type { HandSelectionSession } from '../hand/useHandSelection'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import type { ParadoxResolutionView } from '../paradox/paradoxView'
+import type { ParadoxResolutionSession } from '../paradox/useParadoxResolution'
 import { ActionRail } from './ActionRail'
-import { EventBoard, type EventTargeting } from './EventBoard'
+import { EventBoard, type EventParadoxMarking, type EventTargeting } from './EventBoard'
 import { FactionIntelPanel, type SpecialActionControls } from './FactionIntelPanel'
 import { PlayerStrip, type PlayerTargeting } from './PlayerStrip'
-import { PrivateHand, type HandActionControls } from './PrivateHand'
+import { PrivateHand, type HandActionControls, type ResolutionCardControls } from './PrivateHand'
 import { RiftMark } from './icons'
 
 interface AppShellProps {
@@ -22,6 +24,8 @@ interface AppShellProps {
   readonly illustrationSkin?: IllustrationSkin
   /** The caller's action-round session; null on a game page without the caller's own seat. */
   readonly action?: ActionSubmissionSession | null
+  /** The caller's paradox-resolution session; null on a game page without the caller's own seat. */
+  readonly paradox?: ParadoxResolutionSession | null
 }
 
 function LoadError({ message, onRetry }: { readonly message: string; readonly onRetry: () => void }) {
@@ -85,24 +89,56 @@ function boardControlsFor(action: ActionSubmissionSession, round: OpenActionRoun
   }
 }
 
+type ParadoxPhaseView = Exclude<ParadoxResolutionView, { readonly kind: 'unavailable' }>
+
+interface ParadoxControls {
+  readonly events: EventParadoxMarking
+  readonly cards: ResolutionCardControls | null
+}
+
+/** Marks the open phase on the board and, while the caller can still choose, wires their card and target. */
+function paradoxControlsFor(paradox: ParadoxResolutionSession, phase: ParadoxPhaseView, canResolve: boolean): ParadoxControls {
+  const { draft } = paradox
+  const disabled = paradox.submitPhase.kind === 'submitting'
+  const selectedCardInstanceId = draft.kind === 'card' ? draft.cardInstanceId : null
+  return {
+    events: {
+      affectedEventIds: new Set(phase.affectedEvents.map((event) => event.eventId)),
+      paradoxes: phase.paradoxes,
+      targeting: canResolve && draft.kind === 'card' ? { chosen: draft.target, disabled, onPickOutcome: paradox.selectTarget } : null,
+    },
+    cards:
+      canResolve && phase.kind === 'open'
+        ? { cards: phase.cards, selectedCardInstanceId, disabled, onSelect: paradox.selectCard }
+        : null,
+  }
+}
+
+function surfaceFor(round: OpenActionRoundView | null, paradoxPhase: ParadoxPhaseView | null): { readonly label: string; readonly prompt: string } | null {
+  if (round) {
+    return { label: 'Your action', prompt: `Era ${round.eraNumber} · Round ${round.roundNumber} · one card or one special this round, or pass` }
+  }
+  if (paradoxPhase) {
+    return { label: 'Paradox resolution', prompt: `Era ${paradoxPhase.eraNumber} · Paradox resolution · one eligible card on an affected event, or pass` }
+  }
+  return null
+}
+
 /**
- * During an open action round the whole board is where the caller composes their action. The wrapper
- * stays mounted across phases so the board keeps its DOM (and focus) when a round opens or closes.
+ * During an open action round or paradox-resolution phase the whole board is where the caller makes their
+ * choice. The wrapper stays mounted across phases so the board keeps its DOM (and focus) when a window opens
+ * or closes.
  */
-function ActionSurface({ round, children }: { readonly round: OpenActionRoundView | null; readonly children: ReactNode }) {
+function DecisionSurface({ surface, children }: { readonly surface: { readonly label: string; readonly prompt: string } | null; readonly children: ReactNode }) {
   return (
-    <section className="action-surface" aria-label={round ? 'Your action' : undefined}>
-      {round && (
-        <p className="action-prompt">
-          Era {round.eraNumber} · Round {round.roundNumber} · one card or one special this round, or pass
-        </p>
-      )}
+    <section className="action-surface" aria-label={surface?.label}>
+      {surface && <p className="action-prompt">{surface.prompt}</p>}
       {children}
     </section>
   )
 }
 
-export function AppShell({ view, status, onRetry, handSelection, illustrationSkin = 'board', action = null }: AppShellProps) {
+export function AppShell({ view, status, onRetry, handSelection, illustrationSkin = 'board', action = null, paradox = null }: AppShellProps) {
   const failure = status.kind === 'failed' || status.kind === 'stalled' ? status : null
 
   if (!view) {
@@ -117,6 +153,9 @@ export function AppShell({ view, status, onRetry, handSelection, illustrationSki
   const canAct = action !== null && round !== null && !round.hasSubmitted && action.submitPhase.kind !== 'awaiting-projection'
   const decision = canAct ? { round, selection: actionSelectionFor(round, action.draft) } : null
   const controls = action && decision ? boardControlsFor(action, decision.round, decision.selection) : null
+  const paradoxPhase = paradox && paradox.view.kind !== 'unavailable' ? paradox.view : null
+  const canResolve = paradoxPhase?.kind === 'open' && paradox?.submitPhase.kind !== 'awaiting-projection'
+  const paradoxControls = paradox && paradoxPhase ? paradoxControlsFor(paradox, paradoxPhase, canResolve) : null
 
   const { header } = view
   return (
@@ -141,15 +180,28 @@ export function AppShell({ view, status, onRetry, handSelection, illustrationSki
       </header>
       {failure && <LoadError message={failure.message} onRetry={onRetry} />}
 
-      <ActionSurface round={round}>
+      <DecisionSurface surface={surfaceFor(round, paradoxPhase)}>
         <PlayerStrip players={view.players} targeting={controls?.players} />
         <main className="game-board-layout">
           <FactionIntelPanel faction={view.faction} illustrationSkin={illustrationSkin} action={controls?.specials} />
-          <EventBoard events={view.events} illustrationSkin={illustrationSkin} targeting={controls?.events} />
-          <PrivateHand hand={view.hand} handSelection={handSelection} illustrationSkin={illustrationSkin} action={controls?.hand} />
-          <ActionRail roundStatus={view.roundStatus} action={action} decision={decision} illustrationSkin={illustrationSkin} />
+          <EventBoard events={view.events} illustrationSkin={illustrationSkin} targeting={controls?.events} paradox={paradoxControls?.events} />
+          <PrivateHand
+            hand={view.hand}
+            handSelection={handSelection}
+            illustrationSkin={illustrationSkin}
+            action={controls?.hand}
+            resolution={paradoxControls?.cards}
+          />
+          <ActionRail
+            roundStatus={view.roundStatus}
+            action={action}
+            decision={decision}
+            paradox={paradox}
+            canResolve={canResolve}
+            illustrationSkin={illustrationSkin}
+          />
         </main>
-      </ActionSurface>
+      </DecisionSurface>
     </div>
   )
 }
