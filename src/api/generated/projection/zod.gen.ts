@@ -47,7 +47,8 @@ export const zChainState = z.object({
 export const zDeadlines = z.object({
     handSelectionExpiresAt: z.iso.datetime({ offset: true }).nullish(),
     actionRoundExpiresAt: z.iso.datetime({ offset: true }).nullish(),
-    paradoxResolutionExpiresAt: z.iso.datetime({ offset: true }).nullish()
+    paradoxResolutionExpiresAt: z.iso.datetime({ offset: true }).nullish(),
+    declarationExpiresAt: z.iso.datetime({ offset: true }).nullish()
 });
 
 /**
@@ -57,15 +58,6 @@ export const zSubmissionProgress = z.object({
     submittedCount: z.int().gte(0),
     totalPlayers: z.int().gte(0),
     pendingPlayerIds: z.array(z.uuid())
-});
-
-export const zPhaseContext = z.object({
-    declarationOpen: z.boolean(),
-    paradoxOpen: z.boolean(),
-    paradoxIds: z.array(z.uuid()).optional(),
-    affectedEventIds: z.array(z.uuid()).optional(),
-    actionRoundProgress: zSubmissionProgress.optional(),
-    paradoxResolutionProgress: zSubmissionProgress.optional()
 });
 
 export const zPublicBandOutcome = z.object({
@@ -135,6 +127,8 @@ export const zSubmissionTargets = z.object({
     targetPlayerId: z.uuid().optional(),
     targetPlayerIds: z.array(z.uuid()).min(1).max(2).optional()
 });
+
+export const zActivistDeclarationMode = z.enum(['RALLY', 'MOMENTUM']);
 
 export const zFinalScore = z.object({
     playerId: z.uuid(),
@@ -363,6 +357,33 @@ export const zGameResult = z.object({
 
 export const zFaction = zEnumsFaction;
 
+export const zEnumsParadoxType = z.enum([
+    'DEAD_HEAT',
+    'IMPOSSIBLE_ERASURE',
+    'CHAIN_CONFLICT'
+]);
+
+/**
+ * Public detail of one paradox pending in the open paradox-resolution phase. It never carries a probability value or any player's submission.
+ */
+export const zOpenParadox = z.object({
+    paradoxId: z.uuid(),
+    type: zEnumsParadoxType,
+    affectedEventId: z.uuid(),
+    affectedOutcomeIds: z.array(z.uuid()).min(1)
+});
+
+export const zPhaseContext = z.object({
+    declarationOpen: z.boolean(),
+    paradoxOpen: z.boolean(),
+    paradoxes: z.array(zOpenParadox).optional(),
+    affectedEventIds: z.array(z.uuid()).optional(),
+    actionRoundProgress: zSubmissionProgress.optional(),
+    paradoxResolutionProgress: zSubmissionProgress.optional()
+});
+
+export const zParadoxType = zEnumsParadoxType;
+
 export const zEnumsSpecialAction = z.enum([
     'ANNIHILATE',
     'CORRUPT',
@@ -415,6 +436,7 @@ export const zPlayerGameStateResponse = z.object({
     myHand: z.array(zHandCard),
     pendingHandSelection: zPendingHandSelection.optional(),
     myEligibleResolutionCards: z.array(zEligibleResolutionCard).optional(),
+    myEligibleDeclarationModes: z.array(zActivistDeclarationMode).optional(),
     myScore: z.int(),
     mySpecialActions: z.array(zEnumsSpecialAction).optional(),
     myJammedUntilRound: z.int().nullish(),

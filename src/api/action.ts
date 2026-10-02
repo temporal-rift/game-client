@@ -1,6 +1,6 @@
 /**
  * Participant-scoped submissions against the pinned `action-api` contract:
- * hand selection, action-round actions and paradox-resolution cards.
+ * hand selection, action-round actions and paradox-resolution choices.
  *
  * The server remains authoritative for card/special eligibility, target
  * legality and budgets; the generated schemas validate each request against
@@ -12,11 +12,12 @@ import { apiClientsFor, apiErrorMessage, callApi, invalidRequestError, type Auth
 import {
   selectHand as selectHandCall,
   submitAction as submitActionCall,
-  submitParadoxResolutionCard as submitParadoxResolutionCardCall,
+  submitParadoxResolutionCard as submitParadoxResolutionCall,
   type CardActionRequest,
   type EnumsSpecialAction as SpecialAction,
   type HandSelectionRequest,
   type HandSelectionResponse,
+  type ParadoxResolutionCardRequest,
   type ParadoxResolutionCardResponse,
   type PassActionRequest,
   type SpecialActionRequest,
@@ -133,25 +134,36 @@ export async function submitHandSelection(
   )
 }
 
-/** Submits one caller-owned eligible card during the current paradox-resolution phase. */
-export async function submitParadoxResolutionCard(
+/** The caller's single choice for an open paradox-resolution phase: one eligible card on an affected event, or a pass. */
+export type ParadoxResolutionChoice =
+  | { readonly kind: 'card'; readonly cardInstanceId: string; readonly targetEventId: string; readonly targetOutcomeId: string }
+  | { readonly kind: 'pass' }
+
+function paradoxResolutionRequestFor(choice: ParadoxResolutionChoice): ParadoxResolutionCardRequest {
+  if (choice.kind === 'pass') {
+    return { actionType: 'PASS' }
+  }
+  const { cardInstanceId, targetEventId, targetOutcomeId } = choice
+  return { actionType: 'CARD', cardInstanceId, targetEventId, targetOutcomeId }
+}
+
+/**
+ * Submits the caller's card or explicit pass during the current paradox-resolution phase; a pass
+ * spends no card. A lost response does not imply failure: recover acceptance via game state first.
+ */
+export async function submitParadoxResolution(
   fetchFn: AuthenticatedFetchFn,
   apiBaseUrl: string,
   gameId: string,
   eraNumber: number,
-  request: { readonly cardInstanceId: string; readonly targetEventId: string; readonly targetOutcomeId: string },
+  choice: ParadoxResolutionChoice,
 ): Promise<ParadoxResolutionCardResponse> {
   if (!gameId.trim()) {
     throw new Error('A game reference is needed to submit a paradox-resolution choice.')
   }
   const client = apiClientsFor(fetchFn, apiBaseUrl).action
-  const { cardInstanceId, targetEventId, targetOutcomeId } = request
   return callApi('submit the paradox-resolution choice', () =>
-    submitParadoxResolutionCardCall({
-      client,
-      path: { gameId, eraNumber },
-      body: { actionType: 'CARD', cardInstanceId, targetEventId, targetOutcomeId },
-    }),
+    submitParadoxResolutionCall({ client, path: { gameId, eraNumber }, body: paradoxResolutionRequestFor(choice) }),
   )
 }
 

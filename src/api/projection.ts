@@ -20,6 +20,8 @@ export type {
   EligibleResolutionCard,
   GameResult,
   MySubmission,
+  OpenParadox,
+  ParadoxType,
   Phase,
   SubmissionChoice,
   SubmissionWindow,

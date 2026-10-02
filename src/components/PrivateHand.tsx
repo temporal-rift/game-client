@@ -3,6 +3,7 @@ import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountd
 import type { HandSelectionSession } from '../hand/useHandSelection'
 import { CardIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import type { ParadoxCardOption } from '../paradox/paradoxView'
 import { GradeBadge } from './icons'
 
 /** Present only while the caller can choose an action this round. */
@@ -14,11 +15,62 @@ export interface HandActionControls {
   readonly onSelect: (cardInstanceId: string) => void
 }
 
+/** Present only while the caller can still choose in an open paradox-resolution phase. */
+export interface ResolutionCardControls {
+  readonly cards: readonly ParadoxCardOption[]
+  readonly selectedCardInstanceId: string | null
+  readonly disabled: boolean
+  readonly onSelect: (cardInstanceId: string) => void
+}
+
 interface PrivateHandProps {
   readonly hand: readonly BoardHandCard[]
   readonly handSelection?: HandSelectionSession
   readonly illustrationSkin?: IllustrationSkin
   readonly action?: HandActionControls | null
+  readonly resolution?: ResolutionCardControls | null
+}
+
+function ResolutionOffer({ resolution, illustrationSkin }: { readonly resolution: ResolutionCardControls; readonly illustrationSkin: IllustrationSkin }) {
+  const { cards, selectedCardInstanceId, disabled, onSelect } = resolution
+  return (
+    <section className="private-hand resolution-offer" aria-labelledby="resolution-cards-heading">
+      <div className="section-heading-row">
+        <h2 id="resolution-cards-heading">Resolution cards</h2>
+        <span>{cards.length} eligible · choose one or pass</span>
+      </div>
+      {cards.length === 0 ? (
+        <p className="resolution-offer-empty">No eligible resolution cards this phase. You can still pass.</p>
+      ) : (
+        <ul className="hand-grid" aria-label="Eligible resolution cards">
+          {cards.map((card) => {
+            const isSelected = card.cardInstanceId === selectedCardInstanceId
+            return (
+              <li key={card.cardInstanceId}>
+                <button
+                  type="button"
+                  className={`hand-card${isSelected ? ' is-selected' : ''}`}
+                  aria-pressed={isSelected}
+                  disabled={disabled}
+                  onClick={() => onSelect(card.cardInstanceId)}
+                >
+                  <span className="hand-card-topline">
+                    <span className="hand-card-state">{isSelected ? 'Selected' : 'Eligible'}</span>
+                    <GradeBadge grade={card.grade} />
+                  </span>
+                  <span className="card-glyph-well">
+                    <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
+                  </span>
+                  <span className="hand-card-name">{card.name}</span>
+                  <span className="hand-card-description">{card.effectSummary}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 function OpenHandOffer({
@@ -104,7 +156,10 @@ function cardClassName(card: BoardHandCard, isSelected: boolean): string {
   return ['hand-card', card.isPlayableThisRound ? '' : 'is-unplayable', isSelected ? 'is-selected' : ''].filter(Boolean).join(' ')
 }
 
-export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', action = null }: PrivateHandProps) {
+export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', action = null, resolution = null }: PrivateHandProps) {
+  if (resolution) {
+    return <ResolutionOffer resolution={resolution} illustrationSkin={illustrationSkin} />
+  }
   if (handSelection) {
     const { view, selectedCardInstanceIds, submitPhase, toggleCard, confirm, dismissRejection } = handSelection
     if (view.kind === 'open') {

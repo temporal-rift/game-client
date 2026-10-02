@@ -79,6 +79,10 @@ export type Deadlines = {
     handSelectionExpiresAt?: string | null;
     actionRoundExpiresAt?: string | null;
     paradoxResolutionExpiresAt?: string | null;
+    /**
+     * Present only while declarationOpen is true; the public declaration-window expiry.
+     */
+    declarationExpiresAt?: string | null;
 };
 
 export type PhaseContext = {
@@ -91,15 +95,31 @@ export type PhaseContext = {
      */
     paradoxOpen: boolean;
     /**
-     * Open paradox identifiers when paradoxOpen is true; absent otherwise.
+     * The paradoxes still pending in the open paradox-resolution phase, in phase-start order, when paradoxOpen is true; absent otherwise. Identical for every participant.
      */
-    paradoxIds?: Array<string>;
+    paradoxes?: Array<OpenParadox>;
     /**
      * Events affected by the open paradox-resolution phase, its only valid resolution targets, when paradoxOpen is true; absent otherwise.
      */
     affectedEventIds?: Array<string>;
     actionRoundProgress?: SubmissionProgress;
     paradoxResolutionProgress?: SubmissionProgress;
+};
+
+/**
+ * Public detail of one paradox pending in the open paradox-resolution phase. It never carries a probability value or any player's submission.
+ */
+export type OpenParadox = {
+    paradoxId: string;
+    type: EnumsParadoxType;
+    /**
+     * The active event on which the paradox was detected.
+     */
+    affectedEventId: string;
+    /**
+     * Outcomes of affectedEventId that the paradox involves.
+     */
+    affectedOutcomeIds: Array<string>;
 };
 
 /**
@@ -210,6 +230,8 @@ export type EligibleResolutionCard = {
     grade: EnumsCardGrade;
 };
 
+export type ActivistDeclarationMode = 'RALLY' | 'MOMENTUM';
+
 export type SpecialBudget = {
     specialAction: EnumsSpecialAction;
     remainingUsesThisEra: number;
@@ -294,6 +316,10 @@ export type PlayerGameStateResponse = {
      * The caller's own complete eligible resolution cards for the open paradox-resolution phase: eligible hand cards plus the dealt Stabilize and Detonate offer. Present, possibly empty, only while the phase is open and the caller has neither submitted nor passed; absent otherwise. Never carries another participant's cards.
      */
     myEligibleResolutionCards?: Array<EligibleResolutionCard>;
+    /**
+     * The caller's eligible declaration modes in the open declaration window. Present, possibly empty, only while declarationOpen is true; it never carries another participant's eligibility or faction.
+     */
+    myEligibleDeclarationModes?: Array<ActivistDeclarationMode>;
     myScore: number;
     /**
      * The authenticated player's static set of three faction special actions. Empty until a faction is assigned; availability is governed by game-service rules and is not represented here.
@@ -436,6 +462,8 @@ export type CardCategory = EnumsCardCategory;
 
 export type ActionFamily = EnumsActionFamily;
 
+export type ParadoxType = EnumsParadoxType;
+
 export type ResolvedOutcome = {
     eventId: string;
     title: string;
@@ -505,6 +533,8 @@ export type EnumsCardGrade = 'I' | 'II' | 'III';
 export type EnumsCardType = 'PUSH' | 'SUPPRESS' | 'SWING' | 'AMPLIFY' | 'INTERCEPT' | 'SCAN' | 'TRACE' | 'DECOY' | 'JAM' | 'STALL' | 'REDIRECT' | 'NULLIFY' | 'COLLIDE' | 'STABILIZE' | 'DETONATE';
 
 export type EnumsFaction = 'ERASERS' | 'PROPHETS' | 'REVISIONISTS' | 'WEAVERS' | 'ACTIVISTS';
+
+export type EnumsParadoxType = 'DEAD_HEAT' | 'IMPOSSIBLE_ERASURE' | 'CHAIN_CONFLICT';
 
 export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
 

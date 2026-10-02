@@ -1094,6 +1094,49 @@ button.faction-special:hover:not(:disabled),
   text-transform: uppercase;
 }
 
+/* Paradox resolution on the board: affected events, their paradox types, and the eligible-card offer. */
+
+.event-card.is-affected {
+  border-color: #b98a5e;
+  box-shadow:
+    inset 0 0 0 1px #6e4f37,
+    0 0.65rem 1.7rem rgb(0 7 19 / 48%);
+}
+
+.event-card.is-affected.is-selected {
+  border-color: #5f9899;
+}
+
+.paradox-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paradox-badge {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid #b98a5e;
+  border-radius: 999px;
+  background: #2b2020;
+  color: #e9c79f;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.event-card.is-affected .outcome-marker {
+  color: #e9c79f;
+}
+
+.resolution-offer-empty {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
 button.faction-special {
   flex-wrap: wrap;
   padding-block: 0.3rem;

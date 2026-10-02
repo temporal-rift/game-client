@@ -5,6 +5,8 @@ import type { ActionSubmissionSession } from '../action/useActionSubmission'
 import type { BoardRoundStatus } from '../board/boardView'
 import { CardIllustration, SpecialIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
+import type { ParadoxResolutionSession } from '../paradox/useParadoxResolution'
+import { ParadoxDecisionControls, ParadoxDecisionPanel, ParadoxRejectionNotice } from './ParadoxDecision'
 
 interface ActionRailProps {
   readonly roundStatus: BoardRoundStatus | null
@@ -12,6 +14,10 @@ interface ActionRailProps {
   readonly action: ActionSubmissionSession | null
   /** The open round the caller can still act in, with the resolved selection; null otherwise. */
   readonly decision: { readonly round: OpenActionRoundView; readonly selection: ActionSelection } | null
+  /** Null on a game page without the caller's own seat. */
+  readonly paradox?: ParadoxResolutionSession | null
+  /** Whether the caller can still choose in an open paradox-resolution phase. */
+  readonly canResolve?: boolean
   readonly illustrationSkin: IllustrationSkin
 }
 
@@ -157,12 +163,17 @@ function RejectionNotice({ action }: { readonly action: ActionSubmissionSession 
   )
 }
 
-/** The caller's decision for the open round, who has decided (never what), and the round's controls. */
-export function ActionRail({ roundStatus, action, decision, illustrationSkin }: ActionRailProps) {
+/** The caller's decision for the open window, who has decided (never what), and the window's controls. */
+export function ActionRail({ roundStatus, action, decision, paradox = null, canResolve = false, illustrationSkin }: ActionRailProps) {
   const ownState = roundStatus ? ownStateLabel(roundStatus.hasSubmitted) : null
+  const inParadoxPhase = paradox !== null && paradox.view.kind !== 'unavailable'
   return (
     <aside className="action-rail">
-      <DecisionPanel action={action} decision={decision} illustrationSkin={illustrationSkin} />
+      {inParadoxPhase ? (
+        <ParadoxDecisionPanel session={paradox} illustrationSkin={illustrationSkin} />
+      ) : (
+        <DecisionPanel action={action} decision={decision} illustrationSkin={illustrationSkin} />
+      )}
       <section className="round-status-panel" aria-labelledby="round-status-heading">
         <h2 id="round-status-heading" className="panel-eyebrow">
           Round status
@@ -183,7 +194,9 @@ export function ActionRail({ roundStatus, action, decision, illustrationSkin }: 
           <p className="submission-count">No decision window is open</p>
         )}
         {action && decision && <DecisionControls action={action} selection={decision.selection} />}
+        {paradox && canResolve && <ParadoxDecisionControls session={paradox} />}
         {action && <RejectionNotice action={action} />}
+        {paradox && <ParadoxRejectionNotice session={paradox} />}
       </section>
     </aside>
   )
