@@ -142,4 +142,19 @@ describe('useDeclaration', () => {
     expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
     expect(result.current.draft).toEqual({ kind: 'declaration', mode: 'RALLY', targetEventId: EVENT, targetOutcomeId: OUTCOME })
   })
+
+  it('blocks confirmation when a lost response reconciles against a projection without the declaration', async () => {
+    const fetchFn = server(async () => {
+      throw new TypeError('response lost')
+    })
+    const gameState = createGameStateSession({ state: declarationState(), refresh: async () => declarationState() })
+    const { result } = renderHookWithQueries(() =>
+      useDeclaration({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
+    )
+
+    await selectAndConfirm(result)
+
+    expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
+    expect(result.current.draft).toEqual({ kind: 'declaration', mode: 'RALLY', targetEventId: EVENT, targetOutcomeId: OUTCOME })
+  })
 })

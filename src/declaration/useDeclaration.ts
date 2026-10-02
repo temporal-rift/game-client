@@ -109,8 +109,9 @@ export function useDeclaration(options: UseDeclarationOptions): DeclarationSessi
       }
     },
     // A lost response may still have landed: reconcile the accepted declaration before reporting a rejection.
-    // When the authoritative read itself fails, the outcome is unknown, so the
-    // draft is kept but confirmation stays blocked until state resolves it.
+    // Only a server answer is an authoritative rejection. Any other failure
+    // leaves the outcome unknown, so the draft is kept but confirmation stays
+    // blocked until game state resolves it.
     onError: async (error, { coordinates }) => {
       const submittedWindowKey = windowKeyFor(coordinates)
       if (activeWindowScopeRef.current !== submittedWindowKey) return
@@ -120,15 +121,15 @@ export function useDeclaration(options: UseDeclarationOptions): DeclarationSessi
         awaitingProjection()
         return
       }
-      if (refreshed === null) {
-        setSubmitPhase({ kind: 'awaiting-projection' })
+      if (error instanceof ApiProblemError) {
+        setSubmitPhase({
+          kind: 'rejected',
+          message: actionErrorMessage(error),
+          code: error.code,
+        })
         return
       }
-      setSubmitPhase({
-        kind: 'rejected',
-        message: actionErrorMessage(error),
-        code: error instanceof ApiProblemError ? error.code : null,
-      })
+      setSubmitPhase({ kind: 'awaiting-projection' })
     },
   })
 
