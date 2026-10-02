@@ -4,10 +4,12 @@ import { useActionSubmission } from '../action/useActionSubmission'
 import { toBoardView } from '../board/boardView'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
+import { DeclarationPanel } from '../components/DeclarationPanel'
 import { KnowledgePanel } from '../components/KnowledgePanel'
 import { ParadoxResolutionPanel } from '../components/ParadoxResolutionPanel'
 import { ResultsPanel } from '../components/ResultsPanel'
 import { RoundSummaryPanel } from '../components/RoundSummaryPanel'
+import { useDeclaration } from '../declaration/useDeclaration'
 import { useGameState } from '../game/useGameState'
 import { useHandSelection } from '../hand/useHandSelection'
 import { useKnowledge } from '../knowledge/useKnowledge'
@@ -37,6 +39,7 @@ function GamePage({ gameId }: { readonly gameId: string }) {
   const results = useResults({ apiBaseUrl, fetchFn, gameState, ownPlayerId, perspectiveKey })
   const action = useActionSubmission({ apiBaseUrl, fetchFn, gameState, ownPlayerId })
   const handSelection = useHandSelection({ apiBaseUrl, fetchFn, gameState })
+  const declaration = useDeclaration({ apiBaseUrl, fetchFn, gameState })
   const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState })
   const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
@@ -67,6 +70,19 @@ function GamePage({ gameId }: { readonly gameId: string }) {
         illustrationSkin={config.illustrationSkin}
         action={isLobbyGame ? action : null}
       />
+      {isLobbyGame && (
+        <DeclarationPanel
+          view={declaration.view}
+          draft={declaration.draft}
+          submitPhase={declaration.submitPhase}
+          onSelectMode={declaration.selectMode}
+          onSelectTarget={declaration.selectTarget}
+          onClearDraft={declaration.clearDraft}
+          onSkip={declaration.skip}
+          onConfirm={() => void declaration.confirm()}
+          onDismissRejection={declaration.dismissRejection}
+        />
+      )}
       {isLobbyGame && (
         <ParadoxResolutionPanel
           illustrationSkin={config.illustrationSkin}

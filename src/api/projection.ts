@@ -16,6 +16,7 @@ export type {
   ActionFamily,
   ActionSummary,
   ActiveEvent,
+  ActivistDeclarationMode,
   ExposeFact,
   EligibleResolutionCard,
   GameResult,

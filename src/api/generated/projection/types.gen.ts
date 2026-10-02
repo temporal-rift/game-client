@@ -79,6 +79,10 @@ export type Deadlines = {
     handSelectionExpiresAt?: string | null;
     actionRoundExpiresAt?: string | null;
     paradoxResolutionExpiresAt?: string | null;
+    /**
+     * Present only while declarationOpen is true; the public declaration-window expiry.
+     */
+    declarationExpiresAt?: string | null;
 };
 
 export type PhaseContext = {
@@ -210,6 +214,8 @@ export type EligibleResolutionCard = {
     grade: EnumsCardGrade;
 };
 
+export type ActivistDeclarationMode = 'RALLY' | 'MOMENTUM';
+
 export type SpecialBudget = {
     specialAction: EnumsSpecialAction;
     remainingUsesThisEra: number;
@@ -294,6 +300,10 @@ export type PlayerGameStateResponse = {
      * The caller's own complete eligible resolution cards for the open paradox-resolution phase: eligible hand cards plus the dealt Stabilize and Detonate offer. Present, possibly empty, only while the phase is open and the caller has neither submitted nor passed; absent otherwise. Never carries another participant's cards.
      */
     myEligibleResolutionCards?: Array<EligibleResolutionCard>;
+    /**
+     * The caller's eligible declaration modes in the open declaration window. Present, possibly empty, only while declarationOpen is true; it never carries another participant's eligibility or faction.
+     */
+    myEligibleDeclarationModes?: Array<ActivistDeclarationMode>;
     myScore: number;
     /**
      * The authenticated player's static set of three faction special actions. Empty until a faction is assigned; availability is governed by game-service rules and is not represented here.
