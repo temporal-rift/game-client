@@ -25,6 +25,24 @@ const complete: Extract<ResultsView, { kind: 'complete' }> = {
 }
 
 describe('ResultsPanel', () => {
+  it('renders no final-results placeholder while the game is active', () => {
+    const { container } = render(<ResultsPanel view={{ kind: 'active' }} ownPlayerId={null} error={null} isRefreshing={false} onRefresh={() => {}} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('keeps the accessible refresh name stable and disables repeat refreshes', () => {
+    render(<ResultsPanel view={{ kind: 'waiting', gameId: 'game-1', eraNumber: 3 }} ownPlayerId={null} error={null} isRefreshing={true} onRefresh={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Refresh results' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Refresh results' })).toHaveTextContent('Refreshing…')
+  })
+
+  it('retains complete terminal facts when an enrichment refresh fails', () => {
+    render(<ResultsPanel view={complete} ownPlayerId="p-3" error="Could not reach the server." isRefreshing={false} onRefresh={() => {}} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not reach the server.')
+    expect(screen.getByRole('list', { name: 'Winners' })).toHaveTextContent('Nora')
+    expect(screen.getByRole('list', { name: 'Final scores' })).toHaveTextContent('12 points')
+  })
+
   it('displays every shared normal winner, the ending cause and final scores', () => {
     render(<ResultsPanel view={complete} ownPlayerId="p-3" error={null} isRefreshing={false} onRefresh={() => {}} />)
 

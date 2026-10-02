@@ -4,9 +4,6 @@ import { useActionSubmission } from '../action/useActionSubmission'
 import { toBoardView } from '../board/boardView'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
-import { DeclarationPanel } from '../components/DeclarationPanel'
-import { ResultsPanel } from '../components/ResultsPanel'
-import { RoundSummaryPanel } from '../components/RoundSummaryPanel'
 import { useDeclaration } from '../declaration/useDeclaration'
 import { useGameState } from '../game/useGameState'
 import { useHandSelection } from '../hand/useHandSelection'
@@ -26,7 +23,7 @@ function GamePage({ gameId }: { readonly gameId: string }) {
   const { config, fetchFn, authSession, lobby, renderSessionBar } = useSignedIn()
   const apiBaseUrl = config.apiBaseUrl
   const lobbyView = lobby.state.lobby
-  // Seat-bound panels need the player's own lobby membership for this game;
+  // Seat-bound controls need the player's own lobby membership for this game;
   // any other game (e.g. a finished one opened from a link) shows results only.
   const isLobbyGame = (lobby.state.lastGameId ?? lobbyView?.gameId ?? null) === gameId
   const ownPlayerId = isLobbyGame ? lobby.state.ownPlayerId : null
@@ -66,27 +63,10 @@ function GamePage({ gameId }: { readonly gameId: string }) {
         illustrationSkin={config.illustrationSkin}
         action={isLobbyGame ? action : null}
         paradox={isLobbyGame ? paradox : null}
-      />
-      {isLobbyGame && (
-        <DeclarationPanel
-          view={declaration.view}
-          draft={declaration.draft}
-          submitPhase={declaration.submitPhase}
-          onSelectMode={declaration.selectMode}
-          onSelectTarget={declaration.selectTarget}
-          onClearDraft={declaration.clearDraft}
-          onSkip={declaration.skip}
-          onConfirm={() => void declaration.confirm()}
-          onDismissRejection={declaration.dismissRejection}
-        />
-      )}
-      {isLobbyGame && <RoundSummaryPanel view={roundSummary} />}
-      <ResultsPanel
-        view={results.view}
+        declaration={isLobbyGame ? declaration : null}
+        roundSummary={roundSummary}
+        results={results}
         ownPlayerId={ownPlayerId}
-        error={results.message}
-        isRefreshing={results.isRefreshing}
-        onRefresh={() => void results.refresh()}
       />
     </div>
   )

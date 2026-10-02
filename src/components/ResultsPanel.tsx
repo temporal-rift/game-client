@@ -1,4 +1,5 @@
 import { endReasonLabel, scoreReasonLabel, type ResultsView, winTypeLabel } from '../results/resultsView'
+import { RiftMark } from './icons'
 
 interface ResultsPanelProps {
   readonly view: ResultsView
@@ -27,7 +28,7 @@ function WinnerList({ view, ownPlayerId }: { readonly view: Extract<ResultsView,
     return <p>No winners were recorded for this ending.</p>
   }
   return (
-    <ul aria-label="Winners">
+    <ul className="board-winners" aria-label="Winners">
       {view.winners.map((winner) => (
         <li key={winner.playerId}>
           <strong>{displayName(winner.playerId, winner.playerName, ownPlayerId)}</strong>
@@ -49,26 +50,17 @@ function WinnerList({ view, ownPlayerId }: { readonly view: Extract<ResultsView,
  * guessed.
  */
 export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh }: ResultsPanelProps) {
-  if (view.kind === 'active') {
-    return (
-      <section aria-label="Final results">
-        <h2>Final results</h2>
-        <p>The game is still in progress. Final winners appear here once the game ends.</p>
-        {error && (
-          <p role="alert">
-            {error} <button type="button" onClick={onRefresh} disabled={isRefreshing}>Retry</button>
-          </p>
-        )}
-      </section>
-    )
-  }
+  if (view.kind === 'active') return null
 
   if (view.kind === 'waiting') {
     return (
-      <section aria-label="Final results">
-        <h2>Final results</h2>
+      <section className="board-results" aria-label="Final results">
+        <div className="board-results-heading">
+          <RiftMark />
+          <h2>Final results</h2>
+        </div>
         <output>The game has ended. Final results are being prepared — refresh until the authoritative winners arrive.</output>
-        <button type="button" onClick={onRefresh} disabled={isRefreshing}>
+        <button type="button" aria-label="Refresh results" onClick={onRefresh} disabled={isRefreshing}>
           {isRefreshing ? 'Refreshing…' : 'Refresh results'}
         </button>
         {error && <p role="alert">{error}</p>}
@@ -77,17 +69,20 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
   }
 
   return (
-    <section aria-label="Final results">
-      <h2>Final results</h2>
+    <section className="board-results" aria-label="Final results">
+      <div className="board-results-heading">
+        <RiftMark />
+        <h2>Final results</h2>
+      </div>
       <p>
         <strong>{endReasonLabel(view.endReason)}</strong>
       </p>
       <h3>Winners</h3>
       <WinnerList view={view} ownPlayerId={ownPlayerId} />
       <h3>Final scores</h3>
-      <ol aria-label="Final scores">
+      <ol className="board-final-scores" aria-label="Final scores">
         {view.scores.map((entry) => (
-          <li key={entry.playerId}>
+          <li key={entry.playerId} className={entry.isWinner ? 'is-winner' : undefined}>
             <span>{displayName(entry.playerId, entry.playerName, ownPlayerId)}</span>
             <span> · {entry.score} points</span>
             {entry.isWinner && <span> · winner</span>}
@@ -116,7 +111,7 @@ export function ResultsPanel({ view, ownPlayerId, error, isRefreshing, onRefresh
           ))}
         </ul>
       )}
-      <button type="button" onClick={onRefresh} disabled={isRefreshing}>
+      <button type="button" aria-label="Refresh results" onClick={onRefresh} disabled={isRefreshing}>
         {isRefreshing ? 'Refreshing…' : 'Refresh results'}
       </button>
       {error && <p role="alert">{error}</p>}
