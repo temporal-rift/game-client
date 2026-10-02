@@ -113,4 +113,29 @@ describe('knowledge on the board', () => {
     expect(container.querySelector('button button')).toBeNull()
     expect(screen.getByRole('button', { name: /Cy/ })).not.toHaveTextContent('Public intel')
   })
+
+  it.each([false, true])('keeps knowledge visible during paradox resolution with targeting %s', async (targeting) => {
+    const user = userEvent.setup()
+    const view = toBoardView(boardKnowledgeState(), 'p-me')
+    const onPickOutcome = vi.fn()
+    render(<EventBoard events={view.events} paradox={{
+      affectedEventIds: new Set(['event-1']),
+      paradoxes: [{ paradoxId: 'paradox-1', type: 'DEAD_HEAT', typeLabel: 'Dead Heat', affectedEventId: 'event-1', affectedOutcomeIds: ['outcome-1'] }],
+      targeting: targeting ? { chosen: null, disabled: false, onPickOutcome } : null,
+    }} />)
+    const outcomes = screen.getByRole('list', { name: 'Reactor ignition outcomes' })
+    const success = within(outcomes).getAllByRole('listitem')[0]
+    expect(success).toHaveTextContent('Affected')
+    expect(success).toHaveTextContent('Private intelScan · 62% (sealed)')
+    expect(success).toHaveTextContent('Public intelBo · Rally')
+    expect(screen.getByText('Influenced by Bo (Revisionist via Mimic), Cy')).toBeInTheDocument()
+    expect(screen.getByText('Bo exposed Cy')).toBeInTheDocument()
+    expect(screen.queryByText('No public bands yet')).not.toBeInTheDocument()
+    if (targeting) {
+      await user.click(within(outcomes).getByRole('button', { name: /Ignition succeeds/ }))
+      expect(onPickOutcome).toHaveBeenCalledWith('event-1', 'outcome-1')
+    } else {
+      expect(within(outcomes).queryByRole('button')).not.toBeInTheDocument()
+    }
+  })
 })

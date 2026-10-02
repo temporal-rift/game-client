@@ -5,7 +5,6 @@ import { toBoardView } from '../board/boardView'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
 import { DeclarationPanel } from '../components/DeclarationPanel'
-import { ParadoxResolutionPanel } from '../components/ParadoxResolutionPanel'
 import { ResultsPanel } from '../components/ResultsPanel'
 import { RoundSummaryPanel } from '../components/RoundSummaryPanel'
 import { useDeclaration } from '../declaration/useDeclaration'
@@ -66,6 +65,7 @@ function GamePage({ gameId }: { readonly gameId: string }) {
         handSelection={handSelection}
         illustrationSkin={config.illustrationSkin}
         action={isLobbyGame ? action : null}
+        paradox={isLobbyGame ? paradox : null}
       />
       {isLobbyGame && (
         <DeclarationPanel
@@ -78,19 +78,6 @@ function GamePage({ gameId }: { readonly gameId: string }) {
           onSkip={declaration.skip}
           onConfirm={() => void declaration.confirm()}
           onDismissRejection={declaration.dismissRejection}
-        />
-      )}
-      {isLobbyGame && (
-        <ParadoxResolutionPanel
-          illustrationSkin={config.illustrationSkin}
-          view={paradox.view}
-          draft={paradox.draft}
-          submitPhase={paradox.submitPhase}
-          onSelectCard={paradox.selectCard}
-          onSelectTarget={paradox.selectTarget}
-          onClearDraft={paradox.clearDraft}
-          onConfirm={() => void paradox.confirm()}
-          onDismissRejection={paradox.dismissRejection}
         />
       )}
       {isLobbyGame && <RoundSummaryPanel view={roundSummary} />}

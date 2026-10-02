@@ -95,9 +95,79 @@ describe('useParadoxResolution', () => {
 
     await selectAndConfirm(result)
 
-    expect(result.current.submitPhase).toMatchObject({ kind: 'rejected', code: '422-10' })
-    expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: OFFER, targetEventId: EVENT, targetOutcomeId: OUTCOME })
+    expect(result.current.rejection).toMatchObject({ code: '422-10' })
+    expect(result.current.submitPhase).toEqual({ kind: 'idle' })
+    expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: OFFER, target: { eventId: EVENT, outcomeId: OUTCOME } })
     expect(fetchFn.mock.calls.map(([input]) => String(input))).toEqual([`https://api.example.test/api/v1/games/${GAME}/eras/2/paradox-resolution/actions`])
+  })
+
+  it('submits an explicit pass with no card or target', async () => {
+    const fetchFn = server(async () => json({ gameId: GAME, eraNumber: 2, playerId: uuid('player-1'), status: 'SUBMITTED' }, 202))
+    const accepted = paradoxState({
+      revision: 2,
+      mySubmissions: [{ eraNumber: 2, roundNumber: null, window: 'PARADOX_RESOLUTION', choice: 'PASS', status: 'ACCEPTED' }],
+    })
+    const gameState = createGameStateSession({ state: paradoxState(), refresh: async () => accepted })
+    const { result } = renderHookWithQueries(() => useParadoxResolution({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+
+    await waitFor(() => expect(result.current.view.kind).toBe('open'))
+    act(() => result.current.choosePass())
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    expect(JSON.parse(String((fetchFn.mock.calls[0][1] as RequestInit).body))).toEqual({ actionType: 'PASS' })
+    expect(result.current.rejection).toBeNull()
+    expect(result.current.draft).toEqual({ kind: 'none' })
+  })
+
+  it('reports a pass rejected because the phase closed even though the refreshed state moved on', async () => {
+    const fetchFn = server(async () => json({ code: '409-06', detail: 'phase closed' }, 409))
+    const closed = paradoxState({ revision: 2, phase: 'RESOLUTION', phaseContext: { declarationOpen: false, paradoxOpen: false } })
+    const gameState = createGameStateSession({ state: paradoxState(), refresh: async () => closed })
+    const { result } = renderHookWithQueries(() => useParadoxResolution({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+
+    await waitFor(() => expect(result.current.view.kind).toBe('open'))
+    act(() => result.current.choosePass())
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    expect(gameState.refresh).toHaveBeenCalledTimes(1)
+    expect(result.current.rejection).toMatchObject({ code: '409-06', message: expect.stringMatching(/phase already closed/i) })
+  })
+
+  it('reports a pass rejected as already submitted even when game state records the earlier choice', async () => {
+    const fetchFn = server(async () => json({ code: '409-07', detail: 'already submitted' }, 409))
+    const accepted = paradoxState({
+      revision: 2,
+      mySubmissions: [{ eraNumber: 2, roundNumber: null, window: 'PARADOX_RESOLUTION', choice: 'CARD', status: 'ACCEPTED' }],
+    })
+    const gameState = createGameStateSession({ state: paradoxState(), refresh: async () => accepted })
+    const { result } = renderHookWithQueries(() => useParadoxResolution({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+
+    await waitFor(() => expect(result.current.view.kind).toBe('open'))
+    act(() => result.current.choosePass())
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    expect(result.current.rejection).toMatchObject({ code: '409-07' })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not submit a card before its target is chosen', async () => {
+    const fetchFn = server(async () => json({}))
+    const gameState = createGameStateSession({ state: paradoxState() })
+    const { result } = renderHookWithQueries(() => useParadoxResolution({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+
+    await waitFor(() => expect(result.current.view.kind).toBe('open'))
+    act(() => result.current.selectCard(OFFER))
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    expect(fetchFn).not.toHaveBeenCalled()
   })
 
   it.each(['success', 'error'] as const)('ignores a late %s refresh after a later resolution phase opens', async (completion) => {
@@ -130,7 +200,7 @@ describe('useParadoxResolution', () => {
     rerender({ gameState: laterPhase })
     act(() => result.current.selectCard(NEXT_OFFER))
     act(() => result.current.selectTarget(EVENT, OUTCOME))
-    const nextDraft = { kind: 'card', cardInstanceId: NEXT_OFFER, targetEventId: EVENT, targetOutcomeId: OUTCOME } as const
+    const nextDraft = { kind: 'card', cardInstanceId: NEXT_OFFER, target: { eventId: EVENT, outcomeId: OUTCOME } } as const
     expect(result.current.draft).toEqual(nextDraft)
 
     await act(async () => {

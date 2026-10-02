@@ -1,20 +1,28 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
-import { actionErrorMessage, submitParadoxResolutionCard, type AuthenticatedFetchFn } from '../api/action'
+import { actionErrorMessage, submitParadoxResolution, type AuthenticatedFetchFn, type ParadoxResolutionChoice } from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
 import { selectParadoxResolutionView, type ParadoxResolutionView } from './paradoxView'
 
 export type ParadoxDraft =
   | { readonly kind: 'none' }
-  | { readonly kind: 'card'; readonly cardInstanceId: string; readonly targetEventId: string; readonly targetOutcomeId: string }
+  | {
+      readonly kind: 'card'
+      readonly cardInstanceId: string
+      /** Null until an outcome of an affected event is chosen. */
+      readonly target: { readonly eventId: string; readonly outcomeId: string } | null
+    }
+  | { readonly kind: 'pass' }
 
-export type ParadoxSubmitPhase =
-  | { readonly kind: 'idle' }
-  | { readonly kind: 'submitting' }
-  | { readonly kind: 'awaiting-projection' }
-  | { readonly kind: 'rejected'; readonly message: string; readonly code: string | null }
+export type ParadoxSubmitPhase = { readonly kind: 'idle' } | { readonly kind: 'submitting' } | { readonly kind: 'awaiting-projection' }
+
+/** A rejected or failed submission, kept until dismissed or the player makes a new choice. */
+export interface ParadoxRejection {
+  readonly message: string
+  readonly code: string | null
+}
 
 export interface UseParadoxResolutionOptions {
   readonly apiBaseUrl: string
@@ -26,46 +34,81 @@ export interface ParadoxResolutionSession {
   readonly view: ParadoxResolutionView
   readonly draft: ParadoxDraft
   readonly submitPhase: ParadoxSubmitPhase
+  readonly rejection: ParadoxRejection | null
   readonly selectCard: (cardInstanceId: string) => void
-  readonly selectTarget: (targetEventId: string, targetOutcomeId: string) => void
+  /** Targets the selected card; ignored without one. */
+  readonly selectTarget: (eventId: string, outcomeId: string) => void
+  readonly choosePass: () => void
   readonly clearDraft: () => void
   readonly confirm: () => Promise<void>
   readonly dismissRejection: () => void
 }
 
-interface PhaseCoordinates {
+interface PhaseSubmission {
   readonly gameId: string
   readonly eraNumber: number
+  readonly choice: ParadoxResolutionChoice
 }
 
-function phaseKeyFor({ gameId, eraNumber }: PhaseCoordinates): string {
+function phaseKeyFor({ gameId, eraNumber }: Pick<PhaseSubmission, 'gameId' | 'eraNumber'>): string {
   return `${gameId}:${eraNumber}`
 }
 
+function choiceFor(draft: ParadoxDraft): ParadoxResolutionChoice | null {
+  if (draft.kind === 'pass') return { kind: 'pass' }
+  if (draft.kind === 'card' && draft.target) {
+    return { kind: 'card', cardInstanceId: draft.cardInstanceId, targetEventId: draft.target.eventId, targetOutcomeId: draft.target.outcomeId }
+  }
+  return null
+}
+
+/**
+ * Owns one participant's paradox-resolution choice: a card with its target on an affected event, or a pass.
+ * On any failure, including a lost response, it refreshes game state before reporting. A server rejection is
+ * always reported, even once the phase has moved on; a failure without a server answer is reported only when
+ * the refreshed state does not record the choice. The draft survives a rejection and clears once acceptance
+ * is confirmed or the phase changes.
+ */
 export function useParadoxResolution(options: UseParadoxResolutionOptions): ParadoxResolutionSession {
   const { apiBaseUrl, fetchFn, gameState } = options
   const [draft, setDraft] = useState<ParadoxDraft>({ kind: 'none' })
   const [submitPhase, setSubmitPhase] = useState<ParadoxSubmitPhase>({ kind: 'idle' })
+  const [rejection, setRejection] = useState<ParadoxRejection | null>(null)
 
-  const state = gameState.state
-  const phaseScope = state?.phase === 'PARADOX_RESOLUTION' && state.phaseContext?.paradoxOpen ? `${state.gameId}:${state.eraNumber}` : null
-  const activePhaseScopeRef = useRef(phaseScope)
+  const view = useMemo(() => selectParadoxResolutionView(gameState.state), [gameState.state])
+  const phaseKey = view.kind === 'unavailable' ? null : phaseKeyFor(view)
+  const activePhaseKeyRef = useRef(phaseKey)
   useLayoutEffect(() => {
-    activePhaseScopeRef.current = phaseScope
-  }, [phaseScope])
+    activePhaseKeyRef.current = phaseKey
+  }, [phaseKey])
 
-  // A new phase (or none) drops the previous phase's draft and outcome.
+  // A new phase (or none), or a choice already accepted elsewhere, drops the in-progress draft.
   const [seenPhaseKey, setSeenPhaseKey] = useState<string | null>(null)
-  if (seenPhaseKey !== phaseScope) {
-    setSeenPhaseKey(phaseScope)
+  const isNewPhase = seenPhaseKey !== phaseKey
+  if (isNewPhase || (view.kind === 'submitted' && draft.kind !== 'none')) {
+    if (isNewPhase) setSeenPhaseKey(phaseKey)
     if (draft.kind !== 'none') setDraft({ kind: 'none' })
     if (submitPhase.kind !== 'idle') setSubmitPhase({ kind: 'idle' })
   }
 
-  const view = useMemo(() => selectParadoxResolutionView(state), [state])
-  if (view.kind === 'submitted' && draft.kind !== 'none') {
-    setDraft({ kind: 'none' })
-  }
+  const choose = useCallback((next: ParadoxDraft) => {
+    setDraft(next)
+    setSubmitPhase({ kind: 'idle' })
+    setRejection(null)
+  }, [])
+
+  const selectCard = useCallback((cardInstanceId: string) => choose({ kind: 'card', cardInstanceId, target: null }), [choose])
+
+  const selectTarget = useCallback((eventId: string, outcomeId: string) => {
+    setDraft((previous) => (previous.kind === 'card' ? { ...previous, target: { eventId, outcomeId } } : previous))
+    setRejection(null)
+  }, [])
+
+  const choosePass = useCallback(() => choose({ kind: 'pass' }), [choose])
+
+  const clearDraft = useCallback(() => choose({ kind: 'none' }), [choose])
+
+  const dismissRejection = useCallback(() => setRejection(null), [])
 
   const awaitingProjection = useCallback(() => {
     setSubmitPhase({ kind: 'awaiting-projection' })
@@ -73,70 +116,45 @@ export function useParadoxResolution(options: UseParadoxResolutionOptions): Para
   }, [])
 
   const { mutateAsync: submit } = useMutation({
-    mutationFn: ({ coordinates, card }: { readonly coordinates: PhaseCoordinates; readonly card: Extract<ParadoxDraft, { kind: 'card' }> }) =>
-      submitParadoxResolutionCard(fetchFn, apiBaseUrl, coordinates.gameId, coordinates.eraNumber, card),
-    onSuccess: async (_result, { coordinates }) => {
-      const submittedPhaseKey = phaseKeyFor(coordinates)
-      if (activePhaseScopeRef.current !== submittedPhaseKey) return
+    mutationFn: ({ gameId, eraNumber, choice }: PhaseSubmission) => submitParadoxResolution(fetchFn, apiBaseUrl, gameId, eraNumber, choice),
+    onSuccess: async (_result, submission) => {
+      const submittedPhaseKey = phaseKeyFor(submission)
+      if (activePhaseKeyRef.current !== submittedPhaseKey) return
       const refreshed = await gameState.refresh()
-      if (activePhaseScopeRef.current !== submittedPhaseKey) return
-      if (hasAcceptedSubmission(refreshed, { eraNumber: coordinates.eraNumber, window: 'PARADOX_RESOLUTION' })) {
+      if (activePhaseKeyRef.current !== submittedPhaseKey) return
+      if (hasAcceptedSubmission(refreshed, { eraNumber: submission.eraNumber, window: 'PARADOX_RESOLUTION' })) {
         setDraft({ kind: 'none' })
         setSubmitPhase({ kind: 'idle' })
       } else {
         awaitingProjection()
       }
     },
-    // A lost response or a rejection may still hide an accepted choice; reconcile against game state.
-    onError: async (error, { coordinates }) => {
-      const submittedPhaseKey = phaseKeyFor(coordinates)
-      if (activePhaseScopeRef.current !== submittedPhaseKey) return
+    onError: async (error, submission) => {
       const refreshed = await gameState.refresh()
-      if (activePhaseScopeRef.current !== submittedPhaseKey) return
-      if (hasAcceptedSubmission(refreshed, { eraNumber: coordinates.eraNumber, window: 'PARADOX_RESOLUTION' })) {
-        awaitingProjection()
-        return
+      const accepted = hasAcceptedSubmission(refreshed, { eraNumber: submission.eraNumber, window: 'PARADOX_RESOLUTION' })
+      const isServerAnswer = error instanceof ApiProblemError
+      if (isServerAnswer || !accepted) {
+        setRejection({ message: actionErrorMessage(error), code: isServerAnswer ? error.code : null })
       }
-      setSubmitPhase({
-        kind: 'rejected',
-        message: actionErrorMessage(error),
-        code: error instanceof ApiProblemError ? error.code : null,
-      })
+      if (activePhaseKeyRef.current !== phaseKeyFor(submission)) return
+      if (accepted) {
+        awaitingProjection()
+      } else {
+        setSubmitPhase({ kind: 'idle' })
+      }
     },
   })
 
-  const selectCard = useCallback((cardInstanceId: string) => {
-    setDraft((previous) => ({
-      kind: 'card',
-      cardInstanceId,
-      targetEventId: previous.kind === 'card' ? previous.targetEventId : '',
-      targetOutcomeId: previous.kind === 'card' ? previous.targetOutcomeId : '',
-    }))
-    setSubmitPhase({ kind: 'idle' })
-  }, [])
-
-  const selectTarget = useCallback((targetEventId: string, targetOutcomeId: string) => {
-    setDraft((previous) => (previous.kind === 'card' ? { ...previous, targetEventId, targetOutcomeId } : previous))
-    setSubmitPhase({ kind: 'idle' })
-  }, [])
-
-  const clearDraft = useCallback(() => {
-    setDraft({ kind: 'none' })
-    setSubmitPhase({ kind: 'idle' })
-  }, [])
-
-  const dismissRejection = useCallback(() => {
-    setSubmitPhase((previous) => (previous.kind === 'rejected' ? { kind: 'idle' } : previous))
-  }, [])
-
   const confirm = useCallback(async (): Promise<void> => {
-    if (view.kind !== 'open' || draft.kind !== 'card' || !draft.targetEventId || !draft.targetOutcomeId) return
+    const choice = choiceFor(draft)
+    if (view.kind !== 'open' || !choice || submitPhase.kind !== 'idle') return
     setSubmitPhase({ kind: 'submitting' })
-    await submit({ coordinates: { gameId: view.gameId, eraNumber: view.eraNumber }, card: draft }).catch(() => undefined)
-  }, [draft, submit, view])
+    setRejection(null)
+    await submit({ gameId: view.gameId, eraNumber: view.eraNumber, choice }).catch(() => undefined)
+  }, [draft, submit, submitPhase.kind, view])
 
   return useMemo(
-    () => ({ view, draft, submitPhase, selectCard, selectTarget, clearDraft, confirm, dismissRejection }),
-    [view, draft, submitPhase, selectCard, selectTarget, clearDraft, confirm, dismissRejection],
+    () => ({ view, draft, submitPhase, rejection, selectCard, selectTarget, choosePass, clearDraft, confirm, dismissRejection }),
+    [view, draft, submitPhase, rejection, selectCard, selectTarget, choosePass, clearDraft, confirm, dismissRejection],
   )
 }

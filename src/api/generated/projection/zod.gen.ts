@@ -60,15 +60,6 @@ export const zSubmissionProgress = z.object({
     pendingPlayerIds: z.array(z.uuid())
 });
 
-export const zPhaseContext = z.object({
-    declarationOpen: z.boolean(),
-    paradoxOpen: z.boolean(),
-    paradoxIds: z.array(z.uuid()).optional(),
-    affectedEventIds: z.array(z.uuid()).optional(),
-    actionRoundProgress: zSubmissionProgress.optional(),
-    paradoxResolutionProgress: zSubmissionProgress.optional()
-});
-
 export const zPublicBandOutcome = z.object({
     outcomeId: z.uuid(),
     band: z.enum([
@@ -365,6 +356,33 @@ export const zGameResult = z.object({
 });
 
 export const zFaction = zEnumsFaction;
+
+export const zEnumsParadoxType = z.enum([
+    'DEAD_HEAT',
+    'IMPOSSIBLE_ERASURE',
+    'CHAIN_CONFLICT'
+]);
+
+/**
+ * Public detail of one paradox pending in the open paradox-resolution phase. It never carries a probability value or any player's submission.
+ */
+export const zOpenParadox = z.object({
+    paradoxId: z.uuid(),
+    type: zEnumsParadoxType,
+    affectedEventId: z.uuid(),
+    affectedOutcomeIds: z.array(z.uuid()).min(1)
+});
+
+export const zPhaseContext = z.object({
+    declarationOpen: z.boolean(),
+    paradoxOpen: z.boolean(),
+    paradoxes: z.array(zOpenParadox).optional(),
+    affectedEventIds: z.array(z.uuid()).optional(),
+    actionRoundProgress: zSubmissionProgress.optional(),
+    paradoxResolutionProgress: zSubmissionProgress.optional()
+});
+
+export const zParadoxType = zEnumsParadoxType;
 
 export const zEnumsSpecialAction = z.enum([
     'ANNIHILATE',

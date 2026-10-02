@@ -95,15 +95,31 @@ export type PhaseContext = {
      */
     paradoxOpen: boolean;
     /**
-     * Open paradox identifiers when paradoxOpen is true; absent otherwise.
+     * The paradoxes still pending in the open paradox-resolution phase, in phase-start order, when paradoxOpen is true; absent otherwise. Identical for every participant.
      */
-    paradoxIds?: Array<string>;
+    paradoxes?: Array<OpenParadox>;
     /**
      * Events affected by the open paradox-resolution phase, its only valid resolution targets, when paradoxOpen is true; absent otherwise.
      */
     affectedEventIds?: Array<string>;
     actionRoundProgress?: SubmissionProgress;
     paradoxResolutionProgress?: SubmissionProgress;
+};
+
+/**
+ * Public detail of one paradox pending in the open paradox-resolution phase. It never carries a probability value or any player's submission.
+ */
+export type OpenParadox = {
+    paradoxId: string;
+    type: EnumsParadoxType;
+    /**
+     * The active event on which the paradox was detected.
+     */
+    affectedEventId: string;
+    /**
+     * Outcomes of affectedEventId that the paradox involves.
+     */
+    affectedOutcomeIds: Array<string>;
 };
 
 /**
@@ -446,6 +462,8 @@ export type CardCategory = EnumsCardCategory;
 
 export type ActionFamily = EnumsActionFamily;
 
+export type ParadoxType = EnumsParadoxType;
+
 export type ResolvedOutcome = {
     eventId: string;
     title: string;
@@ -515,6 +533,8 @@ export type EnumsCardGrade = 'I' | 'II' | 'III';
 export type EnumsCardType = 'PUSH' | 'SUPPRESS' | 'SWING' | 'AMPLIFY' | 'INTERCEPT' | 'SCAN' | 'TRACE' | 'DECOY' | 'JAM' | 'STALL' | 'REDIRECT' | 'NULLIFY' | 'COLLIDE' | 'STABILIZE' | 'DETONATE';
 
 export type EnumsFaction = 'ERASERS' | 'PROPHETS' | 'REVISIONISTS' | 'WEAVERS' | 'ACTIVISTS';
+
+export type EnumsParadoxType = 'DEAD_HEAT' | 'IMPOSSIBLE_ERASURE' | 'CHAIN_CONFLICT';
 
 export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
 

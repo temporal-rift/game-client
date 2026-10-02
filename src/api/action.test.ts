@@ -5,7 +5,7 @@ import {
   submitAction,
   submitDeclaration,
   submitHandSelection,
-  submitParadoxResolutionCard,
+  submitParadoxResolution,
 } from './action'
 import { uuid } from '../test/uuid'
 
@@ -129,11 +129,19 @@ describe('paradox resolution', () => {
     const offer = uuid('offer-1')
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId, eraNumber: 2, playerId, status: 'SUBMITTED' }, 202))
 
-    await submitParadoxResolutionCard(fetchFn, apiBaseUrl, gameId, 2, { cardInstanceId: offer, targetEventId: eventId, targetOutcomeId: outcomeId })
+    await submitParadoxResolution(fetchFn, apiBaseUrl, gameId, 2, { kind: 'card', cardInstanceId: offer, targetEventId: eventId, targetOutcomeId: outcomeId })
 
     const [url] = fetchFn.mock.calls[0] as [string]
     expect(url).toBe(`https://api.example.test/api/v1/games/${gameId}/eras/2/paradox-resolution/actions`)
     expect(bodyOf(fetchFn)).toEqual({ actionType: 'CARD', cardInstanceId: offer, targetEventId: eventId, targetOutcomeId: outcomeId })
+  })
+
+  it('posts an explicit pass with no card or target', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ gameId, eraNumber: 2, playerId, status: 'SUBMITTED' }, 202))
+
+    await submitParadoxResolution(fetchFn, apiBaseUrl, gameId, 2, { kind: 'pass' })
+
+    expect(bodyOf(fetchFn)).toEqual({ actionType: 'PASS' })
   })
 })
 
