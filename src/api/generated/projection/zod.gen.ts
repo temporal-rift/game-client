@@ -47,7 +47,8 @@ export const zChainState = z.object({
 export const zDeadlines = z.object({
     handSelectionExpiresAt: z.iso.datetime({ offset: true }).nullish(),
     actionRoundExpiresAt: z.iso.datetime({ offset: true }).nullish(),
-    paradoxResolutionExpiresAt: z.iso.datetime({ offset: true }).nullish()
+    paradoxResolutionExpiresAt: z.iso.datetime({ offset: true }).nullish(),
+    declarationExpiresAt: z.iso.datetime({ offset: true }).nullish()
 });
 
 /**
@@ -135,6 +136,8 @@ export const zSubmissionTargets = z.object({
     targetPlayerId: z.uuid().optional(),
     targetPlayerIds: z.array(z.uuid()).min(1).max(2).optional()
 });
+
+export const zActivistDeclarationMode = z.enum(['RALLY', 'MOMENTUM']);
 
 export const zFinalScore = z.object({
     playerId: z.uuid(),
@@ -415,6 +418,7 @@ export const zPlayerGameStateResponse = z.object({
     myHand: z.array(zHandCard),
     pendingHandSelection: zPendingHandSelection.optional(),
     myEligibleResolutionCards: z.array(zEligibleResolutionCard).optional(),
+    myEligibleDeclarationModes: z.array(zActivistDeclarationMode).optional(),
     myScore: z.int(),
     mySpecialActions: z.array(zEnumsSpecialAction).optional(),
     myJammedUntilRound: z.int().nullish(),

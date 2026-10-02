@@ -178,4 +178,41 @@ describe('toBoardView', () => {
     ])
     expect(toBoardView(state, 'p-me').hand[0].effect).not.toBe('')
   })
+
+  it('labels an open declaration window and counts down from its server expiry', () => {
+    const state = baseGameState({
+      phase: 'ERA_START',
+      roundNumber: null,
+      phaseContext: { declarationOpen: true, paradoxOpen: false },
+      deadlines: {
+        handSelectionExpiresAt: null,
+        actionRoundExpiresAt: null,
+        paradoxResolutionExpiresAt: null,
+        declarationExpiresAt: '2030-01-01T00:01:30Z',
+      },
+    })
+
+    expect(toBoardView(state, 'p-me').header).toEqual({
+      eraNumber: 2,
+      phaseLabel: 'Declaration window',
+      round: null,
+      deadline: '2030-01-01T00:01:30Z',
+    })
+  })
+
+  it('keeps the era-start label once the declaration window closes', () => {
+    const state = baseGameState({
+      phase: 'ERA_START',
+      roundNumber: null,
+      phaseContext: { declarationOpen: false, paradoxOpen: false },
+      deadlines: {
+        handSelectionExpiresAt: null,
+        actionRoundExpiresAt: null,
+        paradoxResolutionExpiresAt: null,
+        declarationExpiresAt: '2030-01-01T00:01:30Z',
+      },
+    })
+
+    expect(toBoardView(state, 'p-me').header).toMatchObject({ phaseLabel: 'Era start', deadline: null })
+  })
 })
