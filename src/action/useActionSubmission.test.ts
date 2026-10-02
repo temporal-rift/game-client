@@ -120,6 +120,8 @@ describe('useActionSubmission', () => {
 
     expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
     expect(result.current.draft).toEqual({ kind: 'none' })
+    expect(result.current.rejection).toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 
   it('preserves the draft and reports a rejection when the action is genuinely invalid', async () => {
@@ -136,7 +138,114 @@ describe('useActionSubmission', () => {
       await result.current.confirm()
     })
 
-    expect(result.current.submitPhase).toMatchObject({ kind: 'rejected', code: '422-03' })
+    expect(gameState.refresh).toHaveBeenCalledTimes(1)
+    expect(result.current.submitPhase).toEqual({ kind: 'idle' })
+    expect(result.current.rejection).toMatchObject({ code: '422-03', message: expect.stringMatching(/not legal/i) })
+    expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: CARD, coordinates: { targetEventId: EVT, targetOutcomeId: OUT } })
+  })
+
+  it('keeps the rejection until the player makes a new choice or dismisses it', async () => {
+    const fetchFn = vi.fn(async () => problemResponse(422, '422-03')) as unknown as AuthenticatedFetchFn
+    const gameState = createGameStateSession({ state: stateBody(), refresh: async () => stateBody() })
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+
+    act(() => result.current.selectCard(CARD, { targetEventId: EVT, targetOutcomeId: OUT }))
+    await act(async () => {
+      await result.current.confirm()
+    })
+    expect(result.current.rejection).not.toBeNull()
+
+    act(() => result.current.retarget({ targetEventId: EVT }))
+    expect(result.current.rejection).toBeNull()
+    expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: CARD, coordinates: { targetEventId: EVT } })
+
+    act(() => result.current.retarget({ targetEventId: EVT, targetOutcomeId: OUT }))
+    await act(async () => {
+      await result.current.confirm()
+    })
+    act(() => result.current.dismissRejection())
+    expect(result.current.rejection).toBeNull()
+  })
+
+  it('submits a pass with no card, special or target', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ gameId: GAME, eraNumber: 2, roundNumber: 1, playerId: ME, status: 'SUBMITTED', roundClosed: false }),
+    )
+    const gameState = createGameStateSession({
+      state: stateBody(),
+      refresh: async () => stateBody({ revision: 2, mySubmissions: [{ eraNumber: 2, roundNumber: 1, window: 'ACTION', choice: 'PASS', status: 'ACCEPTED' }] }),
+    })
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn: fetchMock as unknown as AuthenticatedFetchFn, gameState }))
+
+    act(() => result.current.choosePass())
+    expect(result.current.draft).toEqual({ kind: 'pass' })
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe(`https://api.example.test/api/v1/games/${GAME}/eras/2/rounds/1/actions`)
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ actionType: 'PASS' })
+    expect(result.current.draft).toEqual({ kind: 'none' })
+    expect(result.current.rejection).toBeNull()
+  })
+
+  it('reports a pass rejected because the round closed, after refreshing into the next phase', async () => {
+    const fetchFn = vi.fn(async () => problemResponse(409, '409-01')) as unknown as AuthenticatedFetchFn
+    const refreshed = stateBody({ revision: 2, phase: 'RESOLUTION', roundNumber: null })
+    const gameState = createGameStateSession({ state: stateBody(), refresh: async () => refreshed })
+    const { result, rerender } = renderHookWithQueries(
+      ({ session }) => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState: session }),
+      { initialProps: { session: gameState } },
+    )
+
+    act(() => result.current.choosePass())
+    await act(async () => {
+      await result.current.confirm()
+    })
+    rerender({ session: createGameStateSession({ state: refreshed }) })
+
+    expect(gameState.refresh).toHaveBeenCalledTimes(1)
+    expect(result.current.view.kind).toBe('unavailable')
+    expect(result.current.rejection).toMatchObject({ code: '409-01', message: expect.stringMatching(/round already closed/i) })
+  })
+
+  it('reports a pass rejected as a duplicate while showing the recorded submission', async () => {
+    const fetchFn = vi.fn(async () => problemResponse(409, '409-02'))
+    const accepted = stateBody({ revision: 2, mySubmissions: [{ eraNumber: 2, roundNumber: 1, window: 'ACTION', choice: 'CARD', status: 'ACCEPTED' }] })
+    const gameState = createGameStateSession({ state: stateBody(), refresh: async () => accepted })
+    const { result, rerender } = renderHookWithQueries(
+      ({ session }) => useActionSubmission({ ...BASE_OPTIONS, fetchFn: fetchFn as unknown as AuthenticatedFetchFn, gameState: session }),
+      { initialProps: { session: gameState } },
+    )
+
+    act(() => result.current.choosePass())
+    await act(async () => {
+      await result.current.confirm()
+    })
+    rerender({ session: createGameStateSession({ state: accepted }) })
+
+    expect(result.current.rejection).toMatchObject({ code: '409-02', message: expect.stringMatching(/already submitted/i) })
+    expect(result.current.view).toMatchObject({ kind: 'open', hasSubmitted: true })
+    await act(async () => {
+      await result.current.confirm()
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failure without a server answer when the refreshed state records nothing', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new TypeError('network down')
+    }) as unknown as AuthenticatedFetchFn
+    const gameState = createGameStateSession({ state: stateBody(), refresh: async () => stateBody() })
+    const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
+
+    act(() => result.current.selectCard(CARD, { targetEventId: EVT, targetOutcomeId: OUT }))
+    await act(async () => {
+      await result.current.confirm()
+    })
+
+    expect(result.current.rejection).toMatchObject({ code: null })
     expect(result.current.draft).toEqual({ kind: 'card', cardInstanceId: CARD, coordinates: { targetEventId: EVT, targetOutcomeId: OUT } })
   })
 
@@ -193,5 +302,6 @@ describe('useActionSubmission', () => {
     expect(result.current.view).toMatchObject({ kind: 'open', roundNumber: 2 })
     expect(result.current.draft).toEqual(nextDraft)
     expect(result.current.submitPhase).toEqual({ kind: 'idle' })
+    expect(result.current.rejection).toBeNull()
   })
 })

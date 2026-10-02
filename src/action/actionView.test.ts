@@ -178,6 +178,59 @@ describe('selectActionRoundView', () => {
     expect(view.hasSubmitted).toBe(true)
   })
 
+  it('describes the accepted card and its targets from game state', () => {
+    const state = baseState({
+      activeEvents: [
+        {
+          eventId: 'evt-1',
+          title: 'Reactor ignition',
+          carryOverState: 'FRESH',
+          outcomes: [
+            { outcomeId: 'out-1', description: 'Ignition succeeds', initialProbability: 50 },
+            { outcomeId: 'out-2', description: 'Ignition fails', initialProbability: 50 },
+          ],
+        },
+      ],
+      mySubmissions: [
+        {
+          eraNumber: 2,
+          roundNumber: 2,
+          window: 'ACTION',
+          choice: 'CARD',
+          status: 'ACCEPTED',
+          card: { cardInstanceId: 'card-1', cardType: 'SWING', grade: 'II' },
+          targets: { targetEventId: 'evt-1', sourceEventId: 'evt-1', sourceOutcomeId: 'out-1', targetOutcomeId: 'out-2' },
+        },
+      ],
+    })
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.acceptedDecision).toEqual({
+      summary: 'Swing · Grade II',
+      targets: ['Event: Reactor ignition', 'From: Ignition succeeds', 'To: Ignition fails'],
+    })
+  })
+
+  it('describes an accepted special, an accepted pass, and nothing before acceptance', () => {
+    const special = selectActionRoundView(
+      baseState(
+        {
+          players: [{ playerId: 'p-bo', playerName: 'Bo', score: 0, isConnected: true }],
+          mySubmissions: [
+            { eraNumber: 2, roundNumber: 2, window: 'ACTION', choice: 'SPECIAL', status: 'ACCEPTED', specialAction: 'CORRUPT', targets: { targetPlayerId: 'p-bo' } },
+          ],
+        },
+      ),
+      'me',
+    )
+    const pass = selectActionRoundView(baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 2, window: 'ACTION', choice: 'PASS', status: 'ACCEPTED' }] }))
+    const earlierRound = selectActionRoundView(baseState({ mySubmissions: [{ eraNumber: 2, roundNumber: 1, window: 'ACTION', choice: 'PASS', status: 'ACCEPTED' }] }))
+    if (special.kind !== 'open' || pass.kind !== 'open' || earlierRound.kind !== 'open') throw new Error('expected open views')
+    expect(special.acceptedDecision).toEqual({ summary: 'Corrupt', targets: ['Player: Bo'] })
+    expect(pass.acceptedDecision).toEqual({ summary: 'Pass', targets: [] })
+    expect(earlierRound.acceptedDecision).toBeNull()
+  })
+
   it('projects progress and the action-round deadline without filling missing values', () => {
     const state = baseState(
       { phaseContext: { declarationOpen: false, paradoxOpen: false, actionRoundProgress: { submittedCount: 1, totalPlayers: 3, pendingPlayerIds: ['p2', 'p3'] } }, deadlines: { actionRoundExpiresAt: '2026-01-01T00:00:30Z' } },

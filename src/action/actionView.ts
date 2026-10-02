@@ -4,9 +4,10 @@
  * current era's active events, and opponents to target.
  */
 
-import { isCardType, isFaction, isSpecialAction, type CardGrade, type CardType, type Faction, type SpecialAction } from '../api/action'
-import type { ActiveEvent, GameStateView, PlayerInGame, SpecialBudget } from '../api/projection'
+import { isCardType, isFaction, isSpecialAction, type ActionCoordinates, type CardGrade, type CardType, type Faction, type SpecialAction } from '../api/action'
+import type { ActiveEvent, GameStateView, MySubmission, PlayerInGame, SpecialBudget } from '../api/projection'
 import { hasAcceptedSubmission } from '../game/reconciliation'
+import { describeTargets } from './actionTargeting'
 import {
   cardDisplayName,
   cardEffectSummary,
@@ -62,6 +63,12 @@ export interface OpponentOption {
   readonly isConnected: boolean
 }
 
+/** The caller's accepted decision for the open round, as the server recorded it. */
+export interface AcceptedDecision {
+  readonly summary: string
+  readonly targets: readonly string[]
+}
+
 export type ActionRoundView =
   | { readonly kind: 'unavailable'; readonly reason: string }
   | {
@@ -70,6 +77,8 @@ export type ActionRoundView =
       readonly eraNumber: number
       readonly roundNumber: number
       readonly hasSubmitted: boolean
+      /** Null until an accepted decision for this round is recorded in game state. */
+      readonly acceptedDecision: AcceptedDecision | null
       readonly submittedCount: number | null
       readonly totalPlayers: number | null
       readonly deadline: string | null
@@ -151,6 +160,41 @@ function specialOptionsFor(
     })
 }
 
+function decisionSummary(submission: MySubmission): string {
+  if (submission.choice === 'PASS') {
+    return 'Pass'
+  }
+  if (submission.card) {
+    return `${cardDisplayName(submission.card.cardType)} · Grade ${submission.card.grade}`
+  }
+  if (submission.specialAction) {
+    return specialDisplayName(submission.specialAction)
+  }
+  return 'Action recorded'
+}
+
+function acceptedDecisionFor(
+  state: GameStateView,
+  roundNumber: number,
+  activeEvents: readonly ActiveEventOption[],
+  opponents: readonly OpponentOption[],
+): AcceptedDecision | null {
+  const submission = (state.mySubmissions ?? []).find(
+    (entry) => entry.window === 'ACTION' && entry.eraNumber === state.eraNumber && entry.roundNumber === roundNumber,
+  )
+  if (!submission) {
+    return null
+  }
+  const { sourceEventId, sourceOutcomeId, ...targets } = submission.targets ?? {}
+  const coordinates: ActionCoordinates = {
+    ...targets,
+    // A Thread anchor may sit on another event than its target; only a same-event pair reads as From/To.
+    sourceOutcomeId: sourceEventId === undefined || sourceEventId === targets.targetEventId ? sourceOutcomeId : undefined,
+    disguiseCategory: submission.card?.disguiseCategory,
+  }
+  return { summary: decisionSummary(submission), targets: describeTargets(coordinates, { events: activeEvents, opponents }) }
+}
+
 /**
  * Selects the action-round view for the current participant. `unavailable`
  * covers every phase outside an open action round (no round to act in);
@@ -172,6 +216,8 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
   const faction = isFaction(state.myFaction) ? state.myFaction : null
   const mySpecialActions = (state.mySpecialActions ?? []).filter((action) => isSpecialAction(action))
   const progress = state.phaseContext?.actionRoundProgress
+  const activeEvents = activeEventOptions(state.activeEvents)
+  const opponents = opponentOptions(state.players, ownPlayerId)
 
   return {
     kind: 'open',
@@ -179,12 +225,13 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
     eraNumber: state.eraNumber,
     roundNumber: state.roundNumber,
     hasSubmitted: hasAcceptedSubmission(state, { eraNumber: state.eraNumber, window: 'ACTION', roundNumber: state.roundNumber }),
+    acceptedDecision: acceptedDecisionFor(state, state.roundNumber, activeEvents, opponents),
     submittedCount: progress?.submittedCount ?? null,
     totalPlayers: progress?.totalPlayers ?? null,
     deadline: state.deadlines?.actionRoundExpiresAt ?? null,
     hand: handOptions(state.myHand),
     specials: specialOptionsFor(faction, mySpecialActions, state.roundNumber, state.myJammedUntilRound ?? null, state.mySpecialBudgets ?? []),
-    activeEvents: activeEventOptions(state.activeEvents),
-    opponents: opponentOptions(state.players, ownPlayerId),
+    activeEvents,
+    opponents,
   }
 }

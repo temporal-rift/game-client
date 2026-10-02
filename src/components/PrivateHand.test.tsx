@@ -62,7 +62,7 @@ describe('PrivateHand', () => {
     expect(screen.getByText('Not playable this round')).toBeInTheDocument()
   })
 
-  it('keeps the final hand read-only when no selection window is open', () => {
+  it('keeps the final hand read-only outside hand selection and an open action round', () => {
     render(<PrivateHand hand={hand} />)
 
     expect(screen.queryAllByRole('button')).toHaveLength(0)

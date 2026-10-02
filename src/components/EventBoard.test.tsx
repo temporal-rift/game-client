@@ -60,7 +60,7 @@ describe('EventBoard', () => {
     expect(screen.getByText('No public bands yet')).toBeInTheDocument()
   })
 
-  it('offers no outcome controls until targeting moves onto the board', () => {
+  it('offers no target controls while nothing is being targeted', () => {
     boardEvents()
 
     expect(screen.queryAllByRole('button')).toHaveLength(0)

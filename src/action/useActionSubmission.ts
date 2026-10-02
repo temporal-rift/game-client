@@ -17,12 +17,15 @@ export type ActionDraft =
   | { readonly kind: 'none' }
   | { readonly kind: 'card'; readonly cardInstanceId: string; readonly coordinates: ActionCoordinates }
   | { readonly kind: 'special'; readonly specialAction: SpecialAction; readonly coordinates: ActionCoordinates }
+  | { readonly kind: 'pass' }
 
-export type SubmitPhase =
-  | { readonly kind: 'idle' }
-  | { readonly kind: 'submitting' }
-  | { readonly kind: 'awaiting-projection' }
-  | { readonly kind: 'rejected'; readonly message: string; readonly code: string | null }
+export type SubmitPhase = { readonly kind: 'idle' } | { readonly kind: 'submitting' } | { readonly kind: 'awaiting-projection' }
+
+/** A rejected or failed submission, kept until dismissed or the player makes a new choice. */
+export interface SubmissionRejection {
+  readonly message: string
+  readonly code: string | null
+}
 
 interface RoundSubmission {
   readonly gameId: string
@@ -33,6 +36,17 @@ interface RoundSubmission {
 
 function roundKeyFor({ gameId, eraNumber, roundNumber }: Pick<RoundSubmission, 'gameId' | 'eraNumber' | 'roundNumber'>): string {
   return `${gameId}:${eraNumber}:${roundNumber}`
+}
+
+function requestFor(draft: Exclude<ActionDraft, { kind: 'none' }>): SubmitActionRequest {
+  switch (draft.kind) {
+    case 'card':
+      return { ...draft.coordinates, actionType: 'CARD', cardInstanceId: draft.cardInstanceId }
+    case 'special':
+      return { ...draft.coordinates, actionType: 'SPECIAL', specialAction: draft.specialAction }
+    case 'pass':
+      return { actionType: 'PASS' }
+  }
 }
 
 export interface UseActionSubmissionOptions {
@@ -46,8 +60,12 @@ export interface ActionSubmissionSession {
   readonly view: ActionRoundView
   readonly draft: ActionDraft
   readonly submitPhase: SubmitPhase
-  readonly selectCard: (cardInstanceId: string, coordinates: ActionCoordinates) => void
-  readonly selectSpecial: (specialAction: SpecialAction, coordinates: ActionCoordinates) => void
+  readonly rejection: SubmissionRejection | null
+  readonly selectCard: (cardInstanceId: string, coordinates?: ActionCoordinates) => void
+  readonly selectSpecial: (specialAction: SpecialAction, coordinates?: ActionCoordinates) => void
+  readonly choosePass: () => void
+  /** Replaces the selected card's or special's targets; ignored without one. */
+  readonly retarget: (coordinates: ActionCoordinates) => void
   readonly clearDraft: () => void
   readonly confirm: () => Promise<void>
   readonly dismissRejection: () => void
@@ -55,17 +73,19 @@ export interface ActionSubmissionSession {
 
 /**
  * Owns one participant's action-round draft against the authoritative
- * contract: builds the precise request from the chosen card/special's
- * target coordinates, submits it, and — on any failure, including a lost
- * response — refreshes game state and checks `hasAcceptedSubmission` before
- * reporting a rejection. The draft is preserved on rejection (it may still
- * be resubmittable after a stale-phase or transient failure) and cleared
- * only once acceptance is confirmed.
+ * contract: builds the precise card, special or pass request, submits it,
+ * and, on any failure including a lost response, refreshes game state and
+ * checks `hasAcceptedSubmission` before reporting. A server rejection is
+ * always reported, even once the round has moved on; a failure without a
+ * server answer is reported only when the refreshed state does not record the
+ * decision. The draft is preserved on rejection and cleared only once
+ * acceptance is confirmed or the round changes.
  */
 export function useActionSubmission(options: UseActionSubmissionOptions): ActionSubmissionSession {
   const { apiBaseUrl, fetchFn, gameState, ownPlayerId } = options
   const [draft, setDraft] = useState<ActionDraft>({ kind: 'none' })
   const [submitPhase, setSubmitPhase] = useState<SubmitPhase>({ kind: 'idle' })
+  const [rejection, setRejection] = useState<SubmissionRejection | null>(null)
 
   const view = useMemo(() => selectActionRoundView(gameState.state, ownPlayerId), [gameState.state, ownPlayerId])
 
@@ -94,24 +114,32 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
     }
   }
 
-  const selectCard = useCallback((cardInstanceId: string, coordinates: ActionCoordinates) => {
-    setDraft({ kind: 'card', cardInstanceId, coordinates })
+  const choose = useCallback((next: ActionDraft) => {
+    setDraft(next)
     setSubmitPhase({ kind: 'idle' })
+    setRejection(null)
   }, [])
 
-  const selectSpecial = useCallback((specialAction: SpecialAction, coordinates: ActionCoordinates) => {
-    setDraft({ kind: 'special', specialAction, coordinates })
-    setSubmitPhase({ kind: 'idle' })
+  const selectCard = useCallback(
+    (cardInstanceId: string, coordinates: ActionCoordinates = {}) => choose({ kind: 'card', cardInstanceId, coordinates }),
+    [choose],
+  )
+
+  const selectSpecial = useCallback(
+    (specialAction: SpecialAction, coordinates: ActionCoordinates = {}) => choose({ kind: 'special', specialAction, coordinates }),
+    [choose],
+  )
+
+  const choosePass = useCallback(() => choose({ kind: 'pass' }), [choose])
+
+  const clearDraft = useCallback(() => choose({ kind: 'none' }), [choose])
+
+  const retarget = useCallback((coordinates: ActionCoordinates) => {
+    setDraft((previous) => (previous.kind === 'card' || previous.kind === 'special' ? { ...previous, coordinates } : previous))
+    setRejection(null)
   }, [])
 
-  const clearDraft = useCallback(() => {
-    setDraft({ kind: 'none' })
-    setSubmitPhase({ kind: 'idle' })
-  }, [])
-
-  const dismissRejection = useCallback(() => {
-    setSubmitPhase((previous) => (previous.kind === 'rejected' ? { kind: 'idle' } : previous))
-  }, [])
+  const dismissRejection = useCallback(() => setRejection(null), [])
 
   const awaitingProjection = useCallback(() => {
     setSubmitPhase({ kind: 'awaiting-projection' })
@@ -133,41 +161,36 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
         awaitingProjection()
       }
     },
-    // Every failure — an authoritative rejection, a stale phase, or an ambiguous (network-level)
-    // response — reconciles acceptance before being reported: a lost response may still have
-    // landed, and a stale-phase rejection means the round moved on.
     onError: async (error, submission) => {
-      const submittedRoundKey = roundKeyFor(submission)
-      if (activeRoundKeyRef.current !== submittedRoundKey) return
       const reconciled = await gameState.refresh()
-      if (activeRoundKeyRef.current !== submittedRoundKey) return
-      if (reconciled && hasAcceptedSubmission(reconciled, { eraNumber: submission.eraNumber, window: 'ACTION', roundNumber: submission.roundNumber })) {
-        awaitingProjection()
-        return
+      const accepted =
+        reconciled !== null &&
+        hasAcceptedSubmission(reconciled, { eraNumber: submission.eraNumber, window: 'ACTION', roundNumber: submission.roundNumber })
+      const isServerAnswer = error instanceof ApiProblemError
+      if (isServerAnswer || !accepted) {
+        setRejection({ message: actionErrorMessage(error), code: isServerAnswer ? error.code : null })
       }
-      setSubmitPhase({
-        kind: 'rejected',
-        message: actionErrorMessage(error),
-        code: error instanceof ApiProblemError ? error.code : null,
-      })
+      if (activeRoundKeyRef.current !== roundKeyFor(submission)) return
+      if (accepted) {
+        awaitingProjection()
+      } else {
+        setSubmitPhase({ kind: 'idle' })
+      }
     },
   })
 
   const confirm = useCallback(async (): Promise<void> => {
-    if (view.kind !== 'open' || draft.kind === 'none') {
+    if (view.kind !== 'open' || view.hasSubmitted || draft.kind === 'none' || submitPhase.kind !== 'idle') {
       return
     }
     const { gameId, eraNumber, roundNumber } = view
-    const request: SubmitActionRequest =
-      draft.kind === 'card'
-        ? { ...draft.coordinates, actionType: 'CARD', cardInstanceId: draft.cardInstanceId }
-        : { ...draft.coordinates, actionType: 'SPECIAL', specialAction: draft.specialAction }
     setSubmitPhase({ kind: 'submitting' })
-    await submit({ gameId, eraNumber, roundNumber, request }).catch(() => undefined)
-  }, [view, draft, submit])
+    setRejection(null)
+    await submit({ gameId, eraNumber, roundNumber, request: requestFor(draft) }).catch(() => undefined)
+  }, [view, draft, submitPhase.kind, submit])
 
   return useMemo(
-    () => ({ view, draft, submitPhase, selectCard, selectSpecial, clearDraft, confirm, dismissRejection }),
-    [view, draft, submitPhase, selectCard, selectSpecial, clearDraft, confirm, dismissRejection],
+    () => ({ view, draft, submitPhase, rejection, selectCard, selectSpecial, choosePass, retarget, clearDraft, confirm, dismissRejection }),
+    [view, draft, submitPhase, rejection, selectCard, selectSpecial, choosePass, retarget, clearDraft, confirm, dismissRejection],
   )
 }

@@ -80,6 +80,14 @@ describe('submitAction', () => {
     expect(bodyOf(fetchFn)).toEqual({ actionType: 'SPECIAL', specialAction: 'OBSCURE' })
   })
 
+  it('posts a pass with no card, special or target', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(submitted())
+    await submitAction(fetchFn, apiBaseUrl, gameId, 2, 1, { actionType: 'PASS' })
+    const [url] = fetchFn.mock.calls[0] as [string]
+    expect(url).toBe(`https://api.example.test/api/v1/games/${gameId}/eras/2/rounds/1/actions`)
+    expect(bodyOf(fetchFn)).toEqual({ actionType: 'PASS' })
+  })
+
   it('posts Thread as an event/outcome target, never source fields', async () => {
     const fetchFn = vi.fn().mockResolvedValue(submitted())
     await submitAction(fetchFn, apiBaseUrl, gameId, 2, 1, {
@@ -146,7 +154,8 @@ describe('actionErrorMessage', () => {
     ['422-06', /current game's era/i],
     ['422-10', /not eligible/i],
     ['422-11', /five different cards/i],
-    ['422-12', /this specific round/i],
+    ['422-09', /expose is not available/i],
+    ['422-12', /card or special cannot be played in this round/i],
   ])('maps code %s to a player-safe message', (code, pattern) => {
     expect(actionErrorMessage(new ApiProblemError(422, code, 'raw detail'))).toMatch(pattern)
   })
