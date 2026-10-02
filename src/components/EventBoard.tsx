@@ -58,7 +58,7 @@ function OutcomeContent({ outcome, markers }: { readonly outcome: BoardOutcome; 
           {marker}
         </span>
       ))}
-      <span className="outcome-band"><span className="knowledge-scope">Public</span><BandLabel band={outcome.band} /></span>
+      <span className="outcome-band">{outcome.band !== 'unknown' && <span className="knowledge-scope">Public</span>}<BandLabel band={outcome.band} /></span>
     </>
   )
 }

@@ -82,6 +82,7 @@ describe('knowledge on the board', () => {
     renderBoard(boardKnowledgeState({ myRevealedIntel: [], publicBands: [], declarations: [], exposeFacts: [] }))
     expect(screen.queryByRole('list', { name: 'Your earned knowledge' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Private intel|Public intel|No public bands|not bought|No Rally|No Expose|sample/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Public', { exact: true })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Your earned knowledge' })).not.toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Reactor ignition outcomes' })).not.toHaveTextContent(/\d+%/)
   })
