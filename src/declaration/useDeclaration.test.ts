@@ -127,4 +127,19 @@ describe('useDeclaration', () => {
     expect(result.current.submitPhase).toMatchObject({ kind: 'rejected', code: '422-08' })
     expect(result.current.draft).toEqual({ kind: 'declaration', mode: 'RALLY', targetEventId: EVENT, targetOutcomeId: OUTCOME })
   })
+
+  it('blocks confirmation without reporting a rejection when the reconciling read fails', async () => {
+    const fetchFn = server(async () => {
+      throw new TypeError('response lost')
+    })
+    const gameState = createGameStateSession({ state: declarationState(), refresh: async () => null })
+    const { result } = renderHookWithQueries(() =>
+      useDeclaration({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
+    )
+
+    await selectAndConfirm(result)
+
+    expect(result.current.submitPhase).toEqual({ kind: 'awaiting-projection' })
+    expect(result.current.draft).toEqual({ kind: 'declaration', mode: 'RALLY', targetEventId: EVENT, targetOutcomeId: OUTCOME })
+  })
 })

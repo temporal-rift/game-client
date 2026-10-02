@@ -109,13 +109,19 @@ export function useDeclaration(options: UseDeclarationOptions): DeclarationSessi
       }
     },
     // A lost response may still have landed: reconcile the accepted declaration before reporting a rejection.
+    // When the authoritative read itself fails, the outcome is unknown, so the
+    // draft is kept but confirmation stays blocked until state resolves it.
     onError: async (error, { coordinates }) => {
       const submittedWindowKey = windowKeyFor(coordinates)
       if (activeWindowScopeRef.current !== submittedWindowKey) return
       const refreshed = await gameState.refresh()
       if (activeWindowScopeRef.current !== submittedWindowKey) return
-      if (hasAcceptedSubmission(refreshed, { eraNumber: coordinates.eraNumber, window: 'DECLARATION' })) {
+      if (refreshed && hasAcceptedSubmission(refreshed, { eraNumber: coordinates.eraNumber, window: 'DECLARATION' })) {
         awaitingProjection()
+        return
+      }
+      if (refreshed === null) {
+        setSubmitPhase({ kind: 'awaiting-projection' })
         return
       }
       setSubmitPhase({
