@@ -1,6 +1,7 @@
 /**
  * Participant-scoped submissions against the pinned `action-api` contract:
- * hand selection, action-round actions and paradox-resolution choices.
+ * hand selection, Activist declarations, action-round actions and
+ * paradox-resolution choices.
  *
  * The server remains authoritative for card/special eligibility, target
  * legality and budgets; the generated schemas validate each request against
@@ -10,9 +11,12 @@
 import * as z from 'zod'
 import { apiClientsFor, apiErrorMessage, callApi, invalidRequestError, type AuthenticatedFetchFn } from './client'
 import {
+  recordActivistDeclaration as recordActivistDeclarationCall,
   selectHand as selectHandCall,
   submitAction as submitActionCall,
   submitParadoxResolutionCard as submitParadoxResolutionCall,
+  type ActivistDeclarationRequest,
+  type ActivistDeclarationResponse,
   type CardActionRequest,
   type EnumsSpecialAction as SpecialAction,
   type HandSelectionRequest,
@@ -24,6 +28,7 @@ import {
   type SubmitActionResponse,
 } from './generated/action'
 import {
+  zActivistDeclarationRequest,
   zCardActionRequest,
   zEnumsSpecialAction,
   zPassActionRequest,
@@ -36,11 +41,14 @@ import type { CardType } from './generated/projection'
 
 export type { AuthenticatedFetchFn } from './client'
 export type {
+  ActivistDeclarationRequest,
+  ActivistDeclarationResponse,
   CardActionRequest,
   EnumsSpecialAction as SpecialAction,
   PassActionRequest,
   SpecialActionRequest,
 } from './generated/action'
+export type { ActivistDeclarationMode } from './generated/projection'
 export type { CardCategory, CardGrade, CardType } from './generated/projection'
 export type { Faction } from './generated/scoring'
 
@@ -167,6 +175,30 @@ export async function submitParadoxResolution(
   )
 }
 
+/**
+ * Records the caller's sole current-era Rally or eligible Momentum
+ * declaration during the open declaration window. A lost response does not
+ * imply failure: recover acceptance via game state before treating it as one.
+ */
+export async function submitDeclaration(
+  fetchFn: AuthenticatedFetchFn,
+  apiBaseUrl: string,
+  gameId: string,
+  eraNumber: number,
+  request: ActivistDeclarationRequest,
+): Promise<ActivistDeclarationResponse> {
+  if (!gameId.trim()) {
+    throw new Error('A game reference is needed to submit a declaration.')
+  }
+  if (!zActivistDeclarationRequest.safeParse(request).success) {
+    throw invalidRequestError('submit the declaration')
+  }
+  const client = apiClientsFor(fetchFn, apiBaseUrl).action
+  return callApi('submit the declaration', () =>
+    recordActivistDeclarationCall({ client, path: { gameId, eraNumber }, body: request }),
+  )
+}
+
 /** Maps stable problem codes to player-safe messages; unknown codes keep the server detail. */
 export function actionErrorMessage(error: unknown): string {
   return apiErrorMessage(error, (problem) => {
@@ -183,6 +215,10 @@ export function actionErrorMessage(error: unknown): string {
         return 'The paradox-resolution phase already closed. Reconciling your accepted choice.'
       case '409-07':
         return 'You already submitted a paradox-resolution choice. Reconciling your accepted choice.'
+      case '409-03':
+        return 'The declaration window already closed. Reconciling your accepted declaration.'
+      case '409-04':
+        return 'You already declared this era. Reconciling your accepted declaration.'
       case '409-05':
         return 'Expose was already used this era.'
       case '409-10':
@@ -203,6 +239,8 @@ export function actionErrorMessage(error: unknown): string {
         return 'Expose is not available this round, or that player cannot be exposed.'
       case '422-10':
         return 'That card is not eligible during this phase.'
+      case '422-08':
+        return 'Momentum is not eligible this era. Choose Rally or wait for the window to close.'
       case '422-11':
         return 'Choose five different cards from your offered hand.'
       case '422-12':

@@ -22,7 +22,7 @@ export function baseGameState(overrides: Partial<GameStateView> = {}, slices: Pa
     myRevealedIntel: [],
     activeEvents: [],
     players: [],
-    deadlines: { handSelectionExpiresAt: null, actionRoundExpiresAt: null, paradoxResolutionExpiresAt: null },
+    deadlines: { handSelectionExpiresAt: null, actionRoundExpiresAt: null, paradoxResolutionExpiresAt: null, declarationExpiresAt: null },
     phaseContext: { declarationOpen: false, paradoxOpen: false },
     mySubmissions: [],
     mySpecialBudgets: [],

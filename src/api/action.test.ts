@@ -3,6 +3,7 @@ import { ApiProblemError } from './client'
 import {
   actionErrorMessage,
   submitAction,
+  submitDeclaration,
   submitHandSelection,
   submitParadoxResolution,
 } from './action'
@@ -144,6 +145,28 @@ describe('paradox resolution', () => {
   })
 })
 
+describe('submitDeclaration', () => {
+  it('posts the declared mode and exact target to the declaration endpoint', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({ gameId, eraNumber: 2, playerId, specialAction: 'RALLY', targetEventId: eventId, targetOutcomeId: outcomeId, status: 'DECLARED' }, 202),
+    )
+
+    await submitDeclaration(fetchFn, apiBaseUrl, gameId, 2, { specialAction: 'RALLY', targetEventId: eventId, targetOutcomeId: outcomeId })
+
+    const [url] = fetchFn.mock.calls[0] as [string]
+    expect(url).toBe(`https://api.example.test/api/v1/games/${gameId}/eras/2/declarations`)
+    expect(bodyOf(fetchFn)).toEqual({ specialAction: 'RALLY', targetEventId: eventId, targetOutcomeId: outcomeId })
+  })
+
+  it('refuses a request the contract rejects before sending it', async () => {
+    const fetchFn = vi.fn()
+    await expect(
+      submitDeclaration(fetchFn, apiBaseUrl, gameId, 2, { specialAction: 'RALLY', targetEventId: 'not-a-uuid', targetOutcomeId: outcomeId }),
+    ).rejects.toThrow(/does not match the game server's contract/i)
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+})
+
 describe('actionErrorMessage', () => {
   it.each([
     ['409-01', /already closed/i],
@@ -154,6 +177,8 @@ describe('actionErrorMessage', () => {
     ['409-07', /already submitted a paradox/i],
     ['409-05', /expose/i],
     ['409-10', /already used this era/i],
+    ['409-03', /declaration window already closed/i],
+    ['409-04', /already declared/i],
     ['422-01', /not in your hand/i],
     ['422-02', /jammed/i],
     ['422-03', /not legal/i],
@@ -161,6 +186,7 @@ describe('actionErrorMessage', () => {
     ['422-05', /does not own/i],
     ['422-06', /current game's era/i],
     ['422-10', /not eligible/i],
+    ['422-08', /momentum is not eligible/i],
     ['422-11', /five different cards/i],
     ['422-09', /expose is not available/i],
     ['422-12', /card or special cannot be played in this round/i],

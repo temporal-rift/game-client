@@ -103,12 +103,17 @@ function isActionRound(phase: Phase): boolean {
   return phase.startsWith('ACTION_ROUND_')
 }
 
+function isDeclarationWindowOpen(state: GameStateView): boolean {
+  return Boolean(state.phaseContext?.declarationOpen)
+}
+
 export function factionDisplayName(faction: Faction): string {
   return faction.charAt(0) + faction.slice(1).toLowerCase()
 }
 
 function deadlineFor(state: GameStateView): string | null {
   const deadlines = state.deadlines
+  if (isDeclarationWindowOpen(state)) return deadlines?.declarationExpiresAt ?? null
   if (state.phase === 'HAND_SELECTION') return deadlines?.handSelectionExpiresAt ?? null
   if (isActionRound(state.phase)) return deadlines?.actionRoundExpiresAt ?? null
   if (state.phase === 'PARADOX_RESOLUTION') return deadlines?.paradoxResolutionExpiresAt ?? null
@@ -120,7 +125,7 @@ function headerFrom(state: GameStateView): BoardHeader {
   const showsRound = isActionRound(state.phase) || state.phase === 'PARADOX_RESOLUTION'
   return {
     eraNumber: state.eraNumber,
-    phaseLabel: PHASE_LABELS[state.phase],
+    phaseLabel: isDeclarationWindowOpen(state) ? 'Declaration window' : PHASE_LABELS[state.phase],
     round: showsRound && roundNumber !== null ? { number: roundNumber, of: ACTION_ROUNDS_PER_ERA } : null,
     deadline: deadlineFor(state),
   }
