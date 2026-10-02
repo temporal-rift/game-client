@@ -58,7 +58,7 @@ describe('toBoardView', () => {
   it('lists every player by roster name, marks the current player, and keeps unrevealed factions hidden', () => {
     const state = baseGameState({ myFaction: 'PROPHETS', players: PLAYERS })
 
-    expect(toBoardView(state, 'p-me').players).toEqual([
+    expect(toBoardView(state, 'p-me').players).toMatchObject([
       { playerId: 'p-me', name: 'Ana', score: 8, isCurrentPlayer: true, factionName: 'Prophets' },
       { playerId: 'p-bo', name: 'Bo', score: 6, isCurrentPlayer: false, factionName: null },
       { playerId: 'p-cy-0000-0000', name: 'Player p-cy-000', score: 5, isCurrentPlayer: false, factionName: 'Weavers' },
@@ -112,9 +112,11 @@ describe('toBoardView', () => {
         title: 'Reactor ignition',
         carryOverState: 'FRESH',
         bandsObservedInRound: 2,
+        traceKnowledge: [],
+        exposeFacts: [],
         outcomes: [
-          { outcomeId: 'out-1a', description: 'Ignition succeeds', band: 'high' },
-          { outcomeId: 'out-1b', description: 'Facility destroyed', band: 'low' },
+          { outcomeId: 'out-1a', description: 'Ignition succeeds', band: 'high', privateProbabilities: [], declarations: [] },
+          { outcomeId: 'out-1b', description: 'Facility destroyed', band: 'low', privateProbabilities: [], declarations: [] },
         ],
       },
       {
@@ -122,12 +124,14 @@ describe('toBoardView', () => {
         title: 'Trade pact',
         carryOverState: 'CASCADED',
         bandsObservedInRound: null,
-        outcomes: [{ outcomeId: 'out-2a', description: 'Renegotiation', band: 'unknown' }],
+        traceKnowledge: [],
+        exposeFacts: [],
+        outcomes: [{ outcomeId: 'out-2a', description: 'Renegotiation', band: 'unknown', privateProbabilities: [], declarations: [] }],
       },
     ])
   })
 
-  it('never carries an exact weight onto the board', () => {
+  it('never treats printed initial probabilities as earned live weights', () => {
     const view = toBoardView(baseGameState({ activeEvents: EVENTS }), 'p-me')
 
     expect(JSON.stringify(view)).not.toContain('initialProbability')

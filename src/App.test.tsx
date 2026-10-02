@@ -196,6 +196,7 @@ describe('App', () => {
       phase: 'ACTION_ROUND_2',
       roundNumber: 2,
       myFaction: 'ERASERS',
+      myRevealedIntel: [{ kind: 'INFLUENCE', eventId: uuid('event-1'), observedInRound: 1, influencerPlayerIds: [], mimicInfluencerPlayerIds: [] }],
       players: [1, 2, 3].map((seat) => ({ playerId: uuid(`p${seat}`), playerName: `player-${seat}`, score: seat, isConnected: true })),
     })
     vi.stubGlobal(
@@ -212,6 +213,10 @@ describe('App', () => {
     expect(await within(players).findByText('You · Erasers')).toBeInTheDocument()
     expect(within(players).getAllByText('Faction hidden')).toHaveLength(2)
     expect(screen.queryByText(/Sample board/)).not.toBeInTheDocument()
+    const knowledge = screen.getByRole('list', { name: 'Your earned knowledge' })
+    expect(knowledge.closest('aside')).toHaveAccessibleName('Your faction')
+    expect(knowledge).toHaveTextContent('Private intel')
+    expect(screen.queryByRole('region', { name: 'Observations and knowledge' })).not.toBeInTheDocument()
   })
 
   it('recovers the latest public summary on the board with no gameplay outside it', async () => {
@@ -229,7 +234,7 @@ describe('App', () => {
     const board = await screen.findByRole('region', { name: 'Game board' })
     const summary = await within(board).findByRole('region', { name: 'Last round summary' })
     expect(summary).toHaveTextContent('Ana · Disruption · Card')
-    expect(board).toContainElement(screen.getByRole('region', { name: 'Observations and knowledge' }))
+    expect(screen.queryByRole('region', { name: 'Observations and knowledge' })).not.toBeInTheDocument()
     const page = board.closest('.game-page')!
     expect(Array.from(page.children)).toEqual([screen.getByRole('navigation', { name: 'Game navigation' }), board])
     expect(page.textContent).not.toMatch(/sample|fixture|Final winners appear here/i)

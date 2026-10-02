@@ -153,7 +153,7 @@ function DecisionSurface({ surface, children }: { readonly surface: { readonly l
 
 export function AppShell({
   view, status, onRetry, handSelection, illustrationSkin = 'board', action = null, paradox = null,
-  roundSummary, results, ownPlayerId = null, declaration, knowledge,
+  roundSummary, results, ownPlayerId = null, declaration,
 }: AppShellProps) {
   const failure = status.kind === 'failed' || status.kind === 'stalled' ? status : null
 
@@ -223,7 +223,7 @@ export function AppShell({
             canResolve={canResolve}
             illustrationSkin={illustrationSkin}
           />
-          <BoardDecisionAreas declaration={declaration} knowledge={knowledge} />
+          <BoardDecisionAreas declaration={declaration} />
         </main>
       </DecisionSurface>
     </section>

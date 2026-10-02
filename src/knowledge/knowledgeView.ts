@@ -95,6 +95,7 @@ export interface ExposeFactEntry {
   readonly targetPlayerName: string
   readonly roundNumber: number
   readonly signatureCardName: string | null
+  readonly signatureEventId: string | null
   readonly signatureEventTitle: string | null
   readonly behaviorChanged: boolean
 }
@@ -234,6 +235,7 @@ function exposeFactEntries(
     targetPlayerName: nameFor(targetPlayerId, playerLookup),
     roundNumber,
     signatureCardName: signature ? cardDisplayName(signature.type) : null,
+    signatureEventId: signature?.targetEventId ?? null,
     signatureEventTitle: signature ? titleFor(signature.targetEventId, eventLookup) : null,
     behaviorChanged,
   }))
@@ -246,6 +248,8 @@ function exposeFactEntries(
  * only from the caller's own server-scoped `myRevealedIntel`, labeled with
  * the round it was observed in and the era it expires at end of.
  */
+export function selectKnowledgeView(state: GameStateView): Extract<KnowledgeView, { kind: 'ready' }>
+export function selectKnowledgeView(state: GameStateView | null): KnowledgeView
 export function selectKnowledgeView(state: GameStateView | null): KnowledgeView {
   if (!state) {
     return { kind: 'unavailable', reason: 'Game state is not loaded yet.' }

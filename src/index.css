@@ -316,6 +316,7 @@ a:focus-visible {
 
 .player-strip ul {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
   min-height: 3.75rem;
@@ -518,10 +519,13 @@ a:focus-visible {
 
 .knowledge-card {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 0.25rem;
   padding-top: 0.75rem;
   border-top: 1px solid #323a50;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .knowledge-scope {
@@ -547,6 +551,48 @@ a:focus-visible {
 .knowledge-card small {
   color: #6f7d94;
   font-size: 0.75rem;
+}
+
+.faction-knowledge {
+  margin-top: 1.5rem;
+}
+
+.faction-knowledge .panel-eyebrow {
+  text-align: left;
+}
+
+.knowledge-private .knowledge-scope {
+  color: #b4c8e4;
+}
+
+.knowledge-public .knowledge-scope {
+  color: #d1bd92;
+}
+
+.outcome-band {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 0.15rem;
+}
+
+.outcome-band .knowledge-scope {
+  font-size: 0.6rem;
+}
+
+.outcome-knowledge {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0.65rem 0.6rem;
+  border: 1px solid #30384e;
+  border-top: 0;
+  border-radius: 0 0 0.45rem 0.45rem;
+  background: #171f32;
+}
+
+.player-observations {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .event-board {
@@ -1528,8 +1574,7 @@ button.faction-special:disabled {
 
 .board-round-summary,
 .board-results,
-.board-decision-area > section,
-.board-knowledge-area > section {
+.board-decision-area > section {
   min-width: 0;
   padding: 1.25rem;
   border: 1px solid var(--border);
@@ -1560,8 +1605,7 @@ button.faction-special:disabled {
 
 .board-round-summary h2,
 .board-results h3,
-.board-decision-area h2,
-.board-knowledge-area h2 {
+.board-decision-area h2 {
   color: var(--gold);
   font: 500 0.8rem/1.5 var(--sans);
   letter-spacing: 0.1em;
@@ -1587,8 +1631,7 @@ button.faction-special:disabled {
 
 .board-round-summary button,
 .board-results button,
-.board-decision-area button,
-.board-knowledge-area button {
+.board-decision-area button {
   max-width: 100%;
   padding: 0.45rem 0.8rem;
   border: 1px solid var(--border);
@@ -1600,14 +1643,12 @@ button.faction-special:disabled {
 
 .board-round-summary button:hover:not(:disabled),
 .board-results button:hover:not(:disabled),
-.board-decision-area button:hover:not(:disabled),
-.board-knowledge-area button:hover:not(:disabled) {
+.board-decision-area button:hover:not(:disabled) {
   border-color: var(--accent);
 }
 
 .board-results button:disabled,
-.board-decision-area button:disabled,
-.board-knowledge-area button:disabled {
+.board-decision-area button:disabled {
   color: var(--muted);
   cursor: wait;
 }
@@ -1650,8 +1691,7 @@ button.faction-special:disabled {
   border-color: var(--gold);
 }
 
-.board-decision-area,
-.board-knowledge-area {
+.board-decision-area {
   grid-column: 1 / -1;
   min-width: 0;
 }

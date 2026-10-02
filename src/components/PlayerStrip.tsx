@@ -3,6 +3,7 @@ import type { TargetMode } from '../action/actionRules'
 import { isPlayerChosen, targetsPlayers } from '../action/actionTargeting'
 import type { OpponentOption } from '../action/actionView'
 import type { BoardPlayer } from '../board/boardView'
+import { DeclarationObservation, ExposeObservation } from './BoardKnowledge'
 
 /** Present only while the selected card or special targets players. */
 export interface PlayerTargeting {
@@ -47,6 +48,16 @@ function targetNote(opponent: OpponentOption, isChosen: boolean): string | null 
   return isChosen ? 'Selected target' : null
 }
 
+function PlayerObservations({ player }: { readonly player: BoardPlayer }) {
+  if (player.declarations.length === 0 && player.exposeFacts.length === 0) return null
+  return (
+    <div className="player-observations">
+      {player.declarations.map((entry) => <DeclarationObservation key={`${entry.playerId}-${entry.eraNumber}`} entry={entry} />)}
+      {player.exposeFacts.map((entry) => <ExposeObservation key={`${entry.activistPlayerId}-${entry.targetPlayerId}-${entry.roundNumber}`} entry={entry} />)}
+    </div>
+  )
+}
+
 export function PlayerStrip({ players, targeting = null }: PlayerStripProps) {
   const activeTargeting = targeting && targetsPlayers(targeting.targetMode) ? targeting : null
   const list = (
@@ -58,6 +69,7 @@ export function PlayerStrip({ players, targeting = null }: PlayerStripProps) {
           return (
             <li key={player.playerId} className={className}>
               <PlayerContent player={player} note={null} />
+              <PlayerObservations player={player} />
             </li>
           )
         }
@@ -73,6 +85,7 @@ export function PlayerStrip({ players, targeting = null }: PlayerStripProps) {
             >
               <PlayerContent player={player} note={targetNote(opponent, isChosen)} />
             </button>
+            <PlayerObservations player={player} />
           </li>
         )
       })}

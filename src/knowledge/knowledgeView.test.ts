@@ -230,6 +230,7 @@ describe('selectKnowledgeView', () => {
         targetPlayerName: 'Eli',
         roundNumber: 2,
         signatureCardName: 'Swing',
+        signatureEventId: 'event-1',
         signatureEventTitle: 'The Delegate Arrives',
         behaviorChanged: false,
       },

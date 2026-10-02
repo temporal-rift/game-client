@@ -7,7 +7,6 @@ import { AppShell } from '../components/AppShell'
 import { useDeclaration } from '../declaration/useDeclaration'
 import { useGameState } from '../game/useGameState'
 import { useHandSelection } from '../hand/useHandSelection'
-import { useKnowledge } from '../knowledge/useKnowledge'
 import { useParadoxResolution } from '../paradox/useParadoxResolution'
 import { useResults } from '../results/useResults'
 import { useRoundSummary } from '../round-summary/useRoundSummary'
@@ -36,7 +35,6 @@ function GamePage({ gameId }: { readonly gameId: string }) {
   const handSelection = useHandSelection({ apiBaseUrl, fetchFn, gameState })
   const declaration = useDeclaration({ apiBaseUrl, fetchFn, gameState })
   const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState })
-  const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
   const board = useMemo(() => (gameState.state ? toBoardView(gameState.state, ownPlayerId) : null), [gameState.state, ownPlayerId])
 
@@ -66,7 +64,6 @@ function GamePage({ gameId }: { readonly gameId: string }) {
         action={isLobbyGame ? action : null}
         paradox={isLobbyGame ? paradox : null}
         declaration={isLobbyGame ? declaration : null}
-        knowledge={isLobbyGame ? knowledge : null}
         roundSummary={roundSummary}
         results={results}
         ownPlayerId={ownPlayerId}
