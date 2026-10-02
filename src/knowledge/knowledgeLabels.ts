@@ -17,13 +17,17 @@ export function revealedKnowledgeLabel(entry: RevealedKnowledgeEntry): { readonl
         label: `Scan · ${entry.eventTitle}`,
         detail: entry.outcomes.map((outcome) => `${outcome.outcomeDescription}: ${probabilityLabel(outcome)}`).join(' · '),
       }
-    case 'INFLUENCE':
+    case 'INFLUENCE': {
+      const influencerNames = entry.influencers.map((influencer) => (
+        influencer.usedMimic ? `${influencer.playerName} (Revisionist via Mimic)` : influencer.playerName
+      )).join(', ')
       return {
         label: `Trace · ${entry.eventTitle}`,
         detail: entry.influencers.length > 0
-          ? `Influenced by ${entry.influencers.map((influencer) => influencer.usedMimic ? `${influencer.playerName} (Revisionist via Mimic)` : influencer.playerName).join(', ')}`
+          ? `Influenced by ${influencerNames}`
           : 'No player influenced this event.',
       }
+    }
     case 'HAND_CARD':
       return {
         label: `Intercept · ${entry.targetPlayerName}`,
