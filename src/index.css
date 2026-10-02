@@ -833,7 +833,7 @@ button.hand-offer-card:disabled:not(.is-selected) {
 .hand-selection-confirm:disabled {
   border-color: #3d4c64;
   background: #202a3a;
-  color: #8490a6;
+  color: var(--text-soft);
   cursor: not-allowed;
 }
 
