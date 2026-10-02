@@ -6,7 +6,8 @@ import type { BoardRoundStatus } from '../board/boardView'
 import { CardIllustration, SpecialIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import type { ParadoxResolutionSession } from '../paradox/useParadoxResolution'
-import { ParadoxDecisionControls, ParadoxDecisionPanel, ParadoxRejectionNotice } from './ParadoxDecision'
+import { RejectionNotice, TargetLines } from './DecisionParts'
+import { ParadoxDecisionControls, ParadoxDecisionPanel } from './ParadoxDecision'
 
 interface ActionRailProps {
   readonly roundStatus: BoardRoundStatus | null
@@ -24,17 +25,6 @@ interface ActionRailProps {
 function ownStateLabel(hasSubmitted: boolean | null): string | null {
   if (hasSubmitted === null) return null
   return hasSubmitted ? 'You have submitted' : 'You have not submitted'
-}
-
-function TargetLines({ label, lines }: { readonly label: string; readonly lines: readonly string[] }) {
-  if (lines.length === 0) return null
-  return (
-    <ul className="decision-targets" aria-label={label}>
-      {lines.map((line) => (
-        <li key={line}>{line}</li>
-      ))}
-    </ul>
-  )
 }
 
 function DisguiseChoice({ selection, onPick }: { readonly selection: ActionSelection; readonly onPick: ActionSubmissionSession['retarget'] }) {
@@ -149,20 +139,6 @@ function DecisionControls({ action, selection }: { readonly action: ActionSubmis
   )
 }
 
-function RejectionNotice({ action }: { readonly action: ActionSubmissionSession }) {
-  if (!action.rejection) return null
-  const keepsSelection = action.draft.kind !== 'none'
-  return (
-    <p className="decision-rejection" role="alert">
-      {action.rejection.message}
-      {keepsSelection && ' Your selection is kept — adjust it and try again.'}{' '}
-      <button type="button" onClick={action.dismissRejection}>
-        Dismiss
-      </button>
-    </p>
-  )
-}
-
 /** The caller's decision for the open window, who has decided (never what), and the window's controls. */
 export function ActionRail({ roundStatus, action, decision, paradox = null, canResolve = false, illustrationSkin }: ActionRailProps) {
   const ownState = roundStatus ? ownStateLabel(roundStatus.hasSubmitted) : null
@@ -195,8 +171,16 @@ export function ActionRail({ roundStatus, action, decision, paradox = null, canR
         )}
         {action && decision && <DecisionControls action={action} selection={decision.selection} />}
         {paradox && canResolve && <ParadoxDecisionControls session={paradox} />}
-        {action && <RejectionNotice action={action} />}
-        {paradox && <ParadoxRejectionNotice session={paradox} />}
+        {action && (
+          <RejectionNotice rejection={action.rejection} keepsSelection={action.draft.kind !== 'none'} onDismiss={action.dismissRejection} />
+        )}
+        {paradox && (
+          <RejectionNotice
+            rejection={paradox.rejection}
+            keepsSelection={paradox.draft.kind !== 'none' && paradox.view.kind === 'open'}
+            onDismiss={paradox.dismissRejection}
+          />
+        )}
       </section>
     </aside>
   )

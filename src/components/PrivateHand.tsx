@@ -1,3 +1,4 @@
+import type { CardGrade, CardType } from '../api/action'
 import type { BoardHandCard } from '../board/boardView'
 import { formatCountdown, useDeadlineCountdown } from '../game/useDeadlineCountdown'
 import type { HandSelectionSession } from '../hand/useHandSelection'
@@ -31,6 +32,33 @@ interface PrivateHandProps {
   readonly resolution?: ResolutionCardControls | null
 }
 
+/** The face every hand, offer and resolution card shares: state, grade, artwork, name and effect. */
+function HandCardFace({
+  state,
+  card,
+  effect,
+  illustrationSkin,
+}: {
+  readonly state: string
+  readonly card: { readonly cardType: CardType; readonly grade: CardGrade; readonly name: string }
+  readonly effect: string
+  readonly illustrationSkin: IllustrationSkin
+}) {
+  return (
+    <>
+      <span className="hand-card-topline">
+        <span className="hand-card-state">{state}</span>
+        <GradeBadge grade={card.grade} />
+      </span>
+      <span className="card-glyph-well">
+        <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
+      </span>
+      <span className="hand-card-name">{card.name}</span>
+      <span className="hand-card-description">{effect}</span>
+    </>
+  )
+}
+
 function ResolutionOffer({ resolution, illustrationSkin }: { readonly resolution: ResolutionCardControls; readonly illustrationSkin: IllustrationSkin }) {
   const { cards, selectedCardInstanceId, disabled, onSelect } = resolution
   return (
@@ -54,15 +82,12 @@ function ResolutionOffer({ resolution, illustrationSkin }: { readonly resolution
                   disabled={disabled}
                   onClick={() => onSelect(card.cardInstanceId)}
                 >
-                  <span className="hand-card-topline">
-                    <span className="hand-card-state">{isSelected ? 'Selected' : 'Eligible'}</span>
-                    <GradeBadge grade={card.grade} />
-                  </span>
-                  <span className="card-glyph-well">
-                    <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
-                  </span>
-                  <span className="hand-card-name">{card.name}</span>
-                  <span className="hand-card-description">{card.effectSummary}</span>
+                  <HandCardFace
+                    state={isSelected ? 'Selected' : 'Eligible'}
+                    card={card}
+                    effect={card.effectSummary}
+                    illustrationSkin={illustrationSkin}
+                  />
                 </button>
               </li>
             )
@@ -126,15 +151,12 @@ function OpenHandOffer({
                 disabled={isSubmitting || (!isSelected && selected.size === view.requiredSelectionCount)}
                 onClick={() => toggleCard(card.cardInstanceId)}
               >
-                <span className="hand-card-topline">
-                  <span className="hand-card-state">{isSelected ? 'Keeping' : 'Offer'}</span>
-                  <GradeBadge grade={card.grade} />
-                </span>
-                <span className="card-glyph-well">
-                  <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
-                </span>
-                <span className="hand-card-name">{card.name}</span>
-                <span className="hand-card-description">{card.effectSummary}</span>
+                <HandCardFace
+                  state={isSelected ? 'Keeping' : 'Offer'}
+                  card={card}
+                  effect={card.effectSummary}
+                  illustrationSkin={illustrationSkin}
+                />
               </button>
             </li>
           )
@@ -187,17 +209,7 @@ export function PrivateHand({ hand, handSelection, illustrationSkin = 'board', a
         {hand.map((card) => {
           const isSelected = action?.selectedCardInstanceId === card.cardInstanceId
           const content = (
-            <>
-              <span className="hand-card-topline">
-                <span className="hand-card-state">{stateLabel(card, isSelected)}</span>
-                <GradeBadge grade={card.grade} />
-              </span>
-              <span className="card-glyph-well">
-                <CardIllustration cardType={card.cardType} skin={illustrationSkin} />
-              </span>
-              <span className="hand-card-name">{card.name}</span>
-              <span className="hand-card-description">{card.effect}</span>
-            </>
+            <HandCardFace state={stateLabel(card, isSelected)} card={card} effect={card.effect} illustrationSkin={illustrationSkin} />
           )
           return (
             <li key={card.cardInstanceId}>

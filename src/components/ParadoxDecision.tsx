@@ -3,20 +3,10 @@ import { CardIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import type { ParadoxResolutionView } from '../paradox/paradoxView'
 import type { ParadoxResolutionSession } from '../paradox/useParadoxResolution'
+import { TargetLines } from './DecisionParts'
 
 type PhaseView = Exclude<ParadoxResolutionView, { readonly kind: 'unavailable' }>
 type OpenPhaseView = Extract<ParadoxResolutionView, { readonly kind: 'open' }>
-
-function TargetLines({ label, lines }: { readonly label: string; readonly lines: readonly string[] }) {
-  if (lines.length === 0) return null
-  return (
-    <ul className="decision-targets" aria-label={label}>
-      {lines.map((line) => (
-        <li key={line}>{line}</li>
-      ))}
-    </ul>
-  )
-}
 
 function OpenParadoxes({ view }: { readonly view: PhaseView }) {
   if (view.paradoxes.length === 0) return null
@@ -130,19 +120,5 @@ export function ParadoxDecisionControls({ session }: { readonly session: Paradox
       </div>
       <p className="decision-rule">One resolution card or a pass this phase</p>
     </div>
-  )
-}
-
-export function ParadoxRejectionNotice({ session }: { readonly session: ParadoxResolutionSession }) {
-  if (!session.rejection) return null
-  const keepsSelection = session.draft.kind !== 'none' && session.view.kind === 'open'
-  return (
-    <p className="decision-rejection" role="alert">
-      {session.rejection.message}
-      {keepsSelection && ' Your selection is kept — adjust it and try again.'}{' '}
-      <button type="button" onClick={session.dismissRejection}>
-        Dismiss
-      </button>
-    </p>
   )
 }
