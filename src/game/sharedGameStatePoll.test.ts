@@ -1,7 +1,7 @@
 import { act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useActionSubmission } from '../action/useActionSubmission'
-import { useKnowledge } from '../knowledge/useKnowledge'
+import { toBoardView } from '../board/boardView'
 import type { GameStateView } from '../api/projection'
 import { gameStatePayload } from '../test/gameStatePayload'
 import { renderHookWithQueries } from '../test/renderWithQueries'
@@ -45,9 +45,9 @@ const BASE_OPTIONS = { apiBaseUrl: 'https://api.example.test', pollIntervalMs: 1
  */
 function useSharedConsumers(perspectiveKey: string, fetchFn: ReturnType<typeof vi.fn>) {
   const gameState = useGameState({ ...BASE_OPTIONS, fetchFn: fetchFn as never, gameId: GAME, perspectiveKey })
-  const knowledge = useKnowledge({ gameState })
+  const board = gameState.state ? toBoardView(gameState.state, uuid('p-1')) : null
   const action = useActionSubmission({ apiBaseUrl: BASE_OPTIONS.apiBaseUrl, fetchFn: fetchFn as never, gameState, ownPlayerId: uuid('p-1') })
-  return { gameState, knowledge, action }
+  return { gameState, board, action }
 }
 
 describe('shared game-state poll across multiple consumers', () => {
@@ -82,8 +82,7 @@ describe('shared game-state poll across multiple consumers', () => {
     if (result.current.action.view.kind === 'open') {
       expect(result.current.action.view.eraNumber).toBe(1)
     }
-    // Knowledge derives from the same resolved state object as action's view.
-    expect(result.current.knowledge.status).toBe('ready')
+    expect(result.current.board?.header.eraNumber).toBe(1)
   })
 
   it('reflects a stalled poll identically across every consumer', async () => {
@@ -93,11 +92,12 @@ describe('shared game-state poll across multiple consumers', () => {
       .mockRejectedValueOnce(new TypeError('network down'))
     const { result } = renderHookWithQueries(() => useSharedConsumers('alice', fetchFn))
     await flush()
-    expect(result.current.knowledge.status).toBe('ready')
+    const loadedBoard = result.current.board
+    expect(loadedBoard).not.toBeNull()
 
     await flush(1000)
     expect(result.current.gameState.status.kind).toBe('stalled')
-    expect(result.current.knowledge.status).toBe('stalled')
+    expect(result.current.board).toEqual(loadedBoard)
   })
 
   it('resets every consumer atomically on a perspective switch', async () => {
@@ -107,13 +107,13 @@ describe('shared game-state poll across multiple consumers', () => {
       { initialProps: { perspectiveKey: 'alice' } },
     )
     await flush()
-    expect(result.current.knowledge.status).toBe('ready')
+    expect(result.current.board?.faction.faction).toBe('ACTIVISTS')
 
     rerender({ perspectiveKey: 'bob' })
 
     // Both consumers must already reflect the reset in this same render, before bob's poll resolves.
     expect(result.current.gameState.state).toBeNull()
-    expect(result.current.knowledge.view.kind).toBe('unavailable')
+    expect(result.current.board).toBeNull()
     expect(result.current.action.view.kind).toBe('unavailable')
   })
 })

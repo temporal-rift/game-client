@@ -5,14 +5,12 @@ import { toBoardView } from '../board/boardView'
 import { FactionIllustration } from '../illustrations/catalog'
 import { AppShell } from '../components/AppShell'
 import { DeclarationPanel } from '../components/DeclarationPanel'
-import { KnowledgePanel } from '../components/KnowledgePanel'
 import { ParadoxResolutionPanel } from '../components/ParadoxResolutionPanel'
 import { ResultsPanel } from '../components/ResultsPanel'
 import { RoundSummaryPanel } from '../components/RoundSummaryPanel'
 import { useDeclaration } from '../declaration/useDeclaration'
 import { useGameState } from '../game/useGameState'
 import { useHandSelection } from '../hand/useHandSelection'
-import { useKnowledge } from '../knowledge/useKnowledge'
 import { useParadoxResolution } from '../paradox/useParadoxResolution'
 import { useResults } from '../results/useResults'
 import { useRoundSummary } from '../round-summary/useRoundSummary'
@@ -41,7 +39,6 @@ function GamePage({ gameId }: { readonly gameId: string }) {
   const handSelection = useHandSelection({ apiBaseUrl, fetchFn, gameState })
   const declaration = useDeclaration({ apiBaseUrl, fetchFn, gameState })
   const paradox = useParadoxResolution({ apiBaseUrl, fetchFn, gameState })
-  const knowledge = useKnowledge({ gameState })
   const roundSummary = useRoundSummary({ gameState })
   const board = useMemo(() => (gameState.state ? toBoardView(gameState.state, ownPlayerId) : null), [gameState.state, ownPlayerId])
 
@@ -94,14 +91,6 @@ function GamePage({ gameId }: { readonly gameId: string }) {
           onClearDraft={paradox.clearDraft}
           onConfirm={() => void paradox.confirm()}
           onDismissRejection={paradox.dismissRejection}
-        />
-      )}
-      {isLobbyGame && (
-        <KnowledgePanel
-          view={knowledge.view}
-          error={knowledge.message}
-          isRefreshing={knowledge.isRefreshing}
-          onRefresh={() => void knowledge.refresh()}
         />
       )}
       {isLobbyGame && <RoundSummaryPanel view={roundSummary} />}

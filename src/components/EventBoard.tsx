@@ -6,6 +6,8 @@ import { EventIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import { BandLabel } from './BandLabel'
 import { CarryOverIcon } from './icons'
+import { DeclarationObservation, ExposeObservation, PrivateKnowledge, PrivateProbability } from './BoardKnowledge'
+import { revealedKnowledgeKey } from '../knowledge/knowledgeLabels'
 
 /** Present only while the selected card or special targets events or their outcomes. */
 export interface EventTargeting {
@@ -34,17 +36,23 @@ const OUTCOME_LIST_SUFFIX: Record<OutcomeRole, string> = {
   target: 'target outcomes',
 }
 
-function bandAgeLabel(observedInRound: number | null): string {
-  return observedInRound === null ? 'No public bands yet' : `Bands from round ${observedInRound}`
-}
-
 function OutcomeContent({ outcome, marker }: { readonly outcome: BoardOutcome; readonly marker: string | null }) {
   return (
     <>
       <span className="outcome-label">{outcome.description}</span>
       {marker && <span className="outcome-marker">{marker}</span>}
-      <BandLabel band={outcome.band} />
+      <span className="outcome-band"><span className="knowledge-scope">Public</span><BandLabel band={outcome.band} /></span>
     </>
+  )
+}
+
+function OutcomeKnowledge({ outcome }: { readonly outcome: BoardOutcome }) {
+  if (outcome.privateProbabilities.length === 0 && outcome.declarations.length === 0) return null
+  return (
+    <div className="outcome-knowledge">
+      {outcome.privateProbabilities.map((entry) => <PrivateProbability key={entry.observedInRound} entry={entry} />)}
+      {outcome.declarations.map((entry) => <DeclarationObservation key={`${entry.playerId}-${entry.eraNumber}`} entry={entry} />)}
+    </div>
   )
 }
 
@@ -60,8 +68,9 @@ function OutcomeList({ event, targeting }: { readonly event: BoardEvent; readonl
     return (
       <ul className="outcome-list" aria-label={`${event.title} outcomes`}>
         {event.outcomes.map((outcome) => (
-          <li key={outcome.outcomeId} className="outcome-row">
-            <OutcomeContent outcome={outcome} marker={null} />
+          <li key={outcome.outcomeId}>
+            <div className="outcome-row"><OutcomeContent outcome={outcome} marker={null} /></div>
+            <OutcomeKnowledge outcome={outcome} />
           </li>
         ))}
       </ul>
@@ -86,6 +95,7 @@ function OutcomeList({ event, targeting }: { readonly event: BoardEvent; readonl
               <span className="outcome-radio" aria-hidden="true" />
               <OutcomeContent outcome={outcome} marker={marker} />
             </button>
+            <OutcomeKnowledge outcome={outcome} />
           </li>
         )
       })}
@@ -131,7 +141,9 @@ export function EventBoard({ events, illustrationSkin = 'board', targeting = nul
               </div>
               <h3>{event.title}</h3>
               <OutcomeList event={event} targeting={activeTargeting} />
-              <p className="event-band-age">{bandAgeLabel(event.bandsObservedInRound)}</p>
+              {event.bandsObservedInRound !== null && <p className="event-band-age">Bands from round {event.bandsObservedInRound}</p>}
+              {event.traceKnowledge.map((entry) => <PrivateKnowledge key={revealedKnowledgeKey(entry)} entry={entry} />)}
+              {event.exposeFacts.map((entry) => <ExposeObservation key={`${entry.activistPlayerId}-${entry.targetPlayerId}-${entry.roundNumber}`} entry={entry} />)}
               {activeTargeting && <p className="event-target-hint">{targetingFooter(event, activeTargeting)}</p>}
             </div>
           </li>
@@ -143,7 +155,7 @@ export function EventBoard({ events, illustrationSkin = 'board', targeting = nul
     <section className="event-board" aria-labelledby="event-board-heading">
       <div className="section-heading-row">
         <h2 id="event-board-heading">The active futures</h2>
-        <span>Public bands · exact weights stay hidden</span>
+        <span>Public bands · earned intel stays private</span>
       </div>
       {activeTargeting ? (
         <fieldset className="target-group" aria-label="Choose a target">

@@ -2,7 +2,7 @@
  * Builds the illustrated board's view from the caller's authoritative,
  * contract-validated game state. Only entitled fields are read: other
  * players' factions appear only once the server reveals them, outcomes carry
- * public bands (never weights), and round status reports who has decided,
+ * public bands and only the caller's entitled Scan weights, and round status reports who has decided,
  * never what anyone submitted.
  */
 
@@ -11,6 +11,15 @@ import type { CardGrade, CardType, Faction, SpecialAction } from '../api/action'
 import { ACTION_ROUNDS_PER_ERA, type ActiveEvent, type GameStateView, type Phase, type PublicBandEvent, type SubmissionProgress } from '../api/projection'
 import { nameFor, playerNameLookup } from '../game/playerNames'
 import { toProbabilityBand, type ProbabilityBand } from '../game/publicBands'
+import { selectKnowledgeView, type DeclarationEntry, type ExposeFactEntry, type KnowledgeView, type RevealedKnowledgeEntry, type RevealedProbabilityOutcome } from '../knowledge/knowledgeView'
+
+type ReadyKnowledge = Extract<KnowledgeView, { kind: 'ready' }>
+export type BoardTraceKnowledge = Extract<RevealedKnowledgeEntry, { kind: 'INFLUENCE' }>
+
+export interface BoardPrivateProbability extends RevealedProbabilityOutcome {
+  readonly observedInRound: number
+  readonly expiresAtEraEnd: number
+}
 
 export interface BoardHeader {
   readonly eraNumber: number
@@ -27,6 +36,8 @@ export interface BoardPlayer {
   readonly isCurrentPlayer: boolean
   /** Null while the faction is hidden from the caller. */
   readonly factionName: string | null
+  readonly declarations: readonly DeclarationEntry[]
+  readonly exposeFacts: readonly ExposeFactEntry[]
 }
 
 export interface BoardSpecial {
@@ -42,12 +53,15 @@ export interface BoardFaction {
   readonly score: number
   readonly winScoreThreshold: number
   readonly specials: readonly BoardSpecial[]
+  readonly earnedKnowledge: readonly RevealedKnowledgeEntry[]
 }
 
 export interface BoardOutcome {
   readonly outcomeId: string
   readonly description: string
   readonly band: ProbabilityBand
+  readonly privateProbabilities: readonly BoardPrivateProbability[]
+  readonly declarations: readonly DeclarationEntry[]
 }
 
 export interface BoardEvent {
@@ -57,6 +71,8 @@ export interface BoardEvent {
   /** Round whose close produced the shown bands; null while none are published. */
   readonly bandsObservedInRound: number | null
   readonly outcomes: readonly BoardOutcome[]
+  readonly traceKnowledge: readonly BoardTraceKnowledge[]
+  readonly exposeFacts: readonly ExposeFactEntry[]
 }
 
 export interface BoardRoundStatus {
@@ -131,7 +147,7 @@ function headerFrom(state: GameStateView): BoardHeader {
   }
 }
 
-function playersFrom(state: GameStateView, currentPlayerId: string | null): readonly BoardPlayer[] {
+function playersFrom(state: GameStateView, currentPlayerId: string | null, knowledge: ReadyKnowledge): readonly BoardPlayer[] {
   const names = playerNameLookup(state)
   return state.players.map(({ playerId, score, faction }) => {
     const isCurrentPlayer = playerId === currentPlayerId
@@ -142,11 +158,13 @@ function playersFrom(state: GameStateView, currentPlayerId: string | null): read
       score,
       isCurrentPlayer,
       factionName: visibleFaction ? factionDisplayName(visibleFaction) : null,
+      declarations: knowledge.declarations.filter((entry) => entry.playerId === playerId),
+      exposeFacts: knowledge.exposeFacts.filter((entry) => entry.targetPlayerId === playerId),
     }
   })
 }
 
-function factionFrom(state: GameStateView): BoardFaction {
+function factionFrom(state: GameStateView, knowledge: ReadyKnowledge): BoardFaction {
   const faction = state.myFaction ?? null
   const budgets = new Map((state.mySpecialBudgets ?? []).map((budget) => [budget.specialAction, budget]))
   return {
@@ -154,6 +172,7 @@ function factionFrom(state: GameStateView): BoardFaction {
     factionName: faction ? factionDisplayName(faction) : null,
     score: state.myScore,
     winScoreThreshold: state.winScoreThreshold,
+    earnedKnowledge: knowledge.revealedKnowledge,
     specials: faction
       ? (state.mySpecialActions ?? []).map((specialAction) => {
           const budget = budgets.get(specialAction)
@@ -168,11 +187,12 @@ function factionFrom(state: GameStateView): BoardFaction {
   }
 }
 
-function eventsFrom(state: GameStateView): readonly BoardEvent[] {
+function eventsFrom(state: GameStateView, knowledge: ReadyKnowledge): readonly BoardEvent[] {
   const bandsByEvent = new Map<string, PublicBandEvent>((state.publicBands ?? []).map((bands) => [bands.eventId, bands]))
   return state.activeEvents.map(({ eventId, title, carryOverState, outcomes }) => {
     const bands = bandsByEvent.get(eventId)
     const bandByOutcome = new Map((bands?.outcomes ?? []).map(({ outcomeId, band }) => [outcomeId, toProbabilityBand(band)]))
+    const eventKnowledge = knowledge.revealedKnowledge.filter((entry) => entry.kind !== 'HAND_CARD' && entry.eventId === eventId)
     return {
       eventId,
       title,
@@ -182,7 +202,17 @@ function eventsFrom(state: GameStateView): readonly BoardEvent[] {
         outcomeId,
         description,
         band: bandByOutcome.get(outcomeId) ?? 'unknown',
+        privateProbabilities: eventKnowledge.flatMap((entry) => entry.kind === 'PROBABILITY'
+          ? entry.outcomes.filter((outcome) => outcome.outcomeId === outcomeId).map((outcome) => ({
+              ...outcome,
+              observedInRound: entry.observedInRound,
+              expiresAtEraEnd: entry.expiresAtEraEnd,
+            }))
+          : []),
+        declarations: knowledge.declarations.filter((entry) => entry.eventId === eventId && entry.outcomeId === outcomeId),
       })),
+      traceKnowledge: eventKnowledge.filter((entry): entry is BoardTraceKnowledge => entry.kind === 'INFLUENCE'),
+      exposeFacts: knowledge.exposeFacts.filter((entry) => entry.signatureEventId === eventId),
     }
   })
 }
@@ -216,12 +246,13 @@ function handFrom(state: GameStateView): readonly BoardHandCard[] {
 
 /** `currentPlayerId` is the caller's lobby player id, or null when the lobby does not identify it. */
 export function toBoardView(state: GameStateView, currentPlayerId: string | null): BoardView {
+  const knowledge = selectKnowledgeView(state)
   return {
     gameId: state.gameId,
     header: headerFrom(state),
-    players: playersFrom(state, currentPlayerId),
-    faction: factionFrom(state),
-    events: eventsFrom(state),
+    players: playersFrom(state, currentPlayerId, knowledge),
+    faction: factionFrom(state, knowledge),
+    events: eventsFrom(state, knowledge),
     roundStatus: roundStatusFrom(state, currentPlayerId),
     hand: handFrom(state),
   }

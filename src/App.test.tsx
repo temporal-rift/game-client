@@ -196,6 +196,7 @@ describe('App', () => {
       phase: 'ACTION_ROUND_2',
       roundNumber: 2,
       myFaction: 'ERASERS',
+      myRevealedIntel: [{ kind: 'INFLUENCE', eventId: uuid('event-1'), observedInRound: 1, influencerPlayerIds: [], mimicInfluencerPlayerIds: [] }],
       players: [1, 2, 3].map((seat) => ({ playerId: uuid(`p${seat}`), playerName: `player-${seat}`, score: seat, isConnected: true })),
     })
     vi.stubGlobal(
@@ -212,6 +213,10 @@ describe('App', () => {
     expect(await within(players).findByText('You · Erasers')).toBeInTheDocument()
     expect(within(players).getAllByText('Faction hidden')).toHaveLength(2)
     expect(screen.queryByText(/Sample board/)).not.toBeInTheDocument()
+    const knowledge = screen.getByRole('list', { name: 'Your earned knowledge' })
+    expect(knowledge.closest('aside')).toHaveAccessibleName('Your faction')
+    expect(knowledge).toHaveTextContent('Private intel')
+    expect(screen.queryByRole('region', { name: 'Observations and knowledge' })).not.toBeInTheDocument()
   })
 
   it('hosts an open hand selection in the illustrated board hand area', async () => {

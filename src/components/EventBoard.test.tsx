@@ -57,7 +57,7 @@ describe('EventBoard', () => {
     const outcomes = screen.getByRole('list', { name: 'Unobserved Event outcomes' })
     expect(outcomes).toHaveTextContent('Unknown')
     expect(outcomes).not.toHaveTextContent(/\d/)
-    expect(screen.getByText('No public bands yet')).toBeInTheDocument()
+    expect(screen.queryByText('No public bands yet')).not.toBeInTheDocument()
   })
 
   it('offers no target controls while nothing is being targeted', () => {

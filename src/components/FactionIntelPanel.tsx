@@ -4,6 +4,7 @@ import type { BoardFaction, BoardSpecial } from '../board/boardView'
 import { FactionIllustration } from '../illustrations/catalog'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import { FactionEmblem } from './icons'
+import { EarnedKnowledge } from './BoardKnowledge'
 
 /** Present only while the caller can choose an action this round. */
 export interface SpecialActionControls {
@@ -90,6 +91,7 @@ export function FactionIntelPanel({ faction, illustrationSkin = 'board', action 
             ))}
           </ul>
         )}
+        <EarnedKnowledge entries={faction.earnedKnowledge} />
       </section>
     </aside>
   )

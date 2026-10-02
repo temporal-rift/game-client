@@ -316,6 +316,7 @@ a:focus-visible {
 
 .player-strip ul {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
   min-height: 3.75rem;
@@ -518,10 +519,13 @@ a:focus-visible {
 
 .knowledge-card {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 0.25rem;
   padding-top: 0.75rem;
   border-top: 1px solid #323a50;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .knowledge-scope {
@@ -547,6 +551,48 @@ a:focus-visible {
 .knowledge-card small {
   color: #6f7d94;
   font-size: 0.75rem;
+}
+
+.faction-knowledge {
+  margin-top: 1.5rem;
+}
+
+.faction-knowledge .panel-eyebrow {
+  text-align: left;
+}
+
+.knowledge-private .knowledge-scope {
+  color: #b4c8e4;
+}
+
+.knowledge-public .knowledge-scope {
+  color: #d1bd92;
+}
+
+.outcome-band {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 0.15rem;
+}
+
+.outcome-band .knowledge-scope {
+  font-size: 0.6rem;
+}
+
+.outcome-knowledge {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0.65rem 0.6rem;
+  border: 1px solid #30384e;
+  border-top: 0;
+  border-radius: 0 0 0.45rem 0.45rem;
+  background: #171f32;
+}
+
+.player-observations {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .event-board {
