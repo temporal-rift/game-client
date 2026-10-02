@@ -214,6 +214,85 @@ describe('App', () => {
     expect(screen.queryByText(/Sample board/)).not.toBeInTheDocument()
   })
 
+  it('recovers the latest public summary on the board with no gameplay outside it', async () => {
+    rememberLobbyMembership()
+    sessionStorage.setItem('temporal-rift.private.lobbyId', LOBBY)
+    window.history.replaceState(null, '', '/games/' + GAME)
+    const state = gameStatePayload({
+      gameId: GAME, phase: 'ACTION_ROUND_2', roundNumber: 2,
+      players: [{ playerId: P1, playerName: 'Ana', score: 4, isConnected: true }],
+      lastRoundSummary: { roundNumber: 1, actionSummaries: [{ playerId: P1, skipped: false, actionFamily: 'CARD', actionCategory: 'DISRUPTION' }] },
+    })
+    vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED'), (url) => url.endsWith('/state') ? state : null))
+    sdk.client = signedInClient()
+    render(<App />)
+    const board = await screen.findByRole('region', { name: 'Game board' })
+    const summary = await within(board).findByRole('region', { name: 'Last round summary' })
+    expect(summary).toHaveTextContent('Ana · Disruption · Card')
+    expect(board).toContainElement(screen.getByRole('region', { name: 'Observations and knowledge' }))
+    const page = board.closest('.game-page')!
+    expect(Array.from(page.children)).toEqual([screen.getByRole('navigation', { name: 'Game navigation' }), board])
+    expect(page.textContent).not.toMatch(/sample|fixture|Final winners appear here/i)
+    expect(screen.queryByRole('region', { name: 'Final results' })).not.toBeInTheDocument()
+  })
+
+  it('recovers shared published winners and final scores inside the board after reload', async () => {
+    window.history.replaceState(null, '', '/games/' + GAME)
+    const players = [1, 2, 3].map((seat) => ({ playerId: uuid('p' + seat), playerName: 'player-' + seat, score: seat, isConnected: true }))
+    const state = gameStatePayload({
+      gameId: GAME, phase: 'GAME_ENDED', players,
+      result: {
+        endReason: 'WIN_CONDITION_MET', revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC',
+        winners: [{ playerId: P1, faction: 'PROPHETS', winType: 'FACTION_OBJECTIVE' }, { playerId: uuid('p2'), faction: 'ERASERS', winType: 'FACTION_OBJECTIVE' }],
+        finalScores: players.map((player, index) => ({ playerId: player.playerId, score: index === 2 ? 30 : 12 })),
+      },
+    })
+    vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED'), (url) => {
+      if (url.endsWith('/state')) return state
+      if (url.endsWith('/scores/history')) return { gameId: GAME, history: [] }
+      if (url.endsWith('/scores')) return { gameId: GAME, eraNumber: 2, scores: [] }
+      return null
+    }))
+    sdk.client = signedInClient()
+    for (let load = 0; load < 2; load++) {
+      const app = render(<App />)
+      const results = await screen.findByRole('region', { name: 'Final results' })
+      const board = screen.getByRole('region', { name: 'Game board' })
+      expect(board).toContainElement(results)
+      const winners = within(results).getByRole('list', { name: 'Winners' })
+      expect(winners).toHaveTextContent('player-1')
+      expect(winners).toHaveTextContent('player-2')
+      expect(winners).not.toHaveTextContent('player-3')
+      expect(results).toHaveTextContent('Victory')
+      expect(within(results).getByRole('list', { name: 'Final scores' })).toHaveTextContent('30 points')
+      expect(within(results).getByRole('button', { name: 'Refresh results' })).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Your hand' })).not.toBeInTheDocument()
+      app.unmount()
+      queryClient.clear()
+    }
+  })
+
+  it('waits for complete awards on the board and recovers through Refresh results', async () => {
+    window.history.replaceState(null, '', '/games/' + GAME)
+    const state = gameStatePayload({ gameId: GAME, phase: 'GAME_ENDED', revision: 41 })
+    vi.stubGlobal('fetch', lobbyServer(() => lobbyView('STARTED'), (url) => {
+      if (url.endsWith('/state')) return state
+      if (url.endsWith('/scores/history')) return { gameId: GAME, history: [] }
+      if (url.endsWith('/scores')) return { gameId: GAME, eraNumber: 2, scores: [] }
+      return null
+    }))
+    sdk.client = signedInClient()
+    render(<App />)
+    const results = await screen.findByRole('region', { name: 'Final results' })
+    expect(screen.getByRole('region', { name: 'Game board' })).toContainElement(results)
+    expect(within(results).getByRole('status')).toHaveTextContent('being prepared')
+    expect(within(results).queryByRole('list', { name: 'Winners' })).not.toBeInTheDocument()
+    state.revision = 42
+    state.result = { endReason: 'ALL_PLAYERS_ABANDONED', winners: [], finalScores: [], revealBoundary: 'FACTIONS_AND_SCORES_PUBLIC' }
+    await userEvent.click(within(results).getByRole('button', { name: 'Refresh results' }))
+    expect(await within(results).findByText('Every player left the game')).toBeInTheDocument()
+  })
+
   it('hosts an open hand selection in the illustrated board hand area', async () => {
     rememberLobbyMembership()
     sessionStorage.setItem('temporal-rift.private.lobbyId', LOBBY)

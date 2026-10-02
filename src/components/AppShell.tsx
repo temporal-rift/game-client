@@ -8,6 +8,11 @@ import type { HandSelectionSession } from '../hand/useHandSelection'
 import type { IllustrationSkin } from '../illustrations/catalogData'
 import type { ParadoxResolutionView } from '../paradox/paradoxView'
 import type { ParadoxResolutionSession } from '../paradox/useParadoxResolution'
+import type { ResultsSession } from '../results/useResults'
+import type { RoundSummaryView } from '../round-summary/roundSummaryView'
+import { BoardDecisionAreas, type BoardDecisionSessions } from './BoardDecisionAreas'
+import { BoardRoundSummary } from './BoardRoundSummary'
+import { ResultsPanel } from './ResultsPanel'
 import { ActionRail } from './ActionRail'
 import { EventBoard, type EventParadoxMarking, type EventTargeting } from './EventBoard'
 import { FactionIntelPanel, type SpecialActionControls } from './FactionIntelPanel'
@@ -15,7 +20,7 @@ import { PlayerStrip, type PlayerTargeting } from './PlayerStrip'
 import { PrivateHand, type HandActionControls, type ResolutionCardControls } from './PrivateHand'
 import { RiftMark } from './icons'
 
-interface AppShellProps {
+interface AppShellProps extends BoardDecisionSessions {
   /** Null until a participant state has been loaded for this game. */
   readonly view: BoardView | null
   readonly status: GameStateStatus
@@ -24,6 +29,9 @@ interface AppShellProps {
   readonly illustrationSkin?: IllustrationSkin
   /** The caller's action-round session; null on a game page without the caller's own seat. */
   readonly action?: ActionSubmissionSession | null
+  readonly roundSummary?: RoundSummaryView
+  readonly results?: ResultsSession
+  readonly ownPlayerId?: string | null
   /** The caller's paradox-resolution session; null on a game page without the caller's own seat. */
   readonly paradox?: ParadoxResolutionSession | null
 }
@@ -138,7 +146,10 @@ function DecisionSurface({ surface, children }: { readonly surface: { readonly l
   )
 }
 
-export function AppShell({ view, status, onRetry, handSelection, illustrationSkin = 'board', action = null, paradox = null }: AppShellProps) {
+export function AppShell({
+  view, status, onRetry, handSelection, illustrationSkin = 'board', action = null, paradox = null,
+  roundSummary, results, ownPlayerId = null, declaration, knowledge,
+}: AppShellProps) {
   const failure = status.kind === 'failed' || status.kind === 'stalled' ? status : null
 
   if (!view) {
@@ -157,9 +168,10 @@ export function AppShell({ view, status, onRetry, handSelection, illustrationSki
   const canResolve = paradoxPhase?.kind === 'open' && paradox?.submitPhase.kind !== 'awaiting-projection'
   const paradoxControls = paradox && paradoxPhase ? paradoxControlsFor(paradox, paradoxPhase, canResolve) : null
 
+  const terminal = results && results.view.kind !== 'active'
   const { header } = view
   return (
-    <div className="app-shell">
+    <section className="app-shell" aria-label="Game board">
       <header className="game-header">
         <div className="brand-lockup">
           <RiftMark />
@@ -181,17 +193,24 @@ export function AppShell({ view, status, onRetry, handSelection, illustrationSki
       {failure && <LoadError message={failure.message} onRetry={onRetry} />}
 
       <DecisionSurface surface={surfaceFor(round, paradoxPhase)}>
+        {roundSummary && <BoardRoundSummary view={roundSummary} />}
         <PlayerStrip players={view.players} targeting={controls?.players} />
-        <main className="game-board-layout">
+        <main className={terminal ? 'game-board-layout has-results' : 'game-board-layout'}>
           <FactionIntelPanel faction={view.faction} illustrationSkin={illustrationSkin} action={controls?.specials} />
-          <EventBoard events={view.events} illustrationSkin={illustrationSkin} targeting={controls?.events} paradox={paradoxControls?.events} />
-          <PrivateHand
-            hand={view.hand}
-            handSelection={handSelection}
-            illustrationSkin={illustrationSkin}
-            action={controls?.hand}
-            resolution={paradoxControls?.cards}
-          />
+          {terminal ? (
+            <ResultsPanel view={results.view} ownPlayerId={ownPlayerId} error={results.message} isRefreshing={results.isRefreshing} onRefresh={() => void results.refresh()} />
+          ) : (
+            <>
+              <EventBoard events={view.events} illustrationSkin={illustrationSkin} targeting={controls?.events} paradox={paradoxControls?.events} />
+              <PrivateHand
+                hand={view.hand}
+                handSelection={handSelection}
+                illustrationSkin={illustrationSkin}
+                action={controls?.hand}
+                resolution={paradoxControls?.cards}
+              />
+            </>
+          )}
           <ActionRail
             roundStatus={view.roundStatus}
             action={action}
@@ -200,8 +219,9 @@ export function AppShell({ view, status, onRetry, handSelection, illustrationSki
             canResolve={canResolve}
             illustrationSkin={illustrationSkin}
           />
+          <BoardDecisionAreas declaration={declaration} knowledge={knowledge} />
         </main>
       </DecisionSurface>
-    </div>
+    </section>
   )
 }
