@@ -199,54 +199,34 @@ export async function submitDeclaration(
   )
 }
 
+const ACTION_PROBLEM_MESSAGES: ReadonlyMap<string, string> = new Map(Object.entries({
+  '409-01': 'The round already closed. Reconciling your accepted action.',
+  '409-02': 'You already submitted for this round. Reconciling your accepted action.',
+  '409-03': 'The declaration window already closed. Reconciling your accepted declaration.',
+  '409-04': 'You already declared this era. Reconciling your accepted declaration.',
+  '409-05': 'Expose was already used this era.',
+  '409-06': 'The paradox-resolution phase already closed. Reconciling your accepted choice.',
+  '409-07': 'You already submitted a paradox-resolution choice. Reconciling your accepted choice.',
+  '409-08': 'The hand-selection window already closed. Reconciling your accepted hand.',
+  '409-09': 'Your hand selection is already resolved. Reconciling your accepted hand.',
+  '409-10': 'That special action was already used this era.',
+  '422-01': 'That card is not in your hand.',
+  '422-02': 'You are jammed and cannot use faction specials right now.',
+  '422-03': 'That target is not legal for this action.',
+  '422-04': 'A faction is required to use a special action.',
+  '422-05': 'Your faction does not own that special action.',
+  '422-06': "That target does not belong to the current game's era.",
+  '422-08': 'Momentum is not eligible this era. Choose Rally or wait for the window to close.',
+  '422-09': 'Expose is not available this round, or that player cannot be exposed.',
+  '422-10': 'That card is not eligible during this phase.',
+  '422-11': 'Choose five different cards from your offered hand.',
+  '422-12': 'That card or special cannot be played in this round.',
+}))
+
 /** Maps stable problem codes to player-safe messages; unknown codes keep the server detail. */
 export function actionErrorMessage(error: unknown): string {
   return apiErrorMessage(error, (problem) => {
-    switch (problem.code) {
-      case '409-01':
-        return 'The round already closed. Reconciling your accepted action.'
-      case '409-02':
-        return 'You already submitted for this round. Reconciling your accepted action.'
-      case '409-08':
-        return 'The hand-selection window already closed. Reconciling your accepted hand.'
-      case '409-09':
-        return 'Your hand selection is already resolved. Reconciling your accepted hand.'
-      case '409-06':
-        return 'The paradox-resolution phase already closed. Reconciling your accepted choice.'
-      case '409-07':
-        return 'You already submitted a paradox-resolution choice. Reconciling your accepted choice.'
-      case '409-03':
-        return 'The declaration window already closed. Reconciling your accepted declaration.'
-      case '409-04':
-        return 'You already declared this era. Reconciling your accepted declaration.'
-      case '409-05':
-        return 'Expose was already used this era.'
-      case '409-10':
-        return 'That special action was already used this era.'
-      case '422-01':
-        return 'That card is not in your hand.'
-      case '422-02':
-        return 'You are jammed and cannot use faction specials right now.'
-      case '422-03':
-        return 'That target is not legal for this action.'
-      case '422-04':
-        return 'A faction is required to use a special action.'
-      case '422-05':
-        return 'Your faction does not own that special action.'
-      case '422-06':
-        return "That target does not belong to the current game's era."
-      case '422-09':
-        return 'Expose is not available this round, or that player cannot be exposed.'
-      case '422-10':
-        return 'That card is not eligible during this phase.'
-      case '422-08':
-        return 'Momentum is not eligible this era. Choose Rally or wait for the window to close.'
-      case '422-11':
-        return 'Choose five different cards from your offered hand.'
-      case '422-12':
-        return 'That card or special cannot be played in this round.'
-      default:
-        return problem.status === 404 ? 'Round or target player not found.' : null
-    }
+    const message = problem.code === null ? undefined : ACTION_PROBLEM_MESSAGES.get(problem.code)
+    return message ?? (problem.status === 404 ? 'Round or target player not found.' : null)
   })
 }
