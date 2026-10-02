@@ -97,6 +97,11 @@ function boardControlsFor(action: ActionSubmissionSession, round: OpenActionRoun
   }
 }
 
+function actionDecisionFor(action: ActionSubmissionSession | null, round: OpenActionRoundView | null) {
+  if (!action || !round || round.hasSubmitted || action.submitPhase.kind === 'awaiting-projection') return null
+  return { round, selection: actionSelectionFor(round, action.draft) }
+}
+
 type ParadoxPhaseView = Exclude<ParadoxResolutionView, { readonly kind: 'unavailable' }>
 
 interface ParadoxControls {
@@ -161,8 +166,7 @@ export function AppShell({
   }
 
   const round = action?.view.kind === 'open' ? action.view : null
-  const canAct = action !== null && round !== null && !round.hasSubmitted && action.submitPhase.kind !== 'awaiting-projection'
-  const decision = canAct ? { round, selection: actionSelectionFor(round, action.draft) } : null
+  const decision = actionDecisionFor(action, round)
   const controls = action && decision ? boardControlsFor(action, decision.round, decision.selection) : null
   const paradoxPhase = paradox && paradox.view.kind !== 'unavailable' ? paradox.view : null
   const canResolve = paradoxPhase?.kind === 'open' && paradox?.submitPhase.kind !== 'awaiting-projection'
