@@ -16,7 +16,7 @@ export function BoardDecisionAreas({ declaration }: BoardDecisionSessions) {
         onSelectMode={declaration.selectMode}
         onSelectTarget={declaration.selectTarget}
         onClearDraft={declaration.clearDraft}
-        onSkip={declaration.skip}
+        onSkip={() => void declaration.skip()}
         onConfirm={() => void declaration.confirm()}
         onDismissRejection={declaration.dismissRejection}
       />

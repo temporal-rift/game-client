@@ -127,7 +127,7 @@ function OpenHandOffer({
         <span>{selected.size} / {view.requiredSelectionCount} selected</span>
       </div>
       <p className="hand-selection-deadline">
-        <span>Server deadline</span>
+        <span>Time to choose your hand</span>
         <strong aria-label="Time remaining">{deadline}</strong>
       </p>
       <p className="hand-selection-instruction">Keep exactly {view.requiredSelectionCount} of your seven private cards.</p>

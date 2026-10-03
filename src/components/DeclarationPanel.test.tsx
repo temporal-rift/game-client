@@ -37,6 +37,26 @@ function renderPanel(overrides = {}) {
 }
 
 describe('DeclarationPanel', () => {
+  it('requires a currently offered target for a readable confirmation review', () => {
+    renderPanel({
+      view: { ...view, activeEvents: [] },
+      draft: { kind: 'declaration', mode: 'RALLY', targetEventId: 'event-1', targetOutcomeId: 'outcome-1' },
+    })
+    expect(screen.getByRole('button', { name: 'Confirm declaration' })).toBeDisabled()
+    expect(screen.getByText(/Declaration targets are still being refreshed/)).toBeInTheDocument()
+  })
+  it('names the chosen event and outcome and explains Round 1 consumption before confirmation', () => {
+    renderPanel({ draft: { kind: 'declaration', mode: 'RALLY', targetEventId: 'event-1', targetOutcomeId: 'outcome-1' } })
+    expect(screen.getByText(/Rally · Reactor ignition → Ignition succeeds/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm declaration' })).toBeEnabled()
+  })
+
+  it('permits only retrying a decline after a lost response', () => {
+    renderPanel({ submitPhase: { kind: 'decline-unknown', message: 'Retry safely.' } })
+    expect(screen.getByRole('button', { name: 'Retry decline' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Rally' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Confirm declaration' })).toBeDisabled()
+  })
   it('offers each eligible declaration with a brief explanation and the server countdown', () => {
     renderPanel()
 
@@ -63,11 +83,11 @@ describe('DeclarationPanel', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('requires a target before confirming and offers skip without submitting', () => {
+  it('requires a target before confirming and offers a declaration decline', () => {
     renderPanel({ draft: { kind: 'declaration', mode: 'RALLY', targetEventId: '', targetOutcomeId: '' } })
 
     expect(screen.getByRole('button', { name: 'Confirm declaration' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Skip this window' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Decline declaration' })).toBeEnabled()
   })
 
   it('locks controls while the declaration is being submitted', () => {

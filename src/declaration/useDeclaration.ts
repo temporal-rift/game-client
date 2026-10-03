@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ApiProblemError } from '../api/client'
-import { actionErrorMessage, submitDeclaration, type ActivistDeclarationMode, type AuthenticatedFetchFn } from '../api/action'
+import { actionErrorMessage, declineDeclaration, submitDeclaration, type ActivistDeclarationMode, type AuthenticatedFetchFn } from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
 import { selectDeclarationView, type DeclarationView } from './declarationView'
@@ -20,6 +20,8 @@ export type DeclarationSubmitPhase =
   | { readonly kind: 'submitting' }
   | { readonly kind: 'awaiting-projection' }
   | { readonly kind: 'skipped' }
+  | { readonly kind: 'declining' }
+  | { readonly kind: 'decline-unknown'; readonly message: string }
   | { readonly kind: 'rejected'; readonly message: string; readonly code: string | null }
 
 export interface UseDeclarationOptions {
@@ -35,7 +37,7 @@ export interface DeclarationSession {
   readonly selectMode: (mode: ActivistDeclarationMode) => void
   readonly selectTarget: (targetEventId: string, targetOutcomeId: string) => void
   readonly clearDraft: () => void
-  readonly skip: () => void
+  readonly skip: () => Promise<void>
   readonly confirm: () => Promise<void>
   readonly dismissRejection: () => void
 }
@@ -155,11 +157,31 @@ export function useDeclaration(options: UseDeclarationOptions): DeclarationSessi
     setSubmitPhase({ kind: 'idle' })
   }, [])
 
-  const skip = useCallback(() => {
-    // Skip is a local dismissal only: it performs no submission.
-    setDraft({ kind: 'none' })
-    setSubmitPhase({ kind: 'skipped' })
-  }, [])
+  const { mutateAsync: decline } = useMutation({
+    mutationFn: (coordinates: DeclarationCoordinates) => declineDeclaration(fetchFn, apiBaseUrl, coordinates.gameId, coordinates.eraNumber),
+    onSuccess: async (_result, coordinates) => {
+      if (activeWindowScopeRef.current !== windowKeyFor(coordinates)) return
+      setDraft({ kind: 'none' })
+      setSubmitPhase({ kind: 'skipped' })
+      await gameState.refresh()
+    },
+    onError: async (error, coordinates) => {
+      if (activeWindowScopeRef.current !== windowKeyFor(coordinates)) return
+      await gameState.refresh()
+      if (activeWindowScopeRef.current !== windowKeyFor(coordinates)) return
+      if (error instanceof ApiProblemError) {
+        setSubmitPhase({ kind: 'rejected', message: actionErrorMessage(error), code: error.code })
+      } else {
+        setSubmitPhase({ kind: 'decline-unknown', message: 'The decline response was lost. Retry the decline to recover its result; your Round 1 action is preserved.' })
+      }
+    },
+  })
+
+  const skip = useCallback(async () => {
+    if (view.kind !== 'open' || submitPhase.kind === 'declining' || submitPhase.kind === 'submitting' || submitPhase.kind === 'awaiting-projection') return
+    setSubmitPhase({ kind: 'declining' })
+    await decline({ gameId: view.gameId, eraNumber: view.eraNumber }).catch(() => undefined)
+  }, [decline, submitPhase.kind, view])
 
   const dismissRejection = useCallback(() => {
     setSubmitPhase((previous) => (previous.kind === 'rejected' ? { kind: 'idle' } : previous))

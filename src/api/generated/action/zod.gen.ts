@@ -2,6 +2,13 @@
 
 import * as z from 'zod';
 
+export const zDeclarationDeclineResponse = z.object({
+    gameId: z.uuid(),
+    eraNumber: z.int().gte(1),
+    playerId: z.uuid(),
+    status: z.enum(['DECLINED'])
+});
+
 export const zActionType = z.enum([
     'CARD',
     'SPECIAL',
@@ -153,6 +160,16 @@ export const zSpecialActionRequest = zSubmitActionRequest.and(z.object({
     targetPlayerId: z.uuid().optional(),
     actionType: z.literal('SPECIAL')
 }));
+
+export const zDeclineDeclarationPath = z.object({
+    gameId: z.uuid(),
+    eraNumber: z.int().gte(1)
+});
+
+/**
+ * Decline recorded; the ordinary Round 1 action remains available.
+ */
+export const zDeclineDeclarationResponse = zDeclarationDeclineResponse;
 
 export const zSelectHandBody = zHandSelectionRequest;
 
