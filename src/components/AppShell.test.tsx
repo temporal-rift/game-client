@@ -90,11 +90,11 @@ describe('AppShell', () => {
     expect(screen.getByLabelText('Time remaining')).toHaveTextContent('1:00')
     act(() => vi.advanceTimersByTime(120_000))
     expect(screen.getByLabelText('Time remaining')).toHaveTextContent('0:00')
-    expect(screen.getByText('Action round')).toBeInTheDocument()
+    expect(screen.getByText('Action round · decision limit')).toBeInTheDocument()
 
     const next = liveState({ phase: 'PARADOX_RESOLUTION', roundNumber: 2, deadlines: {} })
     rerender(<AppShell view={toBoardView(next, 'p-me')} status={READY} onRetry={vi.fn()} />)
-    expect(screen.getByText('Paradox resolution')).toBeInTheDocument()
+    expect(screen.getByText('Paradox resolution · decision limit')).toBeInTheDocument()
     expect(screen.queryByLabelText('Time remaining')).not.toBeInTheDocument()
   })
 

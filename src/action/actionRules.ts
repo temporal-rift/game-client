@@ -138,13 +138,13 @@ const CARD_EFFECTS: Readonly<Record<CardType, string>> = {
   SCAN: 'Reveals exact probabilities for the targeted events; higher grades cover more events.',
   TRACE: "Reveals who influenced an event's probability; higher grades cover more events.",
   DECOY: 'Declares a disguise category with no other effect; the round summary shows the disguise.',
-  JAM: "Blocks a targeted player's faction specials for a time.",
+  JAM: "Blocks a targeted player's faction specials next round; they can still play cards.",
   STALL: "Delays an event's resolution.",
-  REDIRECT: "Redirects a targeted player's action to a different target.",
+  REDIRECT: "Redirects a named player's Push, Suppress or Swing to the next eligible outcome in its event.",
   NULLIFY: "Cancels each named player's eligible action this round; grade II names two players.",
-  COLLIDE: 'Brings two outcomes on the same event closer together in probability.',
-  STABILIZE: 'Reactive paradox-resolution card; stabilizes a contested outcome.',
-  DETONATE: 'Reactive paradox-resolution card; forces a contested outcome to resolve.',
+  COLLIDE: 'Equalizes two selected outcome weights on the same event; a surviving leading tie can create a Dead Heat.',
+  STABILIZE: 'Clears an event’s paradoxes without changing its weights, allowing the ordinary weighted draw.',
+  DETONATE: 'If the targeted event cascades, you take the base penalty while other players take the larger penalty.',
 }
 
 export function cardDisplayName(cardType: CardType): string {
@@ -192,14 +192,14 @@ const SPECIAL_EFFECTS: Readonly<Record<SpecialAction, string>> = {
     "Views next era's events privately; against a current-era target it also declares that event's written outcome.",
   SEAL: "Locks a targeted outcome's probability through era end.",
   FULFILLMENT: 'Declares a target event before resolution for doubled score if it resolves as written.',
-  REWRITE: 'Swaps your secret preferred outcome.',
-  MIMIC: "Copies another player's card effect played this round.",
+  REWRITE: 'Declares your secret preferred outcome for this era, replacing any earlier preference.',
+  MIMIC: 'Copies the strongest same-round Push or inward Swing onto your chosen outcome, if one exists.',
   OBSCURE: 'Disguises you next round: Intercepts on you show decoy cards and Traces of that round leave you out.',
   THREAD: "Anchors a not-yet-resolved current-era outcome as your chain's next link.",
   TAPESTRY: "Arms protection for your chain's newest link.",
   REWEAVE: 'Moves your pending chain link to a different unresolved current-era outcome; it still has to win.',
-  RALLY: 'Declared before Action Round 1, not submitted here.',
-  MOMENTUM: 'Declared before Action Round 1, not submitted here.',
+  RALLY: 'Publicly backs an outcome and boosts inward Round 1 transfers onto it; uses your Round 1 action.',
+  MOMENTUM: 'Publicly backs an outcome with a one-time probability boost after a successful prior-era declaration; uses your Round 1 action.',
   EXPOSE: "Reveals a targeted player's Round 1 probability-shifting signature.",
 }
 

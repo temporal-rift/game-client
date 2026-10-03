@@ -13,7 +13,7 @@ export const DECLARATION_MODES: readonly ActivistDeclarationMode[] = ['RALLY', '
  */
 export const DECLARATION_MODE_DESCRIPTIONS: Readonly<Record<ActivistDeclarationMode, string>> = {
   RALLY: 'Publicly back one outcome. Supporting Round 1 transfers onto it are boosted.',
-  MOMENTUM: 'Follow-up declaration available after a successful prior-era declaration.',
+  MOMENTUM: 'Available after a successful prior-era declaration. Gives the outcome a one-time probability boost.',
 }
 
 function isDeclarationMode(value: unknown): value is ActivistDeclarationMode {

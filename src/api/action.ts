@@ -11,6 +11,7 @@
 import * as z from 'zod'
 import { apiClientsFor, apiErrorMessage, callApi, invalidRequestError, type AuthenticatedFetchFn } from './client'
 import {
+  declineDeclaration as declineDeclarationCall,
   recordActivistDeclaration as recordActivistDeclarationCall,
   selectHand as selectHandCall,
   submitAction as submitActionCall,
@@ -57,6 +58,11 @@ export const CARD_GRADES = zEnumsCardGrade.options
 export const CARD_CATEGORIES = zEnumsCardCategory.options
 export const SPECIAL_ACTIONS = zEnumsSpecialAction.options
 export const FACTIONS = zFaction.options
+
+export async function declineDeclaration(fetchFn: AuthenticatedFetchFn, apiBaseUrl: string, gameId: string, eraNumber: number) {
+  const client = apiClientsFor(fetchFn, apiBaseUrl).action
+  return callApi('decline the declaration', () => declineDeclarationCall({ client, path: { gameId, eraNumber } }))
+}
 
 // The projection contract carries some of these as free text (a hand card's `cardType`, the
 // caller's `mySpecialActions` and `myFaction`); these narrow them to the enumerations the action

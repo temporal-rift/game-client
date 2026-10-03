@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { RecordActivistDeclarationData, RecordActivistDeclarationErrors, RecordActivistDeclarationResponses, SelectHandData, SelectHandErrors, SelectHandResponses, SubmitActionData, SubmitActionErrors, SubmitActionResponses, SubmitParadoxResolutionCardData, SubmitParadoxResolutionCardErrors, SubmitParadoxResolutionCardResponses } from './types.gen';
-import { zRecordActivistDeclarationBody, zRecordActivistDeclarationPath, zRecordActivistDeclarationResponse, zSelectHandBody, zSelectHandPath, zSelectHandResponse, zSubmitActionBody, zSubmitActionPath, zSubmitActionResponse2, zSubmitParadoxResolutionCardBody, zSubmitParadoxResolutionCardPath, zSubmitParadoxResolutionCardResponse } from './zod.gen';
+import type { DeclineDeclarationData, DeclineDeclarationErrors, DeclineDeclarationResponses, RecordActivistDeclarationData, RecordActivistDeclarationErrors, RecordActivistDeclarationResponses, SelectHandData, SelectHandErrors, SelectHandResponses, SubmitActionData, SubmitActionErrors, SubmitActionResponses, SubmitParadoxResolutionCardData, SubmitParadoxResolutionCardErrors, SubmitParadoxResolutionCardResponses } from './types.gen';
+import { zDeclineDeclarationPath, zDeclineDeclarationResponse, zRecordActivistDeclarationBody, zRecordActivistDeclarationPath, zRecordActivistDeclarationResponse, zSelectHandBody, zSelectHandPath, zSelectHandResponse, zSubmitActionBody, zSubmitActionPath, zSubmitActionResponse2, zSubmitParadoxResolutionCardBody, zSubmitParadoxResolutionCardPath, zSubmitParadoxResolutionCardResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -20,6 +20,24 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Records the authenticated eligible player's terminal decision not to declare. Declining preserves the
+ * player's ordinary Round 1 action. The declaration phase closes as soon as every eligible player declares
+ * or declines. A repeated accepted decline returns the same acknowledgement, including after phase closure.
+ *
+ */
+export const declineDeclaration = <ThrowOnError extends boolean = false>(options: Options<DeclineDeclarationData, ThrowOnError>): RequestResult<DeclineDeclarationResponses, DeclineDeclarationErrors, ThrowOnError> => (options.client ?? client).post<DeclineDeclarationResponses, DeclineDeclarationErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: zDeclineDeclarationPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zDeclineDeclarationResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/games/{gameId}/eras/{eraNumber}/declarations/decline',
+    ...options
+});
 
 /**
  * Selects the five cards that become the authenticated player's playable hand from that player's open,

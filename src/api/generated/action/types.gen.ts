@@ -4,6 +4,13 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type DeclarationDeclineResponse = {
+    gameId: string;
+    eraNumber: number;
+    playerId: string;
+    status: 'DECLINED';
+};
+
 export type ActionType = 'CARD' | 'SPECIAL' | 'PASS';
 
 export type SpecialAction = EnumsSpecialAction;
@@ -218,6 +225,42 @@ export type ProblemDetail = {
 export type EnumsCardCategory = 'PROBABILITY_SHIFTER' | 'INFORMATION' | 'DISRUPTION' | 'PARADOX';
 
 export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
+
+export type DeclineDeclarationData = {
+    body?: never;
+    path: {
+        gameId: string;
+        eraNumber: number;
+    };
+    query?: never;
+    url: '/api/v1/games/{gameId}/eras/{eraNumber}/declarations/decline';
+};
+
+export type DeclineDeclarationErrors = {
+    /**
+     * Game or participant not found (code 404-01).
+     */
+    404: ProblemDetail;
+    /**
+     * Window closed or expired (code 409-03), or declaration already accepted (code 409-04).
+     */
+    409: ProblemDetail;
+    /**
+     * Player not eligible to declare (code 422-05), faction unavailable (422-04), or jammed (422-02).
+     */
+    422: ProblemDetail;
+};
+
+export type DeclineDeclarationError = DeclineDeclarationErrors[keyof DeclineDeclarationErrors];
+
+export type DeclineDeclarationResponses = {
+    /**
+     * Decline recorded; the ordinary Round 1 action remains available.
+     */
+    202: DeclarationDeclineResponse;
+};
+
+export type DeclineDeclarationResponse = DeclineDeclarationResponses[keyof DeclineDeclarationResponses];
 
 export type SelectHandData = {
     body: HandSelectionRequest;

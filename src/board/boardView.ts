@@ -22,6 +22,7 @@ export interface BoardPrivateProbability extends RevealedProbabilityOutcome {
 }
 
 export interface BoardHeader {
+  readonly phase: Phase | 'DECLARATION'
   readonly eraNumber: number
   readonly phaseLabel: string
   readonly round: { readonly number: number; readonly of: number } | null
@@ -141,6 +142,7 @@ function headerFrom(state: GameStateView): BoardHeader {
   const showsRound = isActionRound(state.phase) || state.phase === 'PARADOX_RESOLUTION'
   return {
     eraNumber: state.eraNumber,
+    phase: isDeclarationWindowOpen(state) ? 'DECLARATION' : state.phase,
     phaseLabel: isDeclarationWindowOpen(state) ? 'Declaration window' : PHASE_LABELS[state.phase],
     round: showsRound && roundNumber !== null ? { number: roundNumber, of: ACTION_ROUNDS_PER_ERA } : null,
     deadline: deadlineFor(state),

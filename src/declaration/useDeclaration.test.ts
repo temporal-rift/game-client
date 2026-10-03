@@ -34,7 +34,7 @@ function json(body: unknown, status = 200): Response {
 function server(onSubmit: () => Promise<Response>) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
-    if (url.endsWith('/declarations') && init?.method === 'POST') return onSubmit()
+    if ((url.endsWith('/declarations') || url.endsWith('/declarations/decline')) && init?.method === 'POST') return onSubmit()
     throw new Error(`Unexpected API call: ${init?.method ?? 'GET'} ${url}`)
   }) as unknown as AuthenticatedFetchFn & ReturnType<typeof vi.fn>
 }
@@ -49,6 +49,22 @@ async function selectAndConfirm(result: { current: ReturnType<typeof useDeclarat
 }
 
 describe('useDeclaration', () => {
+  it('recovers a lost decline response by retrying the same idempotent operation', async () => {
+    let attempts = 0
+    const fetchFn = server(async () => {
+      attempts += 1
+      if (attempts === 1) throw new TypeError('response lost')
+      return json({ gameId: GAME, eraNumber: 2, playerId: uuid('p1'), status: 'DECLINED' }, 202)
+    })
+    const gameState = createGameStateSession({ state: declarationState() })
+    const { result } = renderHookWithQueries(() => useDeclaration({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }))
+    await act(async () => { await result.current.skip() })
+    expect(result.current.submitPhase.kind).toBe('decline-unknown')
+    await act(async () => { await result.current.skip() })
+    expect(result.current.submitPhase.kind).toBe('skipped')
+    expect(attempts).toBe(2)
+  })
+
   it('uses projected eligibility and targets without calling a status endpoint', async () => {
     const fetchFn = server(async () => json({}))
     const gameState = createGameStateSession({ state: declarationState() })
@@ -80,8 +96,8 @@ describe('useDeclaration', () => {
     expect(result.current.draft).toEqual({ kind: 'none' })
   })
 
-  it('treats skip as a local dismissal with no submission', async () => {
-    const fetchFn = server(async () => json({}))
+  it('records a decline on the server and preserves the ordinary Round 1 action', async () => {
+    const fetchFn = server(async () => json({ gameId: GAME, eraNumber: 2, playerId: uuid('p1'), status: 'DECLINED' }, 202))
     const gameState = createGameStateSession({ state: declarationState() })
     const { result } = renderHookWithQueries(() =>
       useDeclaration({ apiBaseUrl: 'https://api.example.test', fetchFn, gameState }),
@@ -89,11 +105,12 @@ describe('useDeclaration', () => {
 
     await waitFor(() => expect(result.current.view.kind).toBe('open'))
     act(() => result.current.selectMode('RALLY'))
-    act(() => result.current.skip())
+    await act(async () => { await result.current.skip() })
 
     expect(result.current.submitPhase).toEqual({ kind: 'skipped' })
     expect(result.current.draft).toEqual({ kind: 'none' })
-    expect(fetchFn).not.toHaveBeenCalled()
+    expect(fetchFn).toHaveBeenCalledOnce()
+    expect(String(fetchFn.mock.calls[0][0])).toContain('/declarations/decline')
   })
 
   it('reconciles an accepted declaration after a lost response from game state only', async () => {
