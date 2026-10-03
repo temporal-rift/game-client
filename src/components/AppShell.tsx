@@ -19,6 +19,8 @@ import { FactionIntelPanel, type SpecialActionControls } from './FactionIntelPan
 import { PlayerStrip, type PlayerTargeting } from './PlayerStrip'
 import { PrivateHand, type HandActionControls, type ResolutionCardControls } from './PrivateHand'
 import { RiftMark } from './icons'
+import { PlayerReference } from './PlayerReference'
+import { PhaseGuide } from './PhaseGuide'
 
 interface AppShellProps extends BoardDecisionSessions {
   /** Null until a participant state has been loaded for this game. */
@@ -52,8 +54,9 @@ function PhaseDeadline({ header }: { readonly header: BoardHeader }) {
   const secondsRemaining = useDeadlineCountdown(header.deadline)
   return (
     <div className="deadline-block">
-      <span>{header.phaseLabel}</span>
+      <span>{header.phaseLabel} · decision limit</span>
       {secondsRemaining !== null && <strong aria-label="Time remaining">{formatCountdown(secondsRemaining)}</strong>}
+      {secondsRemaining !== null && secondsRemaining > 0 && secondsRemaining <= 30 && <small role="status" className="limit-warning">Decision limit approaching</small>}
       <i aria-hidden="true" />
     </div>
   )
@@ -195,7 +198,10 @@ export function AppShell({
         <PhaseDeadline header={header} />
       </header>
       {failure && <LoadError message={failure.message} onRetry={onRetry} />}
+      <PlayerReference faction={view.faction.faction} />
+      {!terminal && <PhaseGuide view={view} handSelection={handSelection} declaration={declaration} decisionPending={action?.submitPhase.kind === 'submitting' || action?.submitPhase.kind === 'awaiting-projection' || paradox?.submitPhase.kind === 'submitting' || paradox?.submitPhase.kind === 'awaiting-projection'} />}
 
+      <BoardDecisionAreas declaration={declaration} />
       <DecisionSurface surface={surfaceFor(round, paradoxPhase)}>
         {roundSummary && <BoardRoundSummary view={roundSummary} />}
         <PlayerStrip players={view.players} targeting={controls?.players} />
@@ -223,7 +229,6 @@ export function AppShell({
             canResolve={canResolve}
             illustrationSkin={illustrationSkin}
           />
-          <BoardDecisionAreas declaration={declaration} />
         </main>
       </DecisionSurface>
     </section>

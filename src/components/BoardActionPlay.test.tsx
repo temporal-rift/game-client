@@ -120,6 +120,21 @@ const handCard = (name: RegExp) => within(screen.getByRole('list', { name: 'Hand
 const confirmButton = () => screen.getByRole('button', { name: 'Confirm action' })
 
 describe('playing an action on the board', () => {
+  it('preserves a chosen action and targets while opening, searching and closing the reference', async () => {
+    const user = userEvent.setup()
+    const { body } = renderBoard()
+    await user.click(handCard(/Swing/))
+    await user.click(within(screen.getByRole('list', { name: 'Reactor ignition source outcomes' })).getByRole('button', { name: /Ignition succeeds/ }))
+    await user.click(within(screen.getByRole('list', { name: 'Reactor ignition target outcomes' })).getByRole('button', { name: /Ignition fails/ }))
+    await user.click(screen.getByRole('button', { name: 'Cards & factions' }))
+    await user.type(screen.getByRole('searchbox'), 'momentum')
+    expect(confirmButton()).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Close cards & factions' }))
+    expect(screen.getByRole('list', { name: 'Chosen targets' })).toHaveTextContent('From: Ignition succeeds')
+    await user.click(confirmButton())
+    expect(body()).toEqual({ actionType: 'CARD', cardInstanceId: SWING, targetEventId: REACTOR, sourceOutcomeId: SUCCEEDS, targetOutcomeId: FAILS })
+  })
+
   it('makes the board the action surface, labelled by era and round', () => {
     renderBoard()
 

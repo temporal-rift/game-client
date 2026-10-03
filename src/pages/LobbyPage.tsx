@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import { LobbyPanel } from '../components/LobbyPanel'
 import { RiftMark } from '../components/icons'
+import { PlayerReference } from '../components/PlayerReference'
 import { useSignedIn } from '../routing/signedInContext'
 
 /**
@@ -44,6 +45,7 @@ export function LobbyPage() {
         <div className="page-bar-actions">{renderSessionBar(null)}</div>
       </header>
       <main className="lobby-card">
+        <PlayerReference />
         <LobbyPanel lobby={lobby} defaultPlayerName={defaultPlayerName} invitedLobbyId={routeLobbyId ?? null} />
       </main>
     </div>

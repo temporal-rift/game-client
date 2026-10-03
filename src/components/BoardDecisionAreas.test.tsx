@@ -24,7 +24,7 @@ describe('BoardDecisionAreas', () => {
     fireEvent.click(within(region).getByRole('button', { name: 'Ignition succeeds' }))
     fireEvent.click(within(region).getByRole('button', { name: 'Confirm declaration' }))
     fireEvent.click(within(region).getByRole('button', { name: 'Clear selection' }))
-    fireEvent.click(within(region).getByRole('button', { name: /skip/i }))
+    fireEvent.click(within(region).getByRole('button', { name: /decline/i }))
     fireEvent.click(within(region).getByRole('button', { name: 'Dismiss' }))
     expect(declaration.selectMode).toHaveBeenCalledWith('RALLY')
     expect(declaration.selectTarget).toHaveBeenCalledWith('event-1', 'outcome-1')

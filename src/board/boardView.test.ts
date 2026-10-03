@@ -38,6 +38,7 @@ describe('toBoardView', () => {
 
     expect(toBoardView(state, 'p-me').header).toEqual({
       eraNumber: 1,
+      phase: 'ACTION_ROUND_2',
       phaseLabel: 'Action round',
       round: { number: 2, of: 3 },
       deadline: '2026-10-02T10:00:00Z',
@@ -198,6 +199,7 @@ describe('toBoardView', () => {
 
     expect(toBoardView(state, 'p-me').header).toEqual({
       eraNumber: 2,
+      phase: 'DECLARATION',
       phaseLabel: 'Declaration window',
       round: null,
       deadline: '2030-01-01T00:01:30Z',
