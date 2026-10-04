@@ -21,6 +21,48 @@ function deadlineLabel(seconds: number | null): string {
   return `${formatCountdown(seconds)} remaining in the declaration window`
 }
 
+function DeclarationTargets({ view, draft, hasSelectedMode, disabled, onSelectTarget }: {
+  readonly view: Extract<DeclarationView, { readonly kind: 'open' }>
+  readonly draft: DeclarationDraft
+  readonly hasSelectedMode: boolean
+  readonly disabled: boolean
+  readonly onSelectTarget: DeclarationPanelProps['onSelectTarget']
+}) {
+  if (!hasSelectedMode) return <p>Choose a mode in step 1 to see the available outcomes.</p>
+  if (view.activeEvents.length === 0) return <output>Declaration targets are still being refreshed. Do not submit until an active event is shown.</output>
+  return (
+    <ul aria-label="Declaration targets">
+      {view.activeEvents.map((event) => (
+        <li key={event.eventId}>
+          <strong>{event.title}</strong>
+          <ul aria-label={`${event.title} outcomes`}>
+            {event.outcomes.map((outcome) => (
+              <li key={outcome.outcomeId}>
+                <button
+                  type="button"
+                  aria-pressed={
+                    draft.kind === 'declaration' && draft.targetOutcomeId === outcome.outcomeId
+                  }
+                  disabled={disabled}
+                  onClick={() => onSelectTarget(event.eventId, outcome.outcomeId)}
+                >
+                  {outcome.description}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function declineButtonLabel(submitPhase: DeclarationSubmitPhase): string {
+  if (submitPhase.kind === 'decline-unknown') return 'Retry decline'
+  if (submitPhase.kind === 'declining') return 'Declining…'
+  return 'Decline declaration'
+}
+
 export function DeclarationPanel({
   view,
   draft,
@@ -89,35 +131,7 @@ export function DeclarationPanel({
         </section>
         <section>
             <h3>2. Choose an event and its outcome</h3>
-            {!selectedMode ? (
-              <p>Choose a mode in step 1 to see the available outcomes.</p>
-            ) : view.activeEvents.length === 0 ? (
-              <output>Declaration targets are still being refreshed. Do not submit until an active event is shown.</output>
-            ) : (
-              <ul aria-label="Declaration targets">
-                {view.activeEvents.map((event) => (
-                  <li key={event.eventId}>
-                    <strong>{event.title}</strong>
-                    <ul aria-label={`${event.title} outcomes`}>
-                      {event.outcomes.map((outcome) => (
-                        <li key={outcome.outcomeId}>
-                          <button
-                            type="button"
-                            aria-pressed={
-                              draft.kind === 'declaration' && draft.targetOutcomeId === outcome.outcomeId
-                            }
-                            disabled={choiceLocked}
-                            onClick={() => onSelectTarget(event.eventId, outcome.outcomeId)}
-                          >
-                            {outcome.description}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <DeclarationTargets view={view} draft={draft} hasSelectedMode={selectedMode !== null} disabled={choiceLocked} onSelectTarget={onSelectTarget} />
         </section>
 
         <section aria-live="polite" aria-atomic="true">
@@ -127,7 +141,7 @@ export function DeclarationPanel({
             {isSubmitting ? 'Submitting…' : 'Confirm declaration'}
           </button>
           <button type="button" disabled={isSubmitting} onClick={onSkip}>
-            {submitPhase.kind === 'decline-unknown' ? 'Retry decline' : submitPhase.kind === 'declining' ? 'Declining…' : 'Decline declaration'}
+            {declineButtonLabel(submitPhase)}
           </button>
           <p>Declining keeps your ordinary Round 1 action available. The phase can finish once its declaration decisions are complete.</p>
           {draft.kind !== 'none' && (
