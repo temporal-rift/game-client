@@ -94,8 +94,18 @@ describe('AppShell', () => {
 
     const next = liveState({ phase: 'PARADOX_RESOLUTION', roundNumber: 2, deadlines: {} })
     rerender(<AppShell view={toBoardView(next, 'p-me')} status={READY} onRetry={vi.fn()} />)
-    expect(screen.getByText('Paradox resolution · decision limit')).toBeInTheDocument()
+    expect(screen.getByText('Paradox resolution', { selector: '.deadline-block span' })).toBeInTheDocument()
+    expect(screen.queryByText(/· decision limit/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Time remaining')).not.toBeInTheDocument()
+  })
+
+  it('shows the phase without a decision limit in an untimed era end', () => {
+    renderBoard(liveState({ phase: 'ERA_END', roundNumber: null, deadlines: {} }))
+
+    expect(screen.getByText('Era end', { selector: '.deadline-block span' })).toBeInTheDocument()
+    expect(screen.queryByText(/· decision limit/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Time remaining')).not.toBeInTheDocument()
+    expect(screen.queryByText('Decision limit approaching')).not.toBeInTheDocument()
   })
 
   it('shows a loading state and no board content before the first state arrives', () => {
