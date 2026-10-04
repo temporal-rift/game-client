@@ -22,11 +22,11 @@ export function PlayerReference({ faction = null }: { readonly faction?: Faction
           <h2>Learn the cards and factions</h2>
           <p>Keep this guide open while you choose. Your selection stays on the board.</p>
           <p>Each era: keep five of seven cards → optional Activist declaration → three action rounds → resolution. Each action round allows one card, one special, or a pass. A leading probability is a chance, not a guaranteed win.</p>
-          <label className="reference-search">Search cards, factions or abilities
+          <label className="reference-search"><span>Search cards, factions or abilities</span>
             <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           </label>
           {search && <button type="button" onClick={() => setSearch('')}>Clear search</button>}
-          <p role="status">{cards.length} cards · {factions.length} factions</p>
+          <p><output>{cards.length} cards · {factions.length} factions</output></p>
           {cards.length + factions.length === 0 && <p>No matching rules. Try a card, faction or ability name.</p>}
           <div className="reference-grid">
             {cards.map((type) => (

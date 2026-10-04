@@ -296,8 +296,8 @@ a:focus-visible {
 }
 
 .deadline-block strong {
-  color: #ead7b0;
-  font: 400 1.8rem/1 var(--serif);
+  color: #bccbd3;
+  font: 400 1.15rem/1 var(--serif);
   font-variant-numeric: tabular-nums;
 }
 
@@ -972,8 +972,9 @@ button.hand-offer-card:disabled:not(.is-selected) {
 .hand-card-description {
   min-height: 2.2rem;
   margin-top: 0.45rem;
-  color: #a5b4c7;
-  font-size: 0.875rem;
+  color: #d3dfeb;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .action-rail {
@@ -1694,6 +1695,9 @@ button.faction-special:disabled {
 .board-decision-area {
   grid-column: 1 / -1;
   min-width: 0;
+  padding: 1rem;
+  border: 1px solid #405468;
+  border-radius: .7rem;
 }
 
 @media (max-width: 48rem) {
@@ -1785,27 +1789,16 @@ button.faction-special:disabled {
 .phase-next {
   color: #b7c6d4;
 }
-.deadline-block strong {
-  font-size: 1.15rem;
-  color: #bccbd3;
-}
-.hand-card-description {
-  font-size: 1rem;
-  line-height: 1.5;
-  color: #d3dfeb;
-}
+
 .declaration-review {
   padding: .9rem;
   border-left: 3px solid #ecd8a7;
   background: #1d3044;
 }
-.board-decision-area {
-  padding: 1rem;
-  border: 1px solid #405468;
-  border-radius: .7rem;
-}
+
 .board-decision-area p {
   line-height: 1.6;
+  max-width: 80ch;
 }
 .board-decision-area button {
   padding: .6rem .9rem;
@@ -1853,9 +1846,7 @@ button.faction-special:disabled {
   border-color: var(--gold);
   background: #3a3d49;
 }
-.board-decision-area p {
-  max-width: 80ch;
-}
+
 @media (max-width: 60rem) {
   .declaration-steps {
   grid-template-columns: 1fr;
