@@ -54,7 +54,7 @@ function PhaseDeadline({ header }: { readonly header: BoardHeader }) {
   const secondsRemaining = useDeadlineCountdown(header.deadline)
   return (
     <div className="deadline-block">
-      <span>{header.phaseLabel} · decision limit</span>
+      <span>{header.phaseLabel}{header.deadline !== null && ' · decision limit'}</span>
       {secondsRemaining !== null && <strong aria-label="Time remaining">{formatCountdown(secondsRemaining)}</strong>}
       {secondsRemaining !== null && secondsRemaining > 0 && secondsRemaining <= 30 && <small role="status" className="limit-warning">Decision limit approaching</small>}
       <i aria-hidden="true" />
