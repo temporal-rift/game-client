@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   verify:
@@ -22,6 +23,8 @@ jobs:
       - run: npm ci --ignore-scripts
       # Regenerates the API client from the contracts pinned in contracts.json and fails on drift.
       - run: npm run check:api
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run guard:renderer
