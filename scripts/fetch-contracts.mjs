@@ -4,25 +4,31 @@ import { dirname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { unzipSync } from 'fflate'
 
-// Downloads each backend contract jar pinned in contracts.json from Maven Central, verifies it
-// against Central's published SHA-256, and extracts its
+// Downloads each backend contract jar pinned in contracts.json from GitHub Packages, verifies it
+// against the published SHA-256, and extracts its
 // OpenAPI specs into .contracts/<module>/openapi/. The specs are never copied into this repository
 // (see the temporal-rift/apis README): the published artifact is the only source, and the version
 // pinned in contracts.json is the only thing to review when a contract changes.
 const root = fileURLToPath(new URL('..', import.meta.url))
 const GROUP_PATH = 'io/github/temporal-rift'
-const REPOSITORY = process.env.MAVEN_REPOSITORY_URL ?? 'https://repo1.maven.org/maven2'
+const REPOSITORY = process.env.MAVEN_REPOSITORY_URL ?? 'https://maven.pkg.github.com/temporal-rift/apis'
+// GitHub Packages answers 401 without a token even for public packages.
+const TOKEN = process.env.GITHUB_TOKEN
+if (!TOKEN) {
+  throw new Error('GITHUB_TOKEN is not set: GitHub Packages needs a token with read:packages to download contracts.')
+}
+const AUTHORIZATION = `Basic ${Buffer.from(`x-access-token:${TOKEN}`).toString('base64')}`
 const contracts = JSON.parse(readFileSync(join(root, 'contracts.json'), 'utf8'))
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Central answers 429 when a runner shares a busy IP; back off instead of failing the build.
+// The registry answers 429 when a runner shares a busy IP; back off instead of failing the build.
 async function download(url) {
   const delays = [2000, 4000, 8000, 16000]
   for (let attempt = 0; ; attempt += 1) {
     let failure
     try {
-      const response = await fetch(url)
+      const response = await fetch(url, { headers: { Authorization: AUTHORIZATION } })
       if (response.ok) {
         return Buffer.from(await response.arrayBuffer())
       }

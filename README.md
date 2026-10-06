@@ -53,12 +53,14 @@ npm run generate:api # download the pinned contracts and regenerate src/api/gene
 npm run check:api    # the same, then fail if the committed client differs (CI runs this)
 ```
 
-`generate:api` downloads each module's jar at its pinned version from Maven Central
-(`io.github.temporal-rift:{module}:{version}`), verifies it against Central's checksum and extracts its
+`generate:api` downloads each module's jar at its pinned version from GitHub Packages
+(`io.github.temporal-rift:{module}:{version}`), verifies it against the published checksum and extracts its
 `openapi/` specs into the gitignored `.contracts/` folder; the specs are never copied into this repository.
 [`@hey-api/openapi-ts`](https://heyapi.dev) then generates a typed fetch SDK and Zod schemas per module into
 `src/api/generated/`, which is committed so a contract bump shows up as a reviewable diff. Bump a module by
-changing its version in `contracts.json`, running `npm run generate:api` and committing both. Never edit
+changing its version in `contracts.json`, running `npm run generate:api` and committing both. The download needs
+`GITHUB_TOKEN` set to a token with `read:packages` (GitHub Packages requires one even for public packages) and fails
+naming the variable when it is missing; CI passes the workflow token. Never edit
 `src/api/generated/` by hand: `check:api` fails on any difference.
 
 Server state (lobby, game state, scores, paradox status) lives in a [TanStack Query](https://tanstack.com/query)
