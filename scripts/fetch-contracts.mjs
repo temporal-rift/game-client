@@ -12,23 +12,28 @@ import { unzipSync } from 'fflate'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const GROUP_PATH = 'io/github/temporal-rift'
 const REPOSITORY = process.env.MAVEN_REPOSITORY_URL ?? 'https://maven.pkg.github.com/temporal-rift/apis'
-// GitHub Packages answers 401 without a token even for public packages.
-const TOKEN = process.env.GITHUB_TOKEN
-if (!TOKEN) {
-  throw new Error('GITHUB_TOKEN is not set: GitHub Packages needs a token with read:packages to download contracts.')
+
+// GitHub Packages answers 401 without a token even for public packages; only a download needs one, so a run
+// where every contract is already up to date works offline.
+function authorization() {
+  const token = process.env.GITHUB_TOKEN
+  if (!token) {
+    throw new Error('GITHUB_TOKEN is not set: GitHub Packages needs a token with read:packages to download contracts.')
+  }
+  return `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`
 }
-const AUTHORIZATION = `Basic ${Buffer.from(`x-access-token:${TOKEN}`).toString('base64')}`
 const contracts = JSON.parse(readFileSync(join(root, 'contracts.json'), 'utf8'))
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // The registry answers 429 when a runner shares a busy IP; back off instead of failing the build.
 async function download(url) {
+  const headers = { Authorization: authorization() }
   const delays = [2000, 4000, 8000, 16000]
   for (let attempt = 0; ; attempt += 1) {
     let failure
     try {
-      const response = await fetch(url, { headers: { Authorization: AUTHORIZATION } })
+      const response = await fetch(url, { headers })
       if (response.ok) {
         return Buffer.from(await response.arrayBuffer())
       }
