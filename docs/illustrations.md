@@ -4,7 +4,6 @@ The game uses hand-authored, code-native SVG artwork so the catalog art remains 
 
 ## Style references
 
-- [Board reference](../art-refs/board-reference.png) captures the existing navy board, teal and gold linework, and panel composition.
 - [Engraving reference](../art-refs/engraving-reference.svg) is the hand-authored sepia-on-cream etched treatment used by the alternate skin.
 
 ## Authoring and reproducibility
