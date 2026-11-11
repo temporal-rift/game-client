@@ -116,12 +116,75 @@ describe('selectActionRoundView', () => {
     expect(view.specials.map((s) => s.specialAction)).toEqual(['EXPOSE'])
   })
 
-  it('reports jam-driven unavailability for specials from myJammedUntilRound', () => {
-    const state = baseState({ myFaction: 'ERASERS', roundNumber: 1 }, { mySpecialActions: ['ANNIHILATE'], myJammedUntilRound: 1 })
+  it('takes each special’s availability and reason from the server report', () => {
+    const state = baseState(
+      { myFaction: 'ERASERS', roundNumber: 1, mySpecialAvailability: [
+        { specialAction: 'ANNIHILATE', isAvailableThisRound: false, unavailableReason: 'NOT_ELIGIBLE_THIS_ROUND' },
+        { specialAction: 'CORRUPT', isAvailableThisRound: true },
+        { specialAction: 'CASCADE', isAvailableThisRound: true },
+      ] },
+      { mySpecialActions: ['ANNIHILATE', 'CORRUPT', 'CASCADE'] },
+    )
     const view = selectActionRoundView(state)
     if (view.kind !== 'open') throw new Error('expected open view')
-    expect(view.specials[0]?.available).toBe(false)
-    expect(view.specials[0]?.unavailableReason).toMatch(/jammed/i)
+    expect(view.specials).toEqual([
+      expect.objectContaining({ specialAction: 'ANNIHILATE', available: false, unavailableReason: 'Not usable in Action Round 1.' }),
+      expect.objectContaining({ specialAction: 'CORRUPT', available: true, unavailableReason: null }),
+      expect.objectContaining({ specialAction: 'CASCADE', available: true, unavailableReason: null }),
+    ])
+  })
+
+  it('shows the server’s exhaustion reason per special', () => {
+    const state = baseState(
+      { myFaction: 'PROPHETS', mySpecialAvailability: [
+        { specialAction: 'FORESIGHT', isAvailableThisRound: true },
+        { specialAction: 'SEAL', isAvailableThisRound: false, unavailableReason: 'GAME_BUDGET_EXHAUSTED' },
+        { specialAction: 'FULFILLMENT', isAvailableThisRound: false, unavailableReason: 'ERA_BUDGET_EXHAUSTED' },
+      ] },
+      { mySpecialActions: ['FORESIGHT', 'SEAL', 'FULFILLMENT'] },
+    )
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.specials.map(({ specialAction, unavailableReason }) => [specialAction, unavailableReason])).toEqual([
+      ['FORESIGHT', null],
+      ['SEAL', 'No uses left this game.'],
+      ['FULFILLMENT', 'Already used this era.'],
+    ])
+  })
+
+  it('reports every special jammed when the server says so', () => {
+    const state = baseState(
+      { myFaction: 'REVISIONISTS', mySpecialAvailability: [
+        { specialAction: 'REWRITE', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+        { specialAction: 'MIMIC', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+        { specialAction: 'OBSCURE', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+      ] },
+      { mySpecialActions: ['REWRITE', 'MIMIC', 'OBSCURE'] },
+    )
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.specials.every((special) => !special.available && special.unavailableReason === 'You are jammed this round.')).toBe(true)
+  })
+
+  it('enables a special the server reports available even where the old client rule would not', () => {
+    const state = baseState(
+      { myFaction: 'REVISIONISTS', roundNumber: 3, mySpecialAvailability: [
+        { specialAction: 'REWRITE', isAvailableThisRound: true },
+        { specialAction: 'MIMIC', isAvailableThisRound: true },
+        { specialAction: 'OBSCURE', isAvailableThisRound: true },
+      ] },
+      { mySpecialActions: ['REWRITE', 'MIMIC', 'OBSCURE'] },
+    )
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.specials.find((special) => special.specialAction === 'OBSCURE')).toMatchObject({ available: true, unavailableReason: null })
+  })
+
+  it('disables every special when the server reports no availability', () => {
+    const state = baseState({ myFaction: 'ERASERS' }, { mySpecialActions: ['ANNIHILATE', 'CORRUPT', 'CASCADE'] })
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.specials.every((special) => !special.available)).toBe(true)
   })
 
   it('carries remaining-use budgets onto special options', () => {

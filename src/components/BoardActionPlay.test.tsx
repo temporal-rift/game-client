@@ -36,6 +36,11 @@ function roundState(overrides: Partial<GameStateView> = {}): GameStateView {
     roundNumber: 2,
     myFaction: 'ERASERS',
     mySpecialActions: ['ANNIHILATE', 'CORRUPT', 'CASCADE'],
+    mySpecialAvailability: [
+      { specialAction: 'ANNIHILATE', isAvailableThisRound: true },
+      { specialAction: 'CORRUPT', isAvailableThisRound: true },
+      { specialAction: 'CASCADE', isAvailableThisRound: true },
+    ],
     mySpecialBudgets: [],
     myHand: [
       { cardInstanceId: SWING, cardType: 'SWING', grade: 'II', isPlayableThisRound: true },
@@ -203,14 +208,22 @@ describe('playing an action on the board', () => {
   })
 
   it('shows an unavailable card and special with their reasons and does not let them be selected', () => {
-    renderBoard({ initial: roundState({ myJammedUntilRound: 2 }) })
+    renderBoard({
+      initial: roundState({
+        mySpecialAvailability: [
+          { specialAction: 'ANNIHILATE', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+          { specialAction: 'CORRUPT', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+          { specialAction: 'CASCADE', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+        ],
+      }),
+    })
 
     const trace = handCard(/Trace/)
     expect(trace).toBeDisabled()
     expect(trace).toHaveTextContent('Not playable this round')
     const annihilate = within(screen.getByRole('list', { name: 'Faction specials' })).getByRole('button', { name: /Annihilate/ })
     expect(annihilate).toBeDisabled()
-    expect(annihilate).toHaveTextContent('Jammed until round 2.')
+    expect(annihilate).toHaveTextContent('You are jammed this round.')
   })
 
   it('asks a Decoy for a disguise only and an event list card for whole events', async () => {
@@ -248,7 +261,11 @@ describe('playing an action on the board', () => {
   it('still offers Pass when every card and special is unavailable', () => {
     renderBoard({
       initial: roundState({
-        myJammedUntilRound: 3,
+        mySpecialAvailability: [
+          { specialAction: 'ANNIHILATE', isAvailableThisRound: false, unavailableReason: 'ERA_BUDGET_EXHAUSTED' },
+          { specialAction: 'CORRUPT', isAvailableThisRound: false, unavailableReason: 'ERA_BUDGET_EXHAUSTED' },
+          { specialAction: 'CASCADE', isAvailableThisRound: false, unavailableReason: 'ERA_BUDGET_EXHAUSTED' },
+        ],
         myHand: [{ cardInstanceId: TRACE, cardType: 'TRACE', grade: 'I', isPlayableThisRound: false }],
       }),
     })

@@ -135,7 +135,7 @@ export type SubmissionProgress = {
      */
     totalPlayers: number;
     /**
-     * Players who have neither submitted nor passed.
+     * Players who have neither submitted nor passed, in seat order.
      */
     pendingPlayerIds: Array<string>;
 };
@@ -239,6 +239,21 @@ export type SpecialBudget = {
 };
 
 /**
+ * The caller's own availability of one faction special for the current action round.
+ */
+export type SpecialActionAvailability = {
+    specialAction: EnumsSpecialAction;
+    /**
+     * Whether the special can be used in the current action round. Advisory only; submitAction remains authoritative.
+     */
+    isAvailableThisRound: boolean;
+    /**
+     * The reason the special is unavailable this round; non-null only when isAvailableThisRound is false.
+     */
+    unavailableReason?: EnumsSpecialActionUnavailableReason | null;
+};
+
+/**
  * The caller's own cumulative progress toward their faction objective, computed by the owning projection from consumed events. Scoped to the caller alone: no other player's counts, secret picks, or streak state is ever included. Absent until the owner computes it and while the caller has no assigned faction. Thresholds are owner-populated from the effective rules configuration; clients SHALL use the transmitted threshold rather than hard-coding a constant.
  */
 export type ObjectiveProgress = {
@@ -322,9 +337,17 @@ export type PlayerGameStateResponse = {
     myEligibleDeclarationModes?: Array<ActivistDeclarationMode>;
     myScore: number;
     /**
-     * The authenticated player's static set of three faction special actions. Empty until a faction is assigned; availability is governed by game-service rules and is not represented here.
+     * The authenticated player's static set of three faction special actions. Empty until a faction is assigned. Per-round availability is reported separately by mySpecialAvailability.
      */
     mySpecialActions?: Array<EnumsSpecialAction>;
+    /**
+     * The caller's own special-action availability for the current action round. Present only while the phase is ACTION_ROUND_1, ACTION_ROUND_2, or ACTION_ROUND_3 and the caller has an assigned faction; contains exactly that faction's three specials. Advisory only: submitAction remains authoritative, and target-dependent or timeline-service prerequisite checks are not represented. Never carries another participant's availability.
+     */
+    mySpecialAvailability?: [
+        SpecialActionAvailability,
+        SpecialActionAvailability,
+        SpecialActionAvailability
+    ];
     /**
      * Round through which the authenticated player's faction specials are blocked. Null when that player is not jammed; private to that player, cleared after the round passes, and never carried across an era boundary.
      */
@@ -350,7 +373,13 @@ export type PlayerGameStateResponse = {
          */
         emptyReason?: string | null;
     } | null;
+    /**
+     * The current era's unresolved events in reveal order: the order of the era's EventsDrawn events, carried-over events included. Resolving an event removes it without reordering the rest, and the same game always lists its events in the same order.
+     */
     activeEvents: Array<ActiveEvent>;
+    /**
+     * In seat order, the order of the game's GameStarted roster.
+     */
     players: Array<PlayerInGame>;
     /**
      * The most recently completed action round summary, or null before the first round closes.
@@ -458,6 +487,8 @@ export type Faction = EnumsFaction;
 
 export type SpecialAction = EnumsSpecialAction;
 
+export type SpecialActionUnavailableReason = EnumsSpecialActionUnavailableReason;
+
 export type CardCategory = EnumsCardCategory;
 
 export type ActionFamily = EnumsActionFamily;
@@ -537,6 +568,8 @@ export type EnumsFaction = 'ERASERS' | 'PROPHETS' | 'REVISIONISTS' | 'WEAVERS' |
 export type EnumsParadoxType = 'DEAD_HEAT' | 'IMPOSSIBLE_ERASURE' | 'CHAIN_CONFLICT';
 
 export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
+
+export type EnumsSpecialActionUnavailableReason = 'JAMMED' | 'DECLARATION_WINDOW_ONLY' | 'NOT_ELIGIBLE_THIS_ERA' | 'NOT_ELIGIBLE_THIS_ROUND' | 'GAME_BUDGET_EXHAUSTED' | 'ERA_BUDGET_EXHAUSTED';
 
 export type GetGameStateData = {
     body?: never;

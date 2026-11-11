@@ -422,6 +422,26 @@ export const zSpecialBudget = z.object({
     remainingUsesThisGame: z.int().gte(0)
 });
 
+export const zSpecialAction = zEnumsSpecialAction;
+
+export const zEnumsSpecialActionUnavailableReason = z.enum([
+    'JAMMED',
+    'DECLARATION_WINDOW_ONLY',
+    'NOT_ELIGIBLE_THIS_ERA',
+    'NOT_ELIGIBLE_THIS_ROUND',
+    'GAME_BUDGET_EXHAUSTED',
+    'ERA_BUDGET_EXHAUSTED'
+]);
+
+/**
+ * The caller's own availability of one faction special for the current action round.
+ */
+export const zSpecialActionAvailability = z.object({
+    specialAction: zEnumsSpecialAction,
+    isAvailableThisRound: z.boolean(),
+    unavailableReason: zEnumsSpecialActionUnavailableReason.nullish()
+});
+
 export const zPlayerGameStateResponse = z.object({
     gameId: z.uuid(),
     eraNumber: z.int(),
@@ -439,6 +459,11 @@ export const zPlayerGameStateResponse = z.object({
     myEligibleDeclarationModes: z.array(zActivistDeclarationMode).optional(),
     myScore: z.int(),
     mySpecialActions: z.array(zEnumsSpecialAction).optional(),
+    mySpecialAvailability: z.tuple([
+        zSpecialActionAvailability,
+        zSpecialActionAvailability,
+        zSpecialActionAvailability
+    ]).optional(),
     myJammedUntilRound: z.int().nullish(),
     myRevealedIntel: z.array(zRevealedIntel),
     myForesightPreview: z.object({
@@ -459,7 +484,7 @@ export const zPlayerGameStateResponse = z.object({
     chain: zChainState.nullish()
 });
 
-export const zSpecialAction = zEnumsSpecialAction;
+export const zSpecialActionUnavailableReason = zEnumsSpecialActionUnavailableReason;
 
 export const zGetGameStatePath = z.object({
     gameId: z.uuid()

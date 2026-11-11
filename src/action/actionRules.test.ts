@@ -7,8 +7,8 @@ import {
   cardTargetMode,
   FACTION_SPECIALS,
   isDeclarationOnlySpecial,
-  specialActionAvailability,
   specialTargetMode,
+  specialUnavailableReasonLabel,
 } from './actionRules'
 
 describe('cardTargetMode', () => {
@@ -143,51 +143,17 @@ describe('cardTargetListSize', () => {
   })
 })
 
-describe('specialActionAvailability', () => {
-  it('is unavailable for Rally/Momentum regardless of context', () => {
-    const result = specialActionAvailability('RALLY', { roundNumber: 1, myJammedUntilRound: null, budgets: [] })
-    expect(result.available).toBe(false)
+describe('specialUnavailableReasonLabel', () => {
+  it('explains each server-reported reason in player-safe words', () => {
+    expect(specialUnavailableReasonLabel('JAMMED', 1)).toBe('You are jammed this round.')
+    expect(specialUnavailableReasonLabel('DECLARATION_WINDOW_ONLY', 1)).toBe('Only usable in the declaration window.')
+    expect(specialUnavailableReasonLabel('NOT_ELIGIBLE_THIS_ERA', 3)).toBe('Not usable in the final era.')
+    expect(specialUnavailableReasonLabel('GAME_BUDGET_EXHAUSTED', 2)).toBe('No uses left this game.')
+    expect(specialUnavailableReasonLabel('ERA_BUDGET_EXHAUSTED', 2)).toBe('Already used this era.')
   })
 
-  it('is unavailable while jammed through the current round', () => {
-    const result = specialActionAvailability('ANNIHILATE', { roundNumber: 2, myJammedUntilRound: 2, budgets: [] })
-    expect(result.available).toBe(false)
-    expect(result.reason).toMatch(/jammed/i)
-  })
-
-  it('is available once the jammed round has passed', () => {
-    const result = specialActionAvailability('ANNIHILATE', { roundNumber: 3, myJammedUntilRound: 2, budgets: [] })
-    expect(result.available).toBe(true)
-  })
-
-  it('restricts Obscure to Action Rounds 1 and 2', () => {
-    expect(specialActionAvailability('OBSCURE', { roundNumber: 1, myJammedUntilRound: null, budgets: [] }).available).toBe(true)
-    expect(specialActionAvailability('OBSCURE', { roundNumber: 2, myJammedUntilRound: null, budgets: [] }).available).toBe(true)
-    expect(specialActionAvailability('OBSCURE', { roundNumber: 3, myJammedUntilRound: null, budgets: [] })).toEqual({
-      available: false,
-      reason: 'Obscure is not usable in Action Round 3.',
-    })
-  })
-
-  it('restricts Expose to Action Round 2', () => {
-    expect(specialActionAvailability('EXPOSE', { roundNumber: 1, myJammedUntilRound: null, budgets: [] }).available).toBe(false)
-    expect(specialActionAvailability('EXPOSE', { roundNumber: 3, myJammedUntilRound: null, budgets: [] }).available).toBe(false)
-    expect(specialActionAvailability('EXPOSE', { roundNumber: 2, myJammedUntilRound: null, budgets: [] }).available).toBe(true)
-  })
-
-  it('is unavailable once a budgeted special is exhausted for the era', () => {
-    const budgets = [{ specialAction: 'SEAL', remainingUsesThisEra: 0, remainingUsesThisGame: 1 }] as const
-    const result = specialActionAvailability('SEAL', { roundNumber: 1, myJammedUntilRound: null, budgets })
-    expect(result.available).toBe(false)
-    expect(result.reason).toMatch(/no remaining uses/i)
-  })
-
-  it('is available while a budgeted special still has remaining uses this era', () => {
-    const budgets = [{ specialAction: 'SEAL', remainingUsesThisEra: 1, remainingUsesThisGame: 1 }] as const
-    expect(specialActionAvailability('SEAL', { roundNumber: 1, myJammedUntilRound: null, budgets }).available).toBe(true)
-  })
-
-  it('is available for an unbudgeted special with no matching entry', () => {
-    expect(specialActionAvailability('CASCADE', { roundNumber: 1, myJammedUntilRound: null, budgets: [] }).available).toBe(true)
+  it('names the current round for a round-window rejection', () => {
+    expect(specialUnavailableReasonLabel('NOT_ELIGIBLE_THIS_ROUND', 1)).toBe('Not usable in Action Round 1.')
+    expect(specialUnavailableReasonLabel('NOT_ELIGIBLE_THIS_ROUND', 2)).toBe('Not usable in Action Round 2.')
   })
 })
