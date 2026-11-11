@@ -15,6 +15,7 @@ import {
   cardTargetMode,
   FACTION_SPECIALS,
   isDeclarationOnlySpecial,
+  SPECIAL_AVAILABILITY_PENDING_REASON,
   specialDisplayName,
   specialEffectSummary,
   specialTargetMode,
@@ -155,10 +156,11 @@ function specialOptionsFor(
         effectSummary: specialEffectSummary(specialAction),
         targetMode: specialTargetMode(specialAction),
         available,
-        unavailableReason:
-          !available && serverAvailability?.unavailableReason
+        unavailableReason: available
+          ? null
+          : serverAvailability?.unavailableReason
             ? specialUnavailableReasonLabel(serverAvailability.unavailableReason, roundNumber)
-            : null,
+            : SPECIAL_AVAILABILITY_PENDING_REASON,
         remainingUsesThisEra: budget?.remainingUsesThisEra ?? null,
         remainingUsesThisGame: budget?.remainingUsesThisGame ?? null,
       }

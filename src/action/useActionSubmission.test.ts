@@ -12,6 +12,7 @@ const GAME = uuid('game-1')
 const ME = uuid('me')
 const CARD = uuid('card-1')
 const NEXT_CARD = uuid('card-2')
+const DECOY_CARD = uuid('card-decoy')
 const EVT = uuid('evt-1')
 const OUT = uuid('out-1')
 
@@ -83,11 +84,15 @@ describe('useActionSubmission', () => {
       jsonResponse({ gameId: GAME, eraNumber: 2, roundNumber: 1, playerId: ME, status: 'SUBMITTED', roundClosed: false }),
     )
     const fetchFn = fetchMock as unknown as AuthenticatedFetchFn
-    const gameState = createGameStateSession({ state: stateBody() })
+    const gameState = createGameStateSession({
+      state: stateBody({
+        myHand: [{ cardInstanceId: DECOY_CARD, cardType: 'DECOY', grade: 'I', isPlayableThisRound: true }],
+      }),
+    })
 
     const { result } = renderHookWithQueries(() => useActionSubmission({ ...BASE_OPTIONS, fetchFn, gameState }))
 
-    act(() => result.current.selectCard(CARD, { disguiseCategory: 'DISRUPTION' }))
+    act(() => result.current.selectCard(DECOY_CARD, { disguiseCategory: 'DISRUPTION' }))
 
     await act(async () => {
       await result.current.confirm()
@@ -97,7 +102,7 @@ describe('useActionSubmission', () => {
     const postCall = fetchMock.mock.calls[0]
     expect(JSON.parse((postCall[1] as RequestInit).body as string)).toEqual({
       actionType: 'CARD',
-      cardInstanceId: CARD,
+      cardInstanceId: DECOY_CARD,
       disguiseCategory: 'DISRUPTION',
     })
   })
@@ -165,6 +170,46 @@ describe('useActionSubmission', () => {
     })
     act(() => result.current.dismissRejection())
     expect(result.current.rejection).toBeNull()
+  })
+
+  it('clears a selected special when a same-round refresh makes it unavailable', async () => {
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ gameId: GAME, eraNumber: 2, roundNumber: 1, playerId: ME, status: 'SUBMITTED', roundClosed: false }),
+    )
+    const available = stateBody({
+      myFaction: 'REVISIONISTS',
+      mySpecialActions: ['REWRITE', 'MIMIC', 'OBSCURE'],
+      mySpecialAvailability: [
+        { specialAction: 'REWRITE', isAvailableThisRound: true },
+        { specialAction: 'MIMIC', isAvailableThisRound: true },
+        { specialAction: 'OBSCURE', isAvailableThisRound: true },
+      ],
+    })
+    const unavailable = stateBody({
+      revision: 2,
+      myFaction: 'REVISIONISTS',
+      mySpecialActions: ['REWRITE', 'MIMIC', 'OBSCURE'],
+      mySpecialAvailability: [
+        { specialAction: 'REWRITE', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+        { specialAction: 'MIMIC', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+        { specialAction: 'OBSCURE', isAvailableThisRound: false, unavailableReason: 'JAMMED' },
+      ],
+    })
+    const { result, rerender } = renderHookWithQueries(
+      ({ session }) => useActionSubmission({ ...BASE_OPTIONS, fetchFn: fetchFn as unknown as AuthenticatedFetchFn, gameState: session }),
+      { initialProps: { session: createGameStateSession({ state: available }) } },
+    )
+
+    act(() => result.current.selectSpecial('OBSCURE'))
+    expect(result.current.draft).toEqual({ kind: 'special', specialAction: 'OBSCURE', coordinates: {} })
+
+    rerender({ session: createGameStateSession({ state: unavailable }) })
+
+    expect(result.current.draft).toEqual({ kind: 'none' })
+    await act(async () => {
+      await result.current.confirm()
+    })
+    expect(fetchFn).not.toHaveBeenCalled()
   })
 
   it('submits a pass with no card, special or target', async () => {

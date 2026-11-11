@@ -180,11 +180,11 @@ describe('selectActionRoundView', () => {
     expect(view.specials.find((special) => special.specialAction === 'OBSCURE')).toMatchObject({ available: true, unavailableReason: null })
   })
 
-  it('disables every special when the server reports no availability', () => {
+  it('disables every special and explains that availability is pending when the server reports none', () => {
     const state = baseState({ myFaction: 'ERASERS' }, { mySpecialActions: ['ANNIHILATE', 'CORRUPT', 'CASCADE'] })
     const view = selectActionRoundView(state)
     if (view.kind !== 'open') throw new Error('expected open view')
-    expect(view.specials.every((special) => !special.available)).toBe(true)
+    expect(view.specials.every((special) => !special.available && special.unavailableReason === 'Checking availability…')).toBe(true)
   })
 
   it('carries remaining-use budgets onto special options', () => {
