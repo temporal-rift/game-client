@@ -31,6 +31,8 @@ export type {
   PublicBandOutcome,
   PublicDeclaration,
   RevealedIntel,
+  SpecialActionAvailability,
+  SpecialActionUnavailableReason,
   SpecialBudget,
   SubmissionProgress,
 } from './generated/projection'

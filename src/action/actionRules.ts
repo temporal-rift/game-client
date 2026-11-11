@@ -4,12 +4,12 @@
  * specials, and player-safe effect/name labels. These are fixed contract
  * facts (verified against game-service's submission validation), never
  * game-balance magnitudes — those stay server-configured and are never
- * asserted here. Availability (budgets, jam, round windows) is computed
- * separately in `actionView.ts` from server-supplied state, not hardcoded.
+ * asserted here. Availability comes from the server's per-round report in
+ * `actionView.ts`; this module only maps the reported reason to player-safe text.
  */
 
 import type { CardCategory, CardGrade, CardType, Faction, SpecialAction } from '../api/action'
-import type { SpecialBudget } from '../api/projection'
+import type { SpecialActionUnavailableReason } from '../api/projection'
 
 export type { CardCategory } from '../api/action'
 export { CARD_CATEGORIES } from '../api/action'
@@ -211,40 +211,23 @@ export function specialEffectSummary(specialAction: SpecialAction): string {
   return SPECIAL_EFFECTS[specialAction]
 }
 
-export interface SpecialAvailability {
-  readonly available: boolean
-  readonly reason: string | null
-}
-
-export interface SpecialAvailabilityContext {
-  readonly roundNumber: number | null
-  readonly myJammedUntilRound: number | null
-  readonly budgets: readonly SpecialBudget[]
-}
-
 /**
- * Player-safe advisory availability only: server-owned rules (round window,
- * jam, per-era budget) surfaced from state already supplied to this
- * participant. Never the authoritative check — the server still validates
- * and may reject regardless of what this reports.
+ * Player-safe text for a server-reported unavailability reason. The server
+ * owns every availability rule; the client only explains its verdict.
  */
-export function specialActionAvailability(specialAction: SpecialAction, context: SpecialAvailabilityContext): SpecialAvailability {
-  if (isDeclarationOnlySpecial(specialAction)) {
-    return { available: false, reason: 'Declared before Action Round 1, not submitted here.' }
+export function specialUnavailableReasonLabel(reason: SpecialActionUnavailableReason, roundNumber: number): string {
+  switch (reason) {
+    case 'JAMMED':
+      return 'You are jammed this round.'
+    case 'DECLARATION_WINDOW_ONLY':
+      return 'Only usable in the declaration window.'
+    case 'NOT_ELIGIBLE_THIS_ERA':
+      return 'Not usable in the final era.'
+    case 'NOT_ELIGIBLE_THIS_ROUND':
+      return `Not usable in Action Round ${roundNumber}.`
+    case 'GAME_BUDGET_EXHAUSTED':
+      return 'No uses left this game.'
+    case 'ERA_BUDGET_EXHAUSTED':
+      return 'Already used this era.'
   }
-  const { roundNumber, myJammedUntilRound, budgets } = context
-  if (myJammedUntilRound !== null && roundNumber !== null && roundNumber <= myJammedUntilRound) {
-    return { available: false, reason: `Jammed until round ${myJammedUntilRound}.` }
-  }
-  if (specialAction === 'EXPOSE' && roundNumber !== 2) {
-    return { available: false, reason: 'Expose is only usable in Action Round 2.' }
-  }
-  if (specialAction === 'OBSCURE' && roundNumber === 3) {
-    return { available: false, reason: 'Obscure is not usable in Action Round 3.' }
-  }
-  const budget = budgets.find((entry) => entry.specialAction === specialAction)
-  if (budget && budget.remainingUsesThisEra <= 0) {
-    return { available: false, reason: 'No remaining uses this era.' }
-  }
-  return { available: true, reason: null }
 }

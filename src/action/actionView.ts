@@ -5,7 +5,7 @@
  */
 
 import { isCardType, isFaction, isSpecialAction, type ActionCoordinates, type CardGrade, type CardType, type Faction, type SpecialAction } from '../api/action'
-import type { ActiveEvent, GameStateView, MySubmission, PlayerInGame, SpecialBudget } from '../api/projection'
+import type { ActiveEvent, GameStateView, MySubmission, PlayerInGame, SpecialActionAvailability, SpecialBudget } from '../api/projection'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import { describeTargets } from './actionTargeting'
 import {
@@ -15,10 +15,10 @@ import {
   cardTargetMode,
   FACTION_SPECIALS,
   isDeclarationOnlySpecial,
-  specialActionAvailability,
   specialDisplayName,
   specialEffectSummary,
   specialTargetMode,
+  specialUnavailableReasonLabel,
   type TargetMode,
 } from './actionRules'
 
@@ -134,26 +134,31 @@ function opponentOptions(players: readonly PlayerInGame[], ownPlayerId: string |
 function specialOptionsFor(
   faction: Faction | null,
   mySpecialActions: readonly SpecialAction[],
-  roundNumber: number | null,
-  myJammedUntilRound: number | null,
+  availability: readonly SpecialActionAvailability[],
+  roundNumber: number,
   budgets: readonly SpecialBudget[],
 ): readonly SpecialActionOption[] {
   if (!faction) {
     return []
   }
   const owned = new Set(FACTION_SPECIALS[faction])
+  const availabilityBySpecial = new Map(availability.map((entry) => [entry.specialAction, entry]))
   return mySpecialActions
     .filter((specialAction) => owned.has(specialAction) && !isDeclarationOnlySpecial(specialAction))
     .map((specialAction) => {
-      const availability = specialActionAvailability(specialAction, { roundNumber, myJammedUntilRound, budgets })
+      const serverAvailability = availabilityBySpecial.get(specialAction)
+      const available = serverAvailability?.isAvailableThisRound === true
       const budget = budgets.find((entry) => entry.specialAction === specialAction) ?? null
       return {
         specialAction,
         name: specialDisplayName(specialAction),
         effectSummary: specialEffectSummary(specialAction),
         targetMode: specialTargetMode(specialAction),
-        available: availability.available,
-        unavailableReason: availability.reason,
+        available,
+        unavailableReason:
+          !available && serverAvailability?.unavailableReason
+            ? specialUnavailableReasonLabel(serverAvailability.unavailableReason, roundNumber)
+            : null,
         remainingUsesThisEra: budget?.remainingUsesThisEra ?? null,
         remainingUsesThisGame: budget?.remainingUsesThisGame ?? null,
       }
@@ -230,7 +235,13 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
     totalPlayers: progress?.totalPlayers ?? null,
     deadline: state.deadlines?.actionRoundExpiresAt ?? null,
     hand: handOptions(state.myHand),
-    specials: specialOptionsFor(faction, mySpecialActions, state.roundNumber, state.myJammedUntilRound ?? null, state.mySpecialBudgets ?? []),
+    specials: specialOptionsFor(
+      faction,
+      mySpecialActions,
+      state.mySpecialAvailability ?? [],
+      state.roundNumber,
+      state.mySpecialBudgets ?? [],
+    ),
     activeEvents,
     opponents,
   }

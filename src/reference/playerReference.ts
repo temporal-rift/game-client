@@ -33,7 +33,7 @@ export const FACTION_REFERENCE: Readonly<Record<Faction, { readonly goal: string
 }
 
 export const SPECIAL_TIMING = {
-  ANNIHILATE: 'Once per era; select an eligible outcome. A leading erasure can score.',
+  ANNIHILATE: 'From Action Round 2 by default, once per era; select an eligible outcome. A leading erasure can score.',
   CORRUPT: 'Name an opponent this round; inverts their qualifying probability transfer.',
   CASCADE: 'Requires your prior erasure; unavailable in the final era.',
   FORESIGHT: 'Select a current outcome to write it and privately preview next-era events.',
