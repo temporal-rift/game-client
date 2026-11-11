@@ -11,6 +11,7 @@ import {
 } from '../api/action'
 import { hasAcceptedSubmission } from '../game/reconciliation'
 import type { GameStateSession } from '../game/useGameState'
+import { actionSelectionFor } from './actionTargeting'
 import { selectActionRoundView, type ActionRoundView } from './actionView'
 
 export type ActionDraft =
@@ -102,7 +103,10 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
   const [seenRoundKey, setSeenRoundKey] = useState<string | null>(null)
   const shouldResetForNewRound = seenRoundKey !== roundKey
   const shouldResetForAcceptedRound = view.kind === 'open' && view.hasSubmitted && draft.kind !== 'none'
-  if (shouldResetForNewRound || shouldResetForAcceptedRound) {
+  // Availability is server-reported and can change under a same-round refresh:
+  // a card or special that is no longer selectable must not stay confirmable.
+  const shouldResetForUnavailableSelection = view.kind === 'open' && draft.kind !== 'none' && actionSelectionFor(view, draft).choice === null
+  if (shouldResetForNewRound || shouldResetForAcceptedRound || shouldResetForUnavailableSelection) {
     if (shouldResetForNewRound) {
       setSeenRoundKey(roundKey)
     }
@@ -180,7 +184,13 @@ export function useActionSubmission(options: UseActionSubmissionOptions): Action
   })
 
   const confirm = useCallback(async (): Promise<void> => {
-    if (view.kind !== 'open' || view.hasSubmitted || draft.kind === 'none' || submitPhase.kind !== 'idle') {
+    if (
+      view.kind !== 'open' ||
+      view.hasSubmitted ||
+      draft.kind === 'none' ||
+      submitPhase.kind !== 'idle' ||
+      !actionSelectionFor(view, draft).isComplete
+    ) {
       return
     }
     const { gameId, eraNumber, roundNumber } = view

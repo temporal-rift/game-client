@@ -212,6 +212,13 @@ export function specialEffectSummary(specialAction: SpecialAction): string {
 }
 
 /**
+ * Shown while the server has not reported a special's availability for the
+ * open round: the special is not submittable yet, and polling may still deliver
+ * the report.
+ */
+export const SPECIAL_AVAILABILITY_PENDING_REASON = 'Checking availability…'
+
+/**
  * Player-safe text for a server-reported unavailability reason. The server
  * owns every availability rule; the client only explains its verdict.
  */

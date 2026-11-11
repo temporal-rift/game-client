@@ -182,7 +182,7 @@ export function actionSelectionFor(view: OpenActionRoundView, draft: ActionDraft
       return { ...none, choice: { kind: 'pass' }, isComplete: true }
     case 'card': {
       const card = view.hand.find((entry) => entry.cardInstanceId === draft.cardInstanceId)
-      if (!card) return none
+      if (!card || !card.isPlayableThisRound) return none
       const listSize = card.targetListSize ?? 0
       return {
         choice: { kind: 'card', card },
@@ -194,7 +194,7 @@ export function actionSelectionFor(view: OpenActionRoundView, draft: ActionDraft
     }
     case 'special': {
       const special = view.specials.find((entry) => entry.specialAction === draft.specialAction)
-      if (!special) return none
+      if (!special || !special.available) return none
       return {
         choice: { kind: 'special', special },
         targetMode: special.targetMode,

@@ -258,6 +258,17 @@ describe('playing an action on the board', () => {
     expect(screen.queryByRole('button', { name: 'Confirm action' })).not.toBeInTheDocument()
   })
 
+  it('disables specials with a pending explanation until the server reports availability', () => {
+    renderBoard({ initial: roundState({ mySpecialAvailability: undefined }) })
+
+    const specials = within(screen.getByRole('list', { name: 'Faction specials' })).getAllByRole('button')
+    expect(specials).not.toHaveLength(0)
+    for (const special of specials) {
+      expect(special).toBeDisabled()
+      expect(special).toHaveTextContent('Checking availability…')
+    }
+  })
+
   it('still offers Pass when every card and special is unavailable', () => {
     renderBoard({
       initial: roundState({

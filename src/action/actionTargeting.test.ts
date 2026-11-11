@@ -206,8 +206,24 @@ describe('actionSelectionFor', () => {
     expect(actionSelectionFor(view, { kind: 'pass' })).toMatchObject({ choice: { kind: 'pass' }, targetMode: null, isComplete: true })
   })
 
-  it('resolves nothing for no draft or a card no longer in the hand', () => {
+  it('resolves nothing for a card no longer in the hand', () => {
     expect(actionSelectionFor(view, { kind: 'none' }).choice).toBeNull()
     expect(actionSelectionFor(view, { kind: 'card', cardInstanceId: 'gone', coordinates: {} })).toMatchObject({ choice: null, isComplete: false })
+  })
+
+  it('resolves nothing when the server makes the selected card or special unavailable', () => {
+    const unavailableView: OpenActionRoundView = {
+      ...view,
+      hand: [{ ...view.hand[0], isPlayableThisRound: false }],
+      specials: [{ ...view.specials[0], available: false, unavailableReason: 'JAMMED' }],
+    }
+    expect(actionSelectionFor(unavailableView, { kind: 'card', cardInstanceId: 'card-scan', coordinates: { targetEventIds: ['evt-1', 'evt-2'] } })).toMatchObject({
+      choice: null,
+      isComplete: false,
+    })
+    expect(actionSelectionFor(unavailableView, { kind: 'special', specialAction: 'OBSCURE', coordinates: {} })).toMatchObject({
+      choice: null,
+      isComplete: false,
+    })
   })
 })
