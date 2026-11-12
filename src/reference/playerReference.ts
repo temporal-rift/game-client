@@ -25,21 +25,21 @@ export const CARD_REFERENCE: Readonly<Record<CardType, CardReference>> = {
 }
 
 export const FACTION_REFERENCE: Readonly<Record<Faction, { readonly goal: string; readonly scoring: string; readonly example: string }>> = {
-  ERASERS: { goal: 'Remove leading outcomes and disrupt opponents.', scoring: 'Score by annihilating a leading outcome or successfully corrupting an opponent’s transfer. Leading annihilations also advance your faction objective.', example: 'Annihilate an outcome that is leading, rather than a trailing outcome that would earn no annihilation score.' },
+  ERASERS: { goal: 'Remove leading outcomes and disrupt opponents.', scoring: 'Score by annihilating a leading outcome or successfully corrupting an opponent’s transfer. A leading erasure scores only when it changed which outcome won; scoring annihilations also advance your faction objective.', example: 'Annihilate an outcome whose removal changes which outcome wins. A trailing outcome, or a leader whose removal leaves the same winner, earns no annihilation score.' },
   PROPHETS: { goal: 'Write outcomes and help them come true.', scoring: 'Score when an event resolves as written; a successful Fulfillment improves its upside. A different winner costs points. Written resolutions advance your faction objective.', example: 'Use Foresight to write an outcome, then protect its odds. Fulfillment bets on the event’s written outcome, whoever wrote it.' },
-  REVISIONISTS: { goal: 'Make your secret preferred outcome win while concealing your Mimics.', scoring: 'The latest Rewrite is your preference for this era. Its win and successful Mimics earn points; winning eras advance your objective. An untraced Mimic earns a final-era concealment bonus.', example: 'Rewrite names your preferred outcome. A Mimic toward it can help, but a Trace of that round can identify you.' },
+  REVISIONISTS: { goal: 'Make your secret preferred outcome win while concealing your Mimics.', scoring: 'Your first Rewrite of the era is your locked preference and cannot be changed. Rewrite is playable only in Rounds 1 and 2 by default. Its win and successful Mimics earn points; a miss costs points. Winning eras advance your objective. An untraced Mimic earns a final-era concealment bonus.', example: 'Your first Rewrite names your preferred outcome and locks it for the era. A Mimic toward it can help, but a Trace of that round can identify you.' },
   WEAVERS: { goal: 'Build a chain of winning outcomes across successive eras.', scoring: 'A pending link joins your chain only when its exact outcome wins. Confirmed links score; completing the chain is a victory route. An unresolved chain-conflict cascade can break it.', example: 'Thread a live outcome this era. In a later era, add another link; playing Thread repeatedly in one era cannot grow the chain repeatedly.' },
-  ACTIVISTS: { goal: 'Publicly back winning outcomes in consecutive eras.', scoring: 'Rally or Momentum scores when your exact declared outcome wins. Consecutive successful declarations advance your objective; Expose can earn additional points.', example: 'Declare Rally before Round 1 to boost inward transfers onto your chosen outcome during that round. The declaration uses your Round 1 action.' },
+  ACTIVISTS: { goal: 'Publicly back winning outcomes in consecutive eras.', scoring: 'Rally or Momentum scores when your exact declared outcome wins. Consecutive successful declarations advance your objective; Expose earns points only when the revealed signature is on the event of your own declaration that era.', example: 'Declare Rally before Round 1 to boost inward transfers onto your chosen outcome during that round. The declaration uses your Round 1 action.' },
 }
 
 export const SPECIAL_TIMING = {
-  ANNIHILATE: 'From Action Round 2 by default, once per era; select an eligible outcome. A leading erasure can score.',
+  ANNIHILATE: 'From Action Round 2 by default, once per era; select an eligible outcome. A leading erasure scores only when it changed which outcome won.',
   CORRUPT: 'Name an opponent this round; inverts their qualifying probability transfer.',
   CASCADE: 'Requires your prior erasure; unavailable in the final era.',
   FORESIGHT: 'Select a current outcome to write it and privately preview next-era events.',
   SEAL: 'Select an outcome; locks its weight through era end. Remaining uses are shown on your board.',
   FULFILLMENT: 'Select an event before resolution; bets on whichever outcome is written there.',
-  REWRITE: 'Select an outcome; replaces your previous preference for this era.',
+  REWRITE: 'Select an outcome; playable in Action Rounds 1 and 2 by default. Your first Rewrite of the era is locked.',
   MIMIC: 'Select an outcome; copies the strongest same-round Push or inward Swing onto it, if one exists.',
   OBSCURE: 'Rounds 1 and 2; covers the following round of this era. No target.',
   THREAD: 'Select a live current-era outcome; at most one confirmed link per era.',

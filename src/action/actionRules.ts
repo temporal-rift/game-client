@@ -185,14 +185,14 @@ const SPECIAL_NAMES: Readonly<Record<SpecialAction, string>> = {
 }
 
 const SPECIAL_EFFECTS: Readonly<Record<SpecialAction, string>> = {
-  ANNIHILATE: 'Removes a targeted outcome from an event entirely.',
+  ANNIHILATE: 'Removes a targeted outcome from an event entirely. A leading erasure scores only when it changed which outcome won.',
   CORRUPT: "Inverts a targeted player's card played this round.",
   CASCADE: 'Automatically carries an erasure forward into next era.',
   FORESIGHT:
     "Views next era's events privately; against a current-era target it also declares that event's written outcome.",
   SEAL: "Locks a targeted outcome's probability through era end.",
   FULFILLMENT: 'Declares a target event before resolution for doubled score if it resolves as written.',
-  REWRITE: 'Declares your secret preferred outcome for this era, replacing any earlier preference.',
+  REWRITE: 'Declares your secret preferred outcome for this era; your first Rewrite of the era is locked and a miss costs points.',
   MIMIC: 'Copies the strongest same-round Push or inward Swing onto your chosen outcome, if one exists.',
   OBSCURE: 'Disguises you next round: Intercepts on you show decoy cards and Traces of that round leave you out.',
   THREAD: "Anchors a not-yet-resolved current-era outcome as your chain's next link.",
@@ -200,7 +200,7 @@ const SPECIAL_EFFECTS: Readonly<Record<SpecialAction, string>> = {
   REWEAVE: 'Moves your pending chain link to a different unresolved current-era outcome; it still has to win.',
   RALLY: 'Publicly backs an outcome and boosts inward Round 1 transfers onto it; uses your Round 1 action.',
   MOMENTUM: 'Publicly backs an outcome with a one-time probability boost after a successful prior-era declaration; uses your Round 1 action.',
-  EXPOSE: "Reveals a targeted player's Round 1 probability-shifting signature.",
+  EXPOSE: "Reveals a targeted player's Round 1 probability-shifting signature; it scores only when that signature is on the event of your own declaration that era.",
 }
 
 export function specialDisplayName(specialAction: SpecialAction): string {
