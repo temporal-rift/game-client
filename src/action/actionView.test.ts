@@ -180,6 +180,23 @@ describe('selectActionRoundView', () => {
     expect(view.specials.find((special) => special.specialAction === 'OBSCURE')).toMatchObject({ available: true, unavailableReason: null })
   })
 
+  it('follows the server’s Round 3 verdict for Rewrite without a client round rule', () => {
+    const state = baseState(
+      { myFaction: 'REVISIONISTS', phase: 'ACTION_ROUND_3', roundNumber: 3, mySpecialAvailability: [
+        { specialAction: 'REWRITE', isAvailableThisRound: false, unavailableReason: 'NOT_ELIGIBLE_THIS_ROUND' },
+        { specialAction: 'MIMIC', isAvailableThisRound: true },
+        { specialAction: 'OBSCURE', isAvailableThisRound: true },
+      ] },
+      { mySpecialActions: ['REWRITE', 'MIMIC', 'OBSCURE'] },
+    )
+    const view = selectActionRoundView(state)
+    if (view.kind !== 'open') throw new Error('expected open view')
+    expect(view.specials).toContainEqual(
+      expect.objectContaining({ specialAction: 'REWRITE', available: false, unavailableReason: 'Not usable in Action Round 3.' }),
+    )
+    expect(view.specials).toContainEqual(expect.objectContaining({ specialAction: 'MIMIC', available: true, unavailableReason: null }))
+  })
+
   it('disables every special and explains that availability is pending when the server reports none', () => {
     const state = baseState({ myFaction: 'ERASERS' }, { mySpecialActions: ['ANNIHILATE', 'CORRUPT', 'CASCADE'] })
     const view = selectActionRoundView(state)

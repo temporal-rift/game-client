@@ -7,6 +7,7 @@ import {
   cardTargetMode,
   FACTION_SPECIALS,
   isDeclarationOnlySpecial,
+  specialEffectSummary,
   specialTargetMode,
   specialUnavailableReasonLabel,
 } from './actionRules'
@@ -140,6 +141,23 @@ describe('cardTargetListSize', () => {
   it('has no list size for scalar-target cards', () => {
     expect(cardTargetListSize('PUSH', 'II')).toBeNull()
     expect(cardTargetListSize('REDIRECT', 'I')).toBeNull()
+  })
+})
+
+describe('specialEffectSummary', () => {
+  it('describes a Rewrite as a locked commitment with a miss penalty', () => {
+    const summary = specialEffectSummary('REWRITE')
+    expect(summary).toMatch(/first Rewrite of the era is locked/)
+    expect(summary).toMatch(/a miss costs points/)
+    expect(summary).not.toMatch(/replac/i)
+  })
+
+  it('scores Expose only on the event of the Activist’s own declaration', () => {
+    expect(specialEffectSummary('EXPOSE')).toMatch(/only when that signature is on the event of your own declaration that era/)
+  })
+
+  it('scores a leading Annihilate only when it changed the winner', () => {
+    expect(specialEffectSummary('ANNIHILATE')).toMatch(/only when it changed which outcome won/)
   })
 })
 
