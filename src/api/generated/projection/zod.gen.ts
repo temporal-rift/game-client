@@ -120,7 +120,7 @@ export const zSubmissionChoice = z.enum([
  */
 export const zSubmissionTargets = z.object({
     targetEventId: z.uuid().optional(),
-    targetEventIds: z.array(z.uuid()).min(1).max(3).optional(),
+    targetEventIds: z.array(z.uuid()).min(1).max(5).optional(),
     targetOutcomeId: z.uuid().optional(),
     sourceEventId: z.uuid().optional(),
     sourceOutcomeId: z.uuid().optional(),
@@ -360,7 +360,8 @@ export const zFaction = zEnumsFaction;
 export const zEnumsParadoxType = z.enum([
     'DEAD_HEAT',
     'IMPOSSIBLE_ERASURE',
-    'CHAIN_CONFLICT'
+    'CHAIN_CONFLICT',
+    'FATE_CONTRADICTION'
 ]);
 
 /**

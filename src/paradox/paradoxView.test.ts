@@ -49,6 +49,7 @@ describe('selectParadoxResolutionView', () => {
   it.each([
     ['IMPOSSIBLE_ERASURE', 'Impossible Erasure'],
     ['CHAIN_CONFLICT', 'Chain Conflict'],
+    ['FATE_CONTRADICTION', 'Fate Contradiction'],
   ] as const)('names a %s paradox', (type, label) => {
     const view = selectParadoxResolutionView(
       state({

@@ -565,7 +565,7 @@ export type EnumsCardType = 'PUSH' | 'SUPPRESS' | 'SWING' | 'AMPLIFY' | 'INTERCE
 
 export type EnumsFaction = 'ERASERS' | 'PROPHETS' | 'REVISIONISTS' | 'WEAVERS' | 'ACTIVISTS';
 
-export type EnumsParadoxType = 'DEAD_HEAT' | 'IMPOSSIBLE_ERASURE' | 'CHAIN_CONFLICT';
+export type EnumsParadoxType = 'DEAD_HEAT' | 'IMPOSSIBLE_ERASURE' | 'CHAIN_CONFLICT' | 'FATE_CONTRADICTION';
 
 export type EnumsSpecialAction = 'ANNIHILATE' | 'CORRUPT' | 'CASCADE' | 'FORESIGHT' | 'SEAL' | 'FULFILLMENT' | 'REWRITE' | 'MIMIC' | 'OBSCURE' | 'THREAD' | 'TAPESTRY' | 'REWEAVE' | 'RALLY' | 'EXPOSE' | 'MOMENTUM';
 

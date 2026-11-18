@@ -43,6 +43,7 @@ const PARADOX_TYPE_LABELS: Readonly<Record<ParadoxType, string>> = {
   DEAD_HEAT: 'Dead Heat',
   IMPOSSIBLE_ERASURE: 'Impossible Erasure',
   CHAIN_CONFLICT: 'Chain Conflict',
+  FATE_CONTRADICTION: 'Fate Contradiction',
 }
 
 export function paradoxTypeLabel(type: ParadoxType): string {
