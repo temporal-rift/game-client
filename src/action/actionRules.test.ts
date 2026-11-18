@@ -123,24 +123,29 @@ describe('FACTION_SPECIALS', () => {
 })
 
 describe('cardTargetListSize', () => {
-  it('scales Scan to one/two/three events by grade', () => {
-    expect(cardTargetListSize('SCAN', 'I')).toBe(1)
-    expect(cardTargetListSize('SCAN', 'II')).toBe(2)
-    expect(cardTargetListSize('SCAN', 'III')).toBe(3)
+  it('scales Scan to one, two or every active event by grade', () => {
+    expect(cardTargetListSize('SCAN', 'I', 3)).toBe(1)
+    expect(cardTargetListSize('SCAN', 'II', 3)).toBe(2)
+    expect(cardTargetListSize('SCAN', 'III', 3)).toBe(3)
+  })
+
+  it('sizes a grade III Scan to the era\'s five events at five players', () => {
+    expect(cardTargetListSize('SCAN', 'III', 5)).toBe(5)
+    expect(cardTargetListSize('SCAN', 'II', 5)).toBe(2)
   })
 
   it('sizes Nullify to one player at grade I and two at grade II', () => {
-    expect(cardTargetListSize('NULLIFY', 'I')).toBe(1)
-    expect(cardTargetListSize('NULLIFY', 'II')).toBe(2)
+    expect(cardTargetListSize('NULLIFY', 'I', 3)).toBe(1)
+    expect(cardTargetListSize('NULLIFY', 'II', 3)).toBe(2)
   })
 
   it('has no Nullify list size at grade III, which does not exist', () => {
-    expect(cardTargetListSize('NULLIFY', 'III')).toBeNull()
+    expect(cardTargetListSize('NULLIFY', 'III', 3)).toBeNull()
   })
 
   it('has no list size for scalar-target cards', () => {
-    expect(cardTargetListSize('PUSH', 'II')).toBeNull()
-    expect(cardTargetListSize('REDIRECT', 'I')).toBeNull()
+    expect(cardTargetListSize('PUSH', 'II', 3)).toBeNull()
+    expect(cardTargetListSize('REDIRECT', 'I', 3)).toBeNull()
   })
 })
 

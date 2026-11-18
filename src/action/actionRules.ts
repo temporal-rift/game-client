@@ -90,19 +90,20 @@ export const FACTION_SPECIALS: Readonly<Record<Faction, readonly SpecialAction[]
   ACTIVISTS: ['RALLY', 'EXPOSE', 'MOMENTUM'],
 }
 
-/** Scan names one event per grade step: I one, II two, III all three active events. */
-const SCAN_EVENT_COUNT: Readonly<Record<CardGrade, number>> = { I: 1, II: 2, III: 3 }
+/** Scan names one event at grade I and two at grade II; grade III names every active event of the era. */
+const SCAN_EVENT_COUNT: Readonly<Partial<Record<CardGrade, number>>> = { I: 1, II: 2 }
 
 /** Nullify names one opponent at grade I and two distinct opponents at grade II; it has no grade III. */
 const NULLIFY_PLAYER_COUNT: Readonly<Partial<Record<CardGrade, number>>> = { I: 1, II: 2 }
 
 /**
  * How many entries a list-targeting card names at its grade, or null when the
- * card does not target a list or does not exist at that grade.
+ * card does not target a list or does not exist at that grade. An era holds as
+ * many events as players, so a grade III Scan names all `activeEventCount` events.
  */
-export function cardTargetListSize(cardType: CardType, grade: CardGrade): number | null {
+export function cardTargetListSize(cardType: CardType, grade: CardGrade, activeEventCount: number): number | null {
   if (LIST_TARGET_CARD_TYPES.has(cardType)) {
-    return SCAN_EVENT_COUNT[grade]
+    return SCAN_EVENT_COUNT[grade] ?? activeEventCount
   }
   if (PLAYER_LIST_TARGET_CARD_TYPES.has(cardType)) {
     return NULLIFY_PLAYER_COUNT[grade] ?? null
