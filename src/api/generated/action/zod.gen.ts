@@ -121,7 +121,7 @@ export const zCardCategory = zEnumsCardCategory;
 export const zCardActionRequest = zSubmitActionRequest.and(z.intersection(z.unknown(), z.object({
     cardInstanceId: z.uuid(),
     targetEventId: z.uuid().optional(),
-    targetEventIds: z.array(z.uuid()).min(1).max(3).nullish(),
+    targetEventIds: z.array(z.uuid()).min(1).max(5).nullish(),
     sourceOutcomeId: z.uuid().optional(),
     targetOutcomeId: z.uuid().optional(),
     targetPlayerId: z.uuid().optional(),

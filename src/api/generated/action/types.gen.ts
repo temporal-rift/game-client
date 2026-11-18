@@ -52,7 +52,7 @@ export type CardActionRequest = Omit<SubmitActionRequest, 'actionType'> & unknow
      */
     targetEventId?: string;
     /**
-     * A one-to-three item event selection, distinct by convention though not schema-enforced (see below). It must be the sole target mode and cannot be combined with scalar event, player, or outcome targets. game-service validates distinctness and card-specific list semantics after resolving cardInstanceId.
+     * A one-to-five item event selection (an era holds up to five events), distinct by convention though not schema-enforced (see below). It must be the sole target mode and cannot be combined with scalar event, player, or outcome targets. game-service validates distinctness and card-specific list semantics after resolving cardInstanceId.
      */
     targetEventIds?: Array<string> | null;
     /**
@@ -369,8 +369,10 @@ export type SubmitActionErrors = {
      * - Rally or Momentum submitted outside the declaration endpoint (`code: 422-07`)
      * - Expose is not available in this round or its target player is not eligible (`code: 422-09`)
      * - Card type is not eligible during an action round (`code: 422-10`)
-     * - Card or special action cannot be played in this era or round, including Trace in Era 1 Round 1 and
-     * Stall or Cascade in the final era, which has no next era (`code: 422-12`)
+     * - Card or special action cannot be played in this era or round, including Trace in Era 1 Round 1,
+     * Stall or Cascade in the final era, which has no next era, Annihilate before the configured
+     * earliest Annihilate round (Round 2 by default), Rewrite after the configured latest Rewrite round
+     * (Round 2 by default), and Obscure in Round 3 (`code: 422-12`)
      *
      */
     422: ProblemDetail;
