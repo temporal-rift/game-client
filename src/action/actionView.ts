@@ -89,13 +89,13 @@ export type ActionRoundView =
       readonly opponents: readonly OpponentOption[]
     }
 
-function handOptions(hand: GameStateView['myHand']): readonly HandCardOption[] {
+function handOptions(hand: GameStateView['myHand'], activeEventCount: number): readonly HandCardOption[] {
   return hand.flatMap(({ cardInstanceId, cardType, grade, isPlayableThisRound }) => {
     if (!isCardType(cardType)) {
       return []
     }
     const targetMode = cardTargetMode(cardType)
-    const targetListSize = cardTargetListSize(cardType, grade)
+    const targetListSize = cardTargetListSize(cardType, grade, activeEventCount)
     if ((targetMode === 'EVENT_LIST' || targetMode === 'PLAYER_LIST') && targetListSize === null) {
       return []
     }
@@ -236,7 +236,7 @@ export function selectActionRoundView(state: GameStateView | null, ownPlayerId: 
     submittedCount: progress?.submittedCount ?? null,
     totalPlayers: progress?.totalPlayers ?? null,
     deadline: state.deadlines?.actionRoundExpiresAt ?? null,
-    hand: handOptions(state.myHand),
+    hand: handOptions(state.myHand, activeEvents.length),
     specials: specialOptionsFor(
       faction,
       mySpecialActions,
