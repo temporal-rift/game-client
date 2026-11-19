@@ -75,6 +75,13 @@ describe('submitAction', () => {
     expect(bodyOf(fetchFn)).toEqual({ actionType: 'CARD', cardInstanceId: card, disguiseCategory: 'DISRUPTION' })
   })
 
+  it('posts a grade III Scan naming all five events of the era', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(submitted())
+    const targetEventIds = Array.from({ length: 5 }, () => crypto.randomUUID())
+    await submitAction(fetchFn, apiBaseUrl, gameId, 2, 1, { actionType: 'CARD', cardInstanceId: card, targetEventIds })
+    expect(bodyOf(fetchFn)).toEqual({ actionType: 'CARD', cardInstanceId: card, targetEventIds })
+  })
+
   it('posts a no-target special with nothing but its name', async () => {
     const fetchFn = vi.fn().mockResolvedValue(submitted())
     await submitAction(fetchFn, apiBaseUrl, gameId, 2, 1, { actionType: 'SPECIAL', specialAction: 'OBSCURE' })
