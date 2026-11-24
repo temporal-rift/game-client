@@ -132,6 +132,21 @@ function opponentOptions(players: readonly PlayerInGame[], ownPlayerId: string |
   )
 }
 
+function unavailableReasonFor(
+  available: boolean,
+  serverAvailability: SpecialActionAvailability | undefined,
+  roundNumber: number,
+): string | null {
+  if (available) {
+    return null
+  }
+  const unavailableReason = serverAvailability?.unavailableReason
+  if (unavailableReason) {
+    return specialUnavailableReasonLabel(unavailableReason, roundNumber)
+  }
+  return SPECIAL_AVAILABILITY_PENDING_REASON
+}
+
 function specialOptionsFor(
   faction: Faction | null,
   mySpecialActions: readonly SpecialAction[],
@@ -156,11 +171,7 @@ function specialOptionsFor(
         effectSummary: specialEffectSummary(specialAction),
         targetMode: specialTargetMode(specialAction),
         available,
-        unavailableReason: available
-          ? null
-          : serverAvailability?.unavailableReason
-            ? specialUnavailableReasonLabel(serverAvailability.unavailableReason, roundNumber)
-            : SPECIAL_AVAILABILITY_PENDING_REASON,
+        unavailableReason: unavailableReasonFor(available, serverAvailability, roundNumber),
         remainingUsesThisEra: budget?.remainingUsesThisEra ?? null,
         remainingUsesThisGame: budget?.remainingUsesThisGame ?? null,
       }
